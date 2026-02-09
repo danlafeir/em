@@ -5,23 +5,21 @@ Copyright © 2025 NAME HERE <EMAIL ADDRESS>
 package metrics
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
 // MetricsCmd represents the metrics command
 var MetricsCmd = &cobra.Command{
 	Use:   "metrics",
-	Short: "A brief description of your command",
-	Long: `A longer description that spans multiple lines and likely contains examples
-and usage of using your command. For example:
+	Short: "Generate engineering metrics and reports",
+	Long: `Generate engineering metrics and reports from various data sources.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
+Available data sources:
+  jira    - JIRA Cloud agile metrics
+
+Use "devctl-em metrics [source] --help" for more information about a source.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("metrics called")
+		cmd.Help()
 	},
 }
 

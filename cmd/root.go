@@ -16,16 +16,23 @@ import (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:   "devctl-em",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
+	Short: "Engineering manager CLI tools for metrics and reporting",
+	Long: `devctl-em provides CLI tools for engineering managers to generate
+metrics reports and insights from JIRA and other sources.
 
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-	// Uncomment the following line if your bare application
-	// has an action associated with it:
-	// Run: func(cmd *cobra.Command, args []string) { },
+Features:
+  - JIRA agile metrics (cycle time, throughput, CFD, WIP)
+  - Monte Carlo forecasting for epic completion
+  - Automated report generation (HTML, CSV, Excel)
+
+Quick Start:
+  1. Configure JIRA connection:
+     devctl-em config set jira.domain mycompany
+     devctl-em config set jira.email user@company.com
+     export JIRA_API_TOKEN=your_token
+
+  2. Generate a report:
+     devctl-em metrics jira report --jql "project = MYPROJ"`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

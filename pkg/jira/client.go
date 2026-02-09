@@ -1,0 +1,339 @@
+package jira
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"math"
+	"math/rand"
+	"net/http"
+	"net/url"
+	"strconv"
+	"strings"
+	"time"
+)
+
+// Client is the main JIRA Cloud API client.
+type Client struct {
+	httpClient  *http.Client
+	credentials Credentials
+	rateLimiter *RateLimiter
+}
+
+// RateLimiter implements exponential backoff with jitter.
+type RateLimiter struct {
+	BaseDelay  time.Duration
+	MaxDelay   time.Duration
+	MaxRetries int
+}
+
+// NewClient creates a new JIRA Cloud API client.
+func NewClient(creds Credentials) *Client {
+	return &Client{
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		credentials: creds,
+		rateLimiter: &RateLimiter{
+			BaseDelay:  2 * time.Second,
+			MaxDelay:   30 * time.Second,
+			MaxRetries: 5,
+		},
+	}
+}
+
+// doRequest executes a request with authentication and rate limit handling.
+func (c *Client) doRequest(ctx context.Context, method, path string, query url.Values) ([]byte, error) {
+	fullURL := c.credentials.BaseURL() + path
+	if len(query) > 0 {
+		fullURL += "?" + query.Encode()
+	}
+
+	var lastErr error
+	for attempt := 0; attempt <= c.rateLimiter.MaxRetries; attempt++ {
+		req, err := http.NewRequestWithContext(ctx, method, fullURL, nil)
+		if err != nil {
+			return nil, fmt.Errorf("creating request: %w", err)
+		}
+
+		// Add Basic Auth header
+		auth := c.credentials.Email + ":" + c.credentials.APIToken
+		encoded := base64.StdEncoding.EncodeToString([]byte(auth))
+		req.Header.Set("Authorization", "Basic "+encoded)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Accept", "application/json")
+
+		resp, err := c.httpClient.Do(req)
+		if err != nil {
+			return nil, fmt.Errorf("executing request: %w", err)
+		}
+
+		body, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			return nil, fmt.Errorf("reading response: %w", err)
+		}
+
+		// Handle rate limiting (429)
+		if resp.StatusCode == 429 {
+			delay := c.calculateBackoff(attempt, resp.Header.Get("Retry-After"))
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(delay):
+				continue
+			}
+		}
+
+		// Handle errors
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			var errResp ErrorResponse
+			if json.Unmarshal(body, &errResp) == nil && (len(errResp.ErrorMessages) > 0 || len(errResp.Errors) > 0) {
+				msgs := errResp.ErrorMessages
+				for k, v := range errResp.Errors {
+					msgs = append(msgs, fmt.Sprintf("%s: %s", k, v))
+				}
+				return nil, fmt.Errorf("JIRA API error %d: %s", resp.StatusCode, strings.Join(msgs, "; "))
+			}
+			return nil, fmt.Errorf("JIRA API error %d: %s", resp.StatusCode, string(body))
+		}
+
+		return body, nil
+	}
+
+	if lastErr != nil {
+		return nil, fmt.Errorf("max retries exceeded: %w", lastErr)
+	}
+	return nil, fmt.Errorf("max retries exceeded")
+}
+
+// calculateBackoff computes delay with exponential backoff and jitter.
+func (c *Client) calculateBackoff(attempt int, retryAfter string) time.Duration {
+	// Use Retry-After header if provided
+	if retryAfter != "" {
+		if seconds, err := strconv.Atoi(retryAfter); err == nil {
+			return time.Duration(seconds) * time.Second
+		}
+	}
+
+	// Exponential backoff: base * 2^attempt
+	delay := float64(c.rateLimiter.BaseDelay) * math.Pow(2, float64(attempt))
+
+	// Add jitter (0.7 to 1.3 multiplier)
+	jitter := 0.7 + rand.Float64()*0.6
+	delay *= jitter
+
+	// Cap at maximum
+	if delay > float64(c.rateLimiter.MaxDelay) {
+		delay = float64(c.rateLimiter.MaxDelay)
+	}
+
+	return time.Duration(delay)
+}
+
+// SearchIssues performs a JQL search with pagination.
+func (c *Client) SearchIssues(ctx context.Context, jql string, opts SearchOptions) (*SearchResult, error) {
+	query := url.Values{}
+	query.Set("jql", jql)
+	query.Set("startAt", strconv.Itoa(opts.StartAt))
+	if opts.MaxResults > 0 {
+		query.Set("maxResults", strconv.Itoa(opts.MaxResults))
+	} else {
+		query.Set("maxResults", "100")
+	}
+	if opts.Fields != "" {
+		query.Set("fields", opts.Fields)
+	}
+	if opts.Expand != "" {
+		query.Set("expand", opts.Expand)
+	}
+
+	data, err := c.doRequest(ctx, "GET", "/rest/api/3/search", query)
+	if err != nil {
+		return nil, err
+	}
+
+	var result SearchResult
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, fmt.Errorf("parsing search result: %w", err)
+	}
+
+	return &result, nil
+}
+
+// SearchAllIssues fetches all issues matching the JQL query, handling pagination.
+func (c *Client) SearchAllIssues(ctx context.Context, jql string, fields string, expand string) ([]Issue, error) {
+	var allIssues []Issue
+	startAt := 0
+	maxResults := 100
+
+	for {
+		result, err := c.SearchIssues(ctx, jql, SearchOptions{
+			StartAt:    startAt,
+			MaxResults: maxResults,
+			Fields:     fields,
+			Expand:     expand,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		allIssues = append(allIssues, result.Issues...)
+
+		// Check if we've fetched all issues
+		if startAt+len(result.Issues) >= result.Total {
+			break
+		}
+		startAt += len(result.Issues)
+	}
+
+	return allIssues, nil
+}
+
+// GetIssueChangelog fetches the changelog for a specific issue.
+func (c *Client) GetIssueChangelog(ctx context.Context, issueKey string, startAt int) (*ChangelogResult, error) {
+	query := url.Values{}
+	query.Set("startAt", strconv.Itoa(startAt))
+	query.Set("maxResults", "100")
+
+	path := fmt.Sprintf("/rest/api/3/issue/%s/changelog", issueKey)
+	data, err := c.doRequest(ctx, "GET", path, query)
+	if err != nil {
+		return nil, err
+	}
+
+	var result ChangelogResult
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, fmt.Errorf("parsing changelog: %w", err)
+	}
+
+	return &result, nil
+}
+
+// GetFullChangelog fetches all changelog entries for an issue, handling pagination.
+func (c *Client) GetFullChangelog(ctx context.Context, issueKey string) ([]ChangelogEntry, error) {
+	var allEntries []ChangelogEntry
+	startAt := 0
+
+	for {
+		result, err := c.GetIssueChangelog(ctx, issueKey, startAt)
+		if err != nil {
+			return nil, err
+		}
+
+		allEntries = append(allEntries, result.Values...)
+
+		if startAt+len(result.Values) >= result.Total {
+			break
+		}
+		startAt += len(result.Values)
+	}
+
+	return allEntries, nil
+}
+
+// GetIssueWithChangelog fetches an issue with its full changelog.
+func (c *Client) GetIssueWithChangelog(ctx context.Context, issueKey string) (*IssueWithHistory, error) {
+	// First fetch the issue
+	result, err := c.SearchIssues(ctx, fmt.Sprintf("key = %s", issueKey), SearchOptions{
+		MaxResults: 1,
+		Fields:     "*all",
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Issues) == 0 {
+		return nil, fmt.Errorf("issue not found: %s", issueKey)
+	}
+
+	issue := result.Issues[0]
+
+	// Fetch full changelog
+	changelog, err := c.GetFullChangelog(ctx, issueKey)
+	if err != nil {
+		return nil, err
+	}
+
+	// Extract status transitions
+	transitions := ExtractStatusTransitions(changelog)
+
+	return &IssueWithHistory{
+		Issue:       issue,
+		Transitions: transitions,
+	}, nil
+}
+
+// ExtractStatusTransitions parses changelog entries to find status changes.
+func ExtractStatusTransitions(entries []ChangelogEntry) []StatusTransition {
+	var transitions []StatusTransition
+
+	for _, entry := range entries {
+		for _, item := range entry.Items {
+			if item.Field == "status" {
+				transitions = append(transitions, StatusTransition{
+					Timestamp:  entry.Created.Time,
+					FromStatus: item.FromString,
+					ToStatus:   item.ToString,
+				})
+			}
+		}
+	}
+
+	return transitions
+}
+
+// FetchIssuesWithHistory fetches all issues matching JQL and their changelogs.
+// This is the main entry point for metrics calculations.
+func (c *Client) FetchIssuesWithHistory(ctx context.Context, jql string, progressFn func(current, total int)) ([]IssueWithHistory, error) {
+	// First fetch all issues with changelog expansion
+	issues, err := c.SearchAllIssues(ctx, jql, "*all", "changelog")
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]IssueWithHistory, 0, len(issues))
+
+	for i, issue := range issues {
+		if progressFn != nil {
+			progressFn(i+1, len(issues))
+		}
+
+		var transitions []StatusTransition
+
+		// If changelog was included in expansion, use it
+		if issue.Changelog != nil {
+			transitions = ExtractStatusTransitions(issue.Changelog.Histories)
+
+			// If changelog was paginated, fetch the rest
+			if issue.Changelog.Total > len(issue.Changelog.Histories) {
+				moreEntries, err := c.GetFullChangelog(ctx, issue.Key)
+				if err != nil {
+					return nil, fmt.Errorf("fetching changelog for %s: %w", issue.Key, err)
+				}
+				transitions = ExtractStatusTransitions(moreEntries)
+			}
+		} else {
+			// Fetch changelog separately
+			entries, err := c.GetFullChangelog(ctx, issue.Key)
+			if err != nil {
+				return nil, fmt.Errorf("fetching changelog for %s: %w", issue.Key, err)
+			}
+			transitions = ExtractStatusTransitions(entries)
+		}
+
+		result = append(result, IssueWithHistory{
+			Issue:       issue,
+			Transitions: transitions,
+		})
+	}
+
+	return result, nil
+}
+
+// TestConnection verifies the JIRA credentials work.
+func (c *Client) TestConnection(ctx context.Context) error {
+	_, err := c.doRequest(ctx, "GET", "/rest/api/3/myself", nil)
+	return err
+}
