@@ -28,7 +28,7 @@ var JiraCmd = &cobra.Command{
 Configure your JIRA connection first:
   devctl-em config set jira.domain mycompany
   devctl-em config set jira.email user@company.com
-  devctl-em secrets set jira.api_token your_api_token
+  devctl-em config set jira.api_token
 
 Examples:
   devctl-em metrics jira cycle-time --jql "project = MYPROJ"
@@ -78,7 +78,7 @@ func getJiraClient() (*jira.Client, error) {
 		return nil, fmt.Errorf("JIRA email not configured. Run: devctl-em config set jira.email <email>")
 	}
 	if token == "" {
-		return nil, fmt.Errorf("JIRA API token not configured. Run: devctl-em secrets set jira.api_token <token>")
+		return nil, fmt.Errorf("JIRA API token not configured. Run: devctl-em config set jira.api_token")
 	}
 
 	return jira.NewClient(jira.Credentials{

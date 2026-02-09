@@ -48,7 +48,7 @@ Quick Start:
   1. Configure JIRA connection:
      devctl-em config set jira.domain mycompany
      devctl-em config set jira.email user@company.com
-     devctl-em secrets set jira.api_token
+     devctl-em config set jira.api_token
 
   2. Generate a report:
      devctl-em metrics jira report --jql "project = MYPROJ"`,
