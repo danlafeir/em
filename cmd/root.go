@@ -1,6 +1,5 @@
 /*
 Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
@@ -8,10 +7,30 @@ import (
 	"os"
 
 	"devctl-em/cmd/metrics"
+	"github.com/danlafeir/devctl/pkg/update"
 	"github.com/spf13/cobra"
 )
 
+// These are provided by main.go
+var BuildGitHash string
+var BuildLatestHash string
 
+// updateConfig returns the update configuration for devctl-em
+var updateConfig = update.Config{
+	AppName: "devctl-em",
+	Repo:    "danlafeir/devctl-em",
+}
+
+
+
+// updateCmd represents the update command
+var updateCmd = &cobra.Command{
+	Use:   "update",
+	Short: "Update devctl-em to the latest version",
+	Run: func(cmd *cobra.Command, args []string) {
+		update.RunUpdateWithConfig(updateConfig, BuildGitHash, cmd)
+	},
+}
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
@@ -29,7 +48,7 @@ Quick Start:
   1. Configure JIRA connection:
      devctl-em config set jira.domain mycompany
      devctl-em config set jira.email user@company.com
-     export JIRA_API_TOKEN=your_token
+     devctl-em secrets set jira.api_token
 
   2. Generate a report:
      devctl-em metrics jira report --jql "project = MYPROJ"`,
@@ -45,18 +64,8 @@ func Execute() {
 }
 
 func init() {
-	// Add metrics command
 	rootCmd.AddCommand(metrics.MetricsCmd)
-
-	// Here you will define your flags and configuration settings.
-	// Cobra supports persistent flags, which, if defined here,
-	// will be global for your application.
-
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.devctl-em.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	rootCmd.AddCommand(updateCmd)
 }
 
 

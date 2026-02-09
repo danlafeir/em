@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/danlafeir/devctl/pkg/secrets"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -27,7 +28,7 @@ var JiraCmd = &cobra.Command{
 Configure your JIRA connection first:
   devctl-em config set jira.domain mycompany
   devctl-em config set jira.email user@company.com
-  export JIRA_API_TOKEN=your_api_token
+  devctl-em secrets set jira.api_token your_api_token
 
 Examples:
   devctl-em metrics jira cycle-time --jql "project = MYPROJ"
@@ -63,7 +64,12 @@ func init() {
 func getJiraClient() (*jira.Client, error) {
 	domain := viper.GetString("jira.domain")
 	email := viper.GetString("jira.email")
-	token := os.Getenv("JIRA_API_TOKEN")
+
+	// Try to get token from secrets (keychain) first, fall back to env var
+	token, err := secrets.DefaultSecretsProvider.Read("jira", "api_token")
+	if err != nil || token == "" {
+		token = os.Getenv("JIRA_API_TOKEN")
+	}
 
 	if domain == "" {
 		return nil, fmt.Errorf("JIRA domain not configured. Run: devctl-em config set jira.domain <domain>")
@@ -72,7 +78,7 @@ func getJiraClient() (*jira.Client, error) {
 		return nil, fmt.Errorf("JIRA email not configured. Run: devctl-em config set jira.email <email>")
 	}
 	if token == "" {
-		return nil, fmt.Errorf("JIRA_API_TOKEN environment variable not set")
+		return nil, fmt.Errorf("JIRA API token not configured. Run: devctl-em secrets set jira.api_token <token>")
 	}
 
 	return jira.NewClient(jira.Credentials{
