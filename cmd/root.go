@@ -66,6 +66,10 @@ func Execute() {
 func init() {
 	rootCmd.AddCommand(metrics.MetricsCmd)
 	rootCmd.AddCommand(updateCmd)
+
+	// Disable default commands
+	rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
+	rootCmd.CompletionOptions.DisableDefaultCmd = true
 }
 
 
