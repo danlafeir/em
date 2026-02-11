@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
 	"devctl-em/pkg/jira"
 	"devctl-em/pkg/metrics"
@@ -403,7 +402,7 @@ func runManualForecast(ctx context.Context, client *jira.Client, remaining int) 
 	}
 
 	if config.Deadline == nil {
-		if defaultDeadline := viper.GetString("montecarlo.deadline"); defaultDeadline != "" {
+		if defaultDeadline := getConfigString("montecarlo.deadline"); defaultDeadline != "" {
 			if deadline, err := time.Parse("2006-01-02", defaultDeadline); err == nil {
 				config.Deadline = &deadline
 			}

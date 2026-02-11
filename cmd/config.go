@@ -17,14 +17,19 @@ import (
 	"golang.org/x/term"
 )
 
-// secretKeys is the explicit list of keys that should be stored in the keychain.
-var secretKeys = map[string]bool{
-	"api_token": true,
-}
+// configNamespace is the namespace for devctl-em config within ~/.devctl/config.yaml
+const configNamespace = "em"
 
 // isSecretKey returns true if the key should be stored in the keychain.
 func isSecretKey(key string) bool {
-	return secretKeys[strings.ToLower(key)]
+	// secretKeys is the explicit list of keys that should be stored in the keychain.
+	secretKeys := map[string]bool{
+		"api_token": true,
+	}
+	// Check the last part of the key (e.g., "api_token" from "jira.api_token")
+	parts := strings.Split(key, ".")
+	lastPart := parts[len(parts)-1]
+	return secretKeys[strings.ToLower(lastPart)]
 }
 
 // configCmd represents the config command
@@ -34,8 +39,8 @@ var configCmd = &cobra.Command{
 	Long: `Manage configuration values for devctl-em CLI.
 
 Use this command to get, set, or delete configuration values.
-Regular config is stored in ~/.devctl-em/config.yaml
-Sensitive values (tokens, passwords, secrets, keys) are stored in the system keychain.
+Regular config is stored in ~/.devctl/config.yaml under the 'em' namespace.
+Sensitive values (like api_token) are stored in the system keychain.
 
 Examples:
   devctl-em config set jira.domain mycompany
@@ -51,7 +56,7 @@ Examples:
 
 // getCmd represents the get command
 var getCmd = &cobra.Command{
-	Use:   "get [command.key]",
+	Use:   "get [key]",
 	Short: "Get a configuration value",
 	Long: `Get a configuration value. Secrets are retrieved from the system keychain.
 
@@ -61,16 +66,13 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		key := args[0]
-		parts := strings.Split(key, ".")
-		if len(parts) != 2 {
-			log.Fatal("Key must be in format 'command.key'")
-		}
 
-		command, configKey := parts[0], parts[1]
-
-		if isSecretKey(configKey) {
-			// Get from keychain
-			value, err := secrets.DefaultSecretsProvider.Read(command, configKey)
+		if isSecretKey(key) {
+			// Get from keychain - use first part as command
+			parts := strings.Split(key, ".")
+			command := parts[0]
+			secretKey := strings.Join(parts[1:], ".")
+			value, err := secrets.DefaultSecretsProvider.Read(command, secretKey)
 			if err != nil {
 				log.Fatalf("Failed to read secret: %v", err)
 			}
@@ -83,16 +85,12 @@ Examples:
 		}
 
 		// Get from config file
-		if err := config.InitConfig("devctl-em"); err != nil {
+		if err := config.InitConfig(""); err != nil {
 			log.Fatalf("Failed to initialize config: %v", err)
 		}
 
-		configData, err := config.FetchConfig(command)
-		if err != nil {
-			log.Fatalf("Failed to fetch config: %v", err)
-		}
-
-		if value, exists := configData[configKey]; exists {
+		value, exists := config.GetConfigValue(configNamespace, key)
+		if exists {
 			fmt.Printf("%s = %v\n", key, value)
 		} else {
 			fmt.Printf("Configuration key '%s' not found\n", key)
@@ -102,7 +100,7 @@ Examples:
 
 // setCmd represents the set command
 var setCmd = &cobra.Command{
-	Use:   "set [command.key] [value]",
+	Use:   "set [key] [value]",
 	Short: "Set a configuration value",
 	Long: `Set a configuration value. Secrets are stored in the system keychain.
 
@@ -115,17 +113,11 @@ Examples:
 	Args: cobra.RangeArgs(1, 2),
 	Run: func(cmd *cobra.Command, args []string) {
 		key := args[0]
-		parts := strings.Split(key, ".")
-		if len(parts) != 2 {
-			log.Fatal("Key must be in format 'command.key'")
-		}
-
-		command, configKey := parts[0], parts[1]
 
 		var value string
 		if len(args) == 2 {
 			value = args[1]
-		} else if isSecretKey(configKey) {
+		} else if isSecretKey(key) {
 			// Prompt for secret value
 			fmt.Printf("Enter value for %s: ", key)
 			if term.IsTerminal(int(syscall.Stdin)) {
@@ -147,9 +139,12 @@ Examples:
 			log.Fatal("Value required for non-secret keys")
 		}
 
-		if isSecretKey(configKey) {
-			// Store in keychain
-			if err := secrets.DefaultSecretsProvider.Write(command, configKey, value); err != nil {
+		if isSecretKey(key) {
+			// Store in keychain - use first part as command
+			parts := strings.Split(key, ".")
+			command := parts[0]
+			secretKey := strings.Join(parts[1:], ".")
+			if err := secrets.DefaultSecretsProvider.Write(command, secretKey, value); err != nil {
 				log.Fatalf("Failed to store secret: %v", err)
 			}
 			fmt.Printf("Set %s (stored in keychain)\n", key)
@@ -157,11 +152,11 @@ Examples:
 		}
 
 		// Store in config file
-		if err := config.InitConfig("devctl-em"); err != nil {
+		if err := config.InitConfig(""); err != nil {
 			log.Fatalf("Failed to initialize config: %v", err)
 		}
 
-		config.SetConfigValue(command, configKey, value)
+		config.SetConfigValue(configNamespace, key, value)
 		if err := config.WriteConfig(); err != nil {
 			log.Fatalf("Failed to write config: %v", err)
 		}
@@ -172,7 +167,7 @@ Examples:
 
 // deleteCmd represents the delete command
 var deleteCmd = &cobra.Command{
-	Use:   "delete [command.key]",
+	Use:   "delete [key]",
 	Short: "Delete a configuration value",
 	Long: `Delete a configuration value. Secrets are removed from the system keychain.
 
@@ -182,16 +177,13 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		key := args[0]
-		parts := strings.Split(key, ".")
-		if len(parts) != 2 {
-			log.Fatal("Key must be in format 'command.key'")
-		}
 
-		command, configKey := parts[0], parts[1]
-
-		if isSecretKey(configKey) {
-			// Delete from keychain
-			if err := secrets.DefaultSecretsProvider.Delete(command, configKey); err != nil {
+		if isSecretKey(key) {
+			// Delete from keychain - use first part as command
+			parts := strings.Split(key, ".")
+			command := parts[0]
+			secretKey := strings.Join(parts[1:], ".")
+			if err := secrets.DefaultSecretsProvider.Delete(command, secretKey); err != nil {
 				log.Fatalf("Failed to delete secret: %v", err)
 			}
 			fmt.Printf("Deleted secret '%s'\n", key)
@@ -199,11 +191,11 @@ Examples:
 		}
 
 		// Delete from config file
-		if err := config.InitConfig("devctl-em"); err != nil {
+		if err := config.InitConfig(""); err != nil {
 			log.Fatalf("Failed to initialize config: %v", err)
 		}
 
-		if err := config.DeleteConfigValue(command, configKey); err != nil {
+		if err := config.DeleteConfigValue(configNamespace, key); err != nil {
 			log.Fatalf("Failed to delete config: %v", err)
 		}
 		fmt.Printf("Deleted configuration key '%s'\n", key)
@@ -212,74 +204,52 @@ Examples:
 
 // listCmd represents the list command
 var listCmd = &cobra.Command{
-	Use:   "list [command]",
+	Use:   "list",
 	Short: "List configuration values",
-	Long: `List all configuration values, optionally filtered by command.
+	Long: `List all configuration values.
 
 Examples:
-  devctl-em config list          # list all config
-  devctl-em config list jira     # list jira config and secrets`,
-	Args: cobra.MaximumNArgs(1),
+  devctl-em config list`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := config.InitConfig("devctl-em"); err != nil {
+		if err := config.InitConfig(""); err != nil {
 			log.Fatalf("Failed to initialize config: %v", err)
 		}
 
-		configs, err := config.ListConfig()
+		// Get the em namespace config
+		configData, err := config.FetchConfig(configNamespace)
 		if err != nil {
-			log.Fatalf("Failed to list config: %v", err)
+			log.Fatalf("Failed to fetch config: %v", err)
 		}
 
-		filterCmd := ""
-		if len(args) == 1 {
-			filterCmd = args[0]
-		}
+		// Print config values recursively
+		printConfigMap("", configData)
 
-		// Print config file values
-		for command, keys := range configs {
-			if filterCmd != "" && command != filterCmd {
-				continue
-			}
-			configData, _ := config.FetchConfig(command)
-			for _, key := range keys {
-				if value, ok := configData[key]; ok {
-					fmt.Printf("%s.%s = %v\n", command, key, value)
-				}
-			}
-		}
-
-		// Print secrets (just the keys, not values)
-		if filterCmd != "" {
-			secretKeys, err := secrets.DefaultSecretsProvider.List(filterCmd)
+		// Print secrets for common commands
+		for _, command := range []string{"jira", "github", "gitlab"} {
+			secretKeys, err := secrets.DefaultSecretsProvider.List(command)
 			if err == nil && len(secretKeys) > 0 {
 				for _, key := range secretKeys {
-					fmt.Printf("%s.%s = <secret>\n", filterCmd, key)
-				}
-			}
-		} else {
-			// List secrets for known commands
-			for command := range configs {
-				secretKeys, err := secrets.DefaultSecretsProvider.List(command)
-				if err == nil {
-					for _, key := range secretKeys {
-						fmt.Printf("%s.%s = <secret>\n", command, key)
-					}
-				}
-			}
-			// Also check common commands that might only have secrets
-			for _, command := range []string{"jira", "github", "gitlab"} {
-				if _, exists := configs[command]; exists {
-					continue
-				}
-				secretKeys, err := secrets.DefaultSecretsProvider.List(command)
-				if err == nil && len(secretKeys) > 0 {
-					for _, key := range secretKeys {
-						fmt.Printf("%s.%s = <secret>\n", command, key)
-					}
+					fmt.Printf("%s.%s = <secret>\n", command, key)
 				}
 			}
 		}
 	},
+}
+
+// printConfigMap recursively prints config values
+func printConfigMap(prefix string, data map[string]interface{}) {
+	for key, value := range data {
+		fullKey := key
+		if prefix != "" {
+			fullKey = prefix + "." + key
+		}
+		if nested, ok := value.(map[string]interface{}); ok {
+			printConfigMap(fullKey, nested)
+		} else {
+			fmt.Printf("%s = %v\n", fullKey, value)
+		}
+	}
 }
 
 func init() {

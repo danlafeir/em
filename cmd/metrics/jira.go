@@ -5,13 +5,38 @@ import (
 	"os"
 	"time"
 
+	"github.com/danlafeir/devctl/pkg/config"
 	"github.com/danlafeir/devctl/pkg/secrets"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 
 	"devctl-em/pkg/jira"
 	"devctl-em/pkg/workflow"
 )
+
+// configNamespace is the namespace for devctl-em config
+const configNamespace = "em"
+
+func initConfig() {
+	config.InitConfig("")
+}
+
+// getConfigString returns a string config value from the em namespace.
+func getConfigString(key string) string {
+	initConfig()
+	val, ok := config.GetConfigValue(configNamespace, key)
+	if !ok {
+		return ""
+	}
+	s, _ := val.(string)
+	return s
+}
+
+// getConfigValue returns a config value from the em namespace.
+func getConfigAny(key string) interface{} {
+	initConfig()
+	val, _ := config.GetConfigValue(configNamespace, key)
+	return val
+}
 
 // JiraCmd is the parent command for all JIRA metrics.
 var JiraCmd = &cobra.Command{
@@ -62,8 +87,8 @@ func init() {
 
 // getJiraClient creates a JIRA client from configuration.
 func getJiraClient() (*jira.Client, error) {
-	domain := viper.GetString("jira.domain")
-	email := viper.GetString("jira.email")
+	domain := getConfigString("jira.domain")
+	email := getConfigString("jira.email")
 
 	// Try to get token from secrets (keychain) first, fall back to env var
 	token, err := secrets.DefaultSecretsProvider.Read("jira", "api_token")
@@ -93,7 +118,7 @@ func getJQL() (string, error) {
 	if jqlFlag != "" {
 		return jqlFlag, nil
 	}
-	jql := viper.GetString("jira.default_jql")
+	jql := getConfigString("jira.default_jql")
 	if jql == "" {
 		return "", fmt.Errorf("no JQL query provided. Use --jql flag or set jira.default_jql in config")
 	}
@@ -130,18 +155,18 @@ func getDateRange() (time.Time, time.Time, error) {
 // getWorkflowMapper creates a workflow mapper from configuration.
 func getWorkflowMapper() *workflow.Mapper {
 	// Check for custom workflow configuration
-	stages := viper.Get("workflow.stages")
+	stages := getConfigAny("workflow.stages")
 	if stages == nil {
 		// Use default configuration
 		return workflow.NewMapper(workflow.DefaultConfig())
 	}
 
 	// Parse custom configuration
-	config := workflow.DefaultConfig()
+	wfConfig := workflow.DefaultConfig()
 
 	// Override with custom stages if provided
 	if stagesSlice, ok := stages.([]interface{}); ok {
-		config.Stages = nil
+		wfConfig.Stages = nil
 		for i, s := range stagesSlice {
 			if stageMap, ok := s.(map[string]interface{}); ok {
 				stage := workflow.Stage{Order: i}
@@ -159,20 +184,20 @@ func getWorkflowMapper() *workflow.Mapper {
 						}
 					}
 				}
-				config.Stages = append(config.Stages, stage)
+				wfConfig.Stages = append(wfConfig.Stages, stage)
 			}
 		}
 	}
 
 	// Override cycle time config if provided
-	if started := viper.GetString("workflow.cycle_time.started"); started != "" {
-		config.CycleTime.Started = started
+	if started := getConfigString("workflow.cycle_time.started"); started != "" {
+		wfConfig.CycleTime.Started = started
 	}
-	if completed := viper.GetString("workflow.cycle_time.completed"); completed != "" {
-		config.CycleTime.Completed = completed
+	if completed := getConfigString("workflow.cycle_time.completed"); completed != "" {
+		wfConfig.CycleTime.Completed = completed
 	}
 
-	return workflow.NewMapper(config)
+	return workflow.NewMapper(wfConfig)
 }
 
 // getOutputPath returns the output file path with default extension.
