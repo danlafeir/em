@@ -106,11 +106,17 @@ func getJiraClient() (*jira.Client, error) {
 		return nil, fmt.Errorf("JIRA API token not configured. Run: devctl-em config set jira.api_token")
 	}
 
-	return jira.NewClient(jira.Credentials{
+	creds := jira.Credentials{
 		Domain:   domain,
 		Email:    email,
 		APIToken: token,
-	}), nil
+	}
+
+	if override := os.Getenv("JIRA_BASE_URL"); override != "" {
+		creds.BaseURLOverride = override
+	}
+
+	return jira.NewClient(creds), nil
 }
 
 // getJQL returns the JQL query to use (flag or config default).

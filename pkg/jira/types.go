@@ -5,13 +5,17 @@ import "time"
 
 // Credentials holds JIRA Cloud authentication details.
 type Credentials struct {
-	Domain   string // e.g., "mycompany" (becomes mycompany.atlassian.net)
-	Email    string // User email
-	APIToken string // API token from id.atlassian.com/manage/api-tokens
+	Domain          string // e.g., "mycompany" (becomes mycompany.atlassian.net)
+	Email           string // User email
+	APIToken        string // API token from id.atlassian.com/manage/api-tokens
+	BaseURLOverride string // If set, use instead of https://{domain}.atlassian.net
 }
 
 // BaseURL returns the JIRA Cloud base URL.
 func (c *Credentials) BaseURL() string {
+	if c.BaseURLOverride != "" {
+		return c.BaseURLOverride
+	}
 	return "https://" + c.Domain + ".atlassian.net"
 }
 
