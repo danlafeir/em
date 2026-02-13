@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/spf13/cobra"
 
+	"devctl-em/internal/output"
 	"devctl-em/pkg/metrics"
 	"devctl-em/pkg/workflow"
 )
@@ -160,7 +160,7 @@ func runThroughput(cmd *cobra.Command, args []string) error {
 }
 
 func exportThroughputCSV(result metrics.ThroughputResult, path string) error {
-	file, err := os.Create(path)
+	file, err := output.Create(path)
 	if err != nil {
 		return err
 	}

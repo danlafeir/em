@@ -3,6 +3,8 @@ package charts
 
 import (
 	"image/color"
+	"os"
+	"path/filepath"
 	"time"
 
 	"gonum.org/v1/plot"
@@ -33,6 +35,9 @@ func DefaultConfig() Config {
 // SaveChart saves a plot to the specified file.
 // Format is determined by file extension (.png, .svg, .pdf).
 func SaveChart(p *plot.Plot, filename string, cfg Config) error {
+	if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
+		return err
+	}
 	return p.Save(cfg.Width, cfg.Height, filename)
 }
 

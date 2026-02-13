@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"os"
 	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"devctl-em/internal/output"
 	"devctl-em/pkg/metrics"
 	"devctl-em/pkg/workflow"
 )
@@ -237,7 +237,7 @@ func calculateBurnup(histories []workflow.IssueHistory, from, to time.Time) []Bu
 }
 
 func exportBurnupCSV(data []BurnupDataPoint, path string) error {
-	file, err := os.Create(path)
+	file, err := output.Create(path)
 	if err != nil {
 		return err
 	}

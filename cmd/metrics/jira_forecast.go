@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"os"
 	"sort"
 	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"devctl-em/internal/output"
 	"devctl-em/pkg/jira"
 	"devctl-em/pkg/metrics"
 	"devctl-em/pkg/workflow"
@@ -429,7 +429,7 @@ func runManualForecast(ctx context.Context, client *jira.Client, remaining int) 
 }
 
 func exportForecastsCSV(forecasts []EpicForecast, path string) error {
-	file, err := os.Create(path)
+	file, err := output.Create(path)
 	if err != nil {
 		return err
 	}

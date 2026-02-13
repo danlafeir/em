@@ -5,17 +5,19 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
 	"github.com/xuri/excelize/v2"
 
+	"devctl-em/internal/output"
 	"devctl-em/pkg/metrics"
 )
 
 // CycleTimeCSV exports cycle time results to CSV.
 func CycleTimeCSV(results []metrics.CycleTimeResult, path string) error {
-	file, err := os.Create(path)
+	file, err := output.Create(path)
 	if err != nil {
 		return err
 	}
@@ -51,7 +53,7 @@ func CycleTimeCSV(results []metrics.CycleTimeResult, path string) error {
 
 // ThroughputCSV exports throughput results to CSV.
 func ThroughputCSV(result metrics.ThroughputResult, path string) error {
-	file, err := os.Create(path)
+	file, err := output.Create(path)
 	if err != nil {
 		return err
 	}
@@ -145,6 +147,9 @@ func CycleTimeExcel(results []metrics.CycleTimeResult, stats metrics.CycleTimeSt
 
 	f.SetCellStyle(statsSheet, "A1", "B1", headerStyle)
 
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
 	return f.SaveAs(path)
 }
 
@@ -186,12 +191,15 @@ func ThroughputExcel(result metrics.ThroughputResult, path string) error {
 	f.SetCellValue(dataSheet, fmt.Sprintf("A%d", summaryRow+2), "Average")
 	f.SetCellValue(dataSheet, fmt.Sprintf("B%d", summaryRow+2), result.AvgCount)
 
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
 	return f.SaveAs(path)
 }
 
 // HTMLReport generates an HTML report with metrics and charts.
 func HTMLReport(title string, sections []HTMLSection, path string) error {
-	file, err := os.Create(path)
+	file, err := output.Create(path)
 	if err != nil {
 		return err
 	}

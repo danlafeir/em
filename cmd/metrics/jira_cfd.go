@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	"os"
 	"strconv"
 
 	"github.com/spf13/cobra"
 
+	"devctl-em/internal/output"
 	"devctl-em/pkg/metrics"
 	"devctl-em/pkg/workflow"
 )
@@ -126,7 +126,7 @@ func runCFD(cmd *cobra.Command, args []string) error {
 }
 
 func exportCFDCSV(result metrics.CFDResult, path string) error {
-	file, err := os.Create(path)
+	file, err := output.Create(path)
 	if err != nil {
 		return err
 	}

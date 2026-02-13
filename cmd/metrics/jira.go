@@ -9,6 +9,7 @@ import (
 	"github.com/danlafeir/devctl/pkg/secrets"
 	"github.com/spf13/cobra"
 
+	"devctl-em/internal/output"
 	"devctl-em/pkg/jira"
 	"devctl-em/pkg/workflow"
 )
@@ -211,7 +212,7 @@ func getOutputPath(defaultName, defaultExt string) string {
 	if outputFlag != "" {
 		return outputFlag
 	}
-	return defaultName + "." + defaultExt
+	return output.Path(defaultName + "." + defaultExt)
 }
 
 // getOutputFormat returns the output format.
