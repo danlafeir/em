@@ -72,7 +72,7 @@ Examples:
 			parts := strings.Split(key, ".")
 			command := parts[0]
 			secretKey := strings.Join(parts[1:], ".")
-			value, err := secrets.DefaultSecretsProvider.Read(command, secretKey)
+			value, err := secrets.Read(command, secretKey)
 			if err != nil {
 				log.Fatalf("Failed to read secret: %v", err)
 			}
@@ -144,7 +144,7 @@ Examples:
 			parts := strings.Split(key, ".")
 			command := parts[0]
 			secretKey := strings.Join(parts[1:], ".")
-			if err := secrets.DefaultSecretsProvider.Write(command, secretKey, value); err != nil {
+			if err := secrets.Write(command, secretKey, value); err != nil {
 				log.Fatalf("Failed to store secret: %v", err)
 			}
 			fmt.Printf("Set %s (stored in keychain)\n", key)
@@ -183,7 +183,7 @@ Examples:
 			parts := strings.Split(key, ".")
 			command := parts[0]
 			secretKey := strings.Join(parts[1:], ".")
-			if err := secrets.DefaultSecretsProvider.Delete(command, secretKey); err != nil {
+			if err := secrets.Delete(command, secretKey); err != nil {
 				log.Fatalf("Failed to delete secret: %v", err)
 			}
 			fmt.Printf("Deleted secret '%s'\n", key)
@@ -227,7 +227,7 @@ Examples:
 
 		// Print secrets for common commands
 		for _, command := range []string{"jira", "github", "gitlab"} {
-			secretKeys, err := secrets.DefaultSecretsProvider.List(command)
+			secretKeys, err := secrets.List(command)
 			if err == nil && len(secretKeys) > 0 {
 				for _, key := range secretKeys {
 					fmt.Printf("%s.%s = <secret>\n", command, key)

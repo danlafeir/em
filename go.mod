@@ -3,7 +3,7 @@ module devctl-em
 go 1.24.3
 
 require (
-	github.com/danlafeir/devctl v0.0.0-20260209152439-42313a3d49b6
+	github.com/danlafeir/devctl v0.0.0-20260213191800-fe9623d62ca6
 	github.com/spf13/cobra v1.10.2
 	github.com/xuri/excelize/v2 v2.10.0
 	golang.org/x/term v0.39.0
@@ -21,6 +21,7 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/golang/freetype v0.0.0-20170609003504-e2365dfdc4a0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
+	github.com/keybase/dbus v0.0.0-20220506165403-5aa21ea2c23a // indirect
 	github.com/keybase/go-keychain v0.0.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect

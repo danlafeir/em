@@ -92,7 +92,7 @@ func getJiraClient() (*jira.Client, error) {
 	email := getConfigString("jira.email")
 
 	// Try to get token from secrets (keychain) first, fall back to env var
-	token, err := secrets.DefaultSecretsProvider.Read("jira", "api_token")
+	token, err := secrets.Read("jira", "api_token")
 	if err != nil || token == "" {
 		token = os.Getenv("JIRA_API_TOKEN")
 	}
