@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"devctl-em/internal/mockjira"
-	"devctl-em/pkg/jira"
+	"devctl-em/internal/jira"
 )
 
 func TestCredentials_BaseURL_Override(t *testing.T) {

@@ -10,8 +10,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"devctl-em/internal/output"
-	"devctl-em/pkg/metrics"
-	"devctl-em/pkg/workflow"
+	"devctl-em/internal/charts"
+	"devctl-em/internal/metrics"
+	"devctl-em/internal/workflow"
 )
 
 var cycleTimeCmd = &cobra.Command{
@@ -128,14 +129,26 @@ func runCycleTime(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Max:     %.1f\n", statsDays.Max)
 	fmt.Printf("  Std Dev: %.1f\n", statsDays.StdDev)
 
-	// Export to CSV
-	outputFormat := getOutputFormat("csv")
-	if outputFormat == "csv" || outputFormat == "xlsx" {
+	// Export results
+	outputFormat := getOutputFormat("png")
+	switch outputFormat {
+	case "csv", "xlsx":
 		outputPath := getOutputPath("cycle-time", "csv")
 		if err := exportCycleTimeCSV(results, outputPath); err != nil {
 			return fmt.Errorf("failed to export CSV: %w", err)
 		}
 		fmt.Printf("\nExported to %s\n", outputPath)
+	case "png":
+		cfg := charts.DefaultConfig()
+		p, err := charts.CycleTimeScatter(results, nil, cfg)
+		if err != nil {
+			return fmt.Errorf("failed to generate chart: %w", err)
+		}
+		outputPath := getOutputPath("cycle-time", "png")
+		if err := charts.SaveChart(p, outputPath, cfg); err != nil {
+			return fmt.Errorf("failed to save chart: %w", err)
+		}
+		fmt.Printf("\nChart saved to %s\n", outputPath)
 	}
 
 	return nil

@@ -12,7 +12,7 @@ import (
 	"github.com/xuri/excelize/v2"
 
 	"devctl-em/internal/output"
-	"devctl-em/pkg/metrics"
+	"devctl-em/internal/metrics"
 )
 
 // CycleTimeCSV exports cycle time results to CSV.

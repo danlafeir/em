@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"devctl-em/pkg/workflow"
+	"devctl-em/internal/workflow"
 )
 
 // CFDDataPoint represents a single point in the Cumulative Flow Diagram.

@@ -10,8 +10,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"devctl-em/internal/output"
-	"devctl-em/pkg/jira"
-	"devctl-em/pkg/workflow"
+	"devctl-em/internal/jira"
+	"devctl-em/internal/workflow"
 )
 
 // configNamespace is the namespace for devctl-em config

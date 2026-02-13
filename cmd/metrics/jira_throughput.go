@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"devctl-em/internal/output"
-	"devctl-em/pkg/metrics"
-	"devctl-em/pkg/workflow"
+	"devctl-em/internal/metrics"
+	"devctl-em/internal/workflow"
 )
 
 var throughputCmd = &cobra.Command{

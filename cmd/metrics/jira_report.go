@@ -8,10 +8,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"devctl-em/pkg/charts"
-	"devctl-em/pkg/export"
-	pkgmetrics "devctl-em/pkg/metrics"
-	"devctl-em/pkg/workflow"
+	"devctl-em/internal/charts"
+	"devctl-em/internal/export"
+	pkgmetrics "devctl-em/internal/metrics"
+	"devctl-em/internal/workflow"
 )
 
 var reportCmd = &cobra.Command{

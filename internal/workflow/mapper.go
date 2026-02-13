@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"devctl-em/pkg/jira"
+	"devctl-em/internal/jira"
 )
 
 // Stage represents a workflow stage that groups multiple JIRA statuses.

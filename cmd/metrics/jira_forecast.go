@@ -11,9 +11,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"devctl-em/internal/output"
-	"devctl-em/pkg/jira"
-	"devctl-em/pkg/metrics"
-	"devctl-em/pkg/workflow"
+	"devctl-em/internal/jira"
+	"devctl-em/internal/metrics"
+	"devctl-em/internal/workflow"
 )
 
 var forecastCmd = &cobra.Command{

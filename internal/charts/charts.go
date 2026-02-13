@@ -3,6 +3,7 @@ package charts
 
 import (
 	"image/color"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -12,8 +13,28 @@ import (
 	"gonum.org/v1/plot/vg"
 	"gonum.org/v1/plot/vg/draw"
 
-	"devctl-em/pkg/metrics"
+	"devctl-em/internal/metrics"
 )
+
+// plotBorder draws a rectangular outline around the data area.
+type plotBorder struct{}
+
+func (plotBorder) Plot(c draw.Canvas, _ *plot.Plot) {
+	c.StrokeLines(draw.LineStyle{
+		Color: color.Gray{Y: 0},
+		Width: vg.Points(1),
+	}, []vg.Point{
+		{X: c.Min.X, Y: c.Min.Y},
+		{X: c.Max.X, Y: c.Min.Y},
+		{X: c.Max.X, Y: c.Max.Y},
+		{X: c.Min.X, Y: c.Max.Y},
+		{X: c.Min.X, Y: c.Min.Y},
+	})
+}
+
+func (plotBorder) DataRange() (float64, float64, float64, float64) {
+	return math.Inf(1), math.Inf(-1), math.Inf(1), math.Inf(-1)
+}
 
 // Config holds common chart configuration.
 type Config struct {
@@ -50,6 +71,9 @@ func CycleTimeScatter(data []metrics.CycleTimeResult, percentiles []float64, cfg
 	}
 	p.X.Label.Text = "Completion Date"
 	p.Y.Label.Text = "Cycle Time (days)"
+	p.X.Padding = vg.Points(20)
+	p.Y.Padding = vg.Points(20)
+	p.Add(plotBorder{})
 
 	// Convert data to XY points
 	pts := make(plotter.XYs, len(data))
@@ -120,6 +144,9 @@ func ThroughputLine(data metrics.ThroughputResult, cfg Config) (*plot.Plot, erro
 	}
 	p.X.Label.Text = "Period"
 	p.Y.Label.Text = "Items Completed"
+	p.X.Padding = vg.Points(20)
+	p.Y.Padding = vg.Points(20)
+	p.Add(plotBorder{})
 
 	// Convert data to XY points
 	pts := make(plotter.XYs, len(data.Periods))
@@ -176,6 +203,9 @@ func CFDStackedArea(data metrics.CFDResult, cfg Config) (*plot.Plot, error) {
 	}
 	p.X.Label.Text = "Date"
 	p.Y.Label.Text = "Issue Count"
+	p.X.Padding = vg.Points(20)
+	p.Y.Padding = vg.Points(20)
+	p.Add(plotBorder{})
 
 	// Define colors for stages (from done to backlog)
 	stageColors := []color.Color{
@@ -229,6 +259,9 @@ func BurnupChart(completed, scope []plotter.XY, forecastBands []ForecastBand, cf
 	}
 	p.X.Label.Text = "Date"
 	p.Y.Label.Text = "Items"
+	p.X.Padding = vg.Points(20)
+	p.Y.Padding = vg.Points(20)
+	p.Add(plotBorder{})
 
 	// Scope line
 	scopeLine, err := plotter.NewLine(plotter.XYs(scope))
