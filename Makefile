@@ -38,4 +38,4 @@ test:
 	go test ./...
 
 mock-jira:
-	go run ./internal/mockjira/cmd/mockjira $(ARGS)
+	go run ./internal/testutil/mockjira/cmd $(ARGS)

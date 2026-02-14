@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"devctl-em/internal/mockjira"
+	"devctl-em/internal/testutil/mockjira"
 	"devctl-em/internal/jira"
 )
 
