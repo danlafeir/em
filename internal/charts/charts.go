@@ -8,14 +8,10 @@ import (
 	"path/filepath"
 	"time"
 
-	"io"
-
 	"gonum.org/v1/plot"
 	"gonum.org/v1/plot/plotter"
 	"gonum.org/v1/plot/vg"
 	"gonum.org/v1/plot/vg/draw"
-	"gonum.org/v1/plot/vg/vgimg"
-	"gonum.org/v1/plot/vg/vgsvg"
 
 	"devctl-em/internal/metrics"
 )
@@ -57,53 +53,13 @@ func DefaultConfig() Config {
 	}
 }
 
-// SaveChart saves a plot to the specified file with a border around the entire image.
-// Format is determined by file extension (.png, .svg).
+// SaveChart saves a plot to the specified file.
+// Format is determined by file extension (.png, .svg, .pdf).
 func SaveChart(p *plot.Plot, filename string, cfg Config) error {
 	if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
 		return err
 	}
-
-	var wt io.WriterTo
-	switch filepath.Ext(filename) {
-	case ".png":
-		c := vgimg.New(cfg.Width, cfg.Height)
-		dc := draw.New(c)
-		p.Draw(dc)
-		drawImageBorder(dc)
-		wt = vgimg.PngCanvas{Canvas: c}
-	case ".svg":
-		c := vgsvg.New(cfg.Width, cfg.Height)
-		dc := draw.New(c)
-		p.Draw(dc)
-		drawImageBorder(dc)
-		wt = c
-	default:
-		return p.Save(cfg.Width, cfg.Height, filename)
-	}
-
-	f, err := os.Create(filename)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	_, err = wt.WriteTo(f)
-	return err
-}
-
-// drawImageBorder draws a border around the full image canvas.
-func drawImageBorder(dc draw.Canvas) {
-	inset := vg.Points(0.5)
-	dc.StrokeLines(draw.LineStyle{
-		Color: color.Gray{Y: 0},
-		Width: vg.Points(1),
-	}, []vg.Point{
-		{X: dc.Min.X + inset, Y: dc.Min.Y + inset},
-		{X: dc.Max.X - inset, Y: dc.Min.Y + inset},
-		{X: dc.Max.X - inset, Y: dc.Max.Y - inset},
-		{X: dc.Min.X + inset, Y: dc.Max.Y - inset},
-		{X: dc.Min.X + inset, Y: dc.Min.Y + inset},
-	})
+	return p.Save(cfg.Width, cfg.Height, filename)
 }
 
 // CycleTimeScatter creates a scatter plot of cycle times over time.
@@ -115,6 +71,8 @@ func CycleTimeScatter(data []metrics.CycleTimeResult, percentiles []float64, cfg
 	}
 	p.X.Label.Text = "Completion Date"
 	p.Y.Label.Text = "Cycle Time (days)"
+	p.X.Padding = vg.Points(20)
+	p.Y.Padding = vg.Points(20)
 	p.Add(plotBorder{})
 
 	// Convert data to XY points
