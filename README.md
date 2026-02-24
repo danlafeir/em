@@ -69,6 +69,25 @@ To generate an API token:
 2. Click "Create API token"
 3. Copy the token and set it as `JIRA_API_TOKEN`
 
+### Project Scoping (Optional)
+
+Set a default project to automatically scope all metrics to child issues of active (unresolved) epics:
+
+```bash
+devctl-em config set jira.project MYPROJ
+```
+
+With this set, you no longer need to pass `--jql` to every command:
+
+```bash
+# These just work — scoped to active epics in MYPROJ
+devctl-em metrics jira cycle-time
+devctl-em metrics jira forecast
+devctl-em metrics jira report -o report.html
+```
+
+JQL resolution order: `--jql` flag > `jira.default_jql` config > `jira.project` config.
+
 ### Workflow Mapping (Optional)
 
 Create `~/.devctl-em/config.yaml` to customize workflow stage mapping:
