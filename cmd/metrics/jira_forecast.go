@@ -256,6 +256,49 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client) error {
 		}
 	}
 
+	// Aggregate forecast across all active epics
+	totalRemaining := 0
+	for _, f := range forecasts {
+		if f.Error == "" && f.RemainingItems > 0 {
+			totalRemaining += f.RemainingItems
+		}
+	}
+
+	if totalRemaining > 0 {
+		config := metrics.MonteCarloConfig{
+			Trials:          trialsFlag,
+			SimulationStart: time.Now(),
+		}
+
+		if deadlineFlag != "" {
+			if deadline, err := time.Parse("2006-01-02", deadlineFlag); err == nil {
+				config.Deadline = &deadline
+			}
+		}
+
+		simulator := metrics.NewMonteCarloSimulator(config, weeklyThroughput)
+		aggResult, err := simulator.Run(totalRemaining)
+		if err == nil {
+			fmt.Printf("\n\nAggregate Forecast (all active epics)\n")
+			fmt.Printf("=====================================\n")
+			fmt.Printf("Total remaining items: %d\n", totalRemaining)
+			fmt.Printf("Average throughput:    %.1f items/week\n\n", aggResult.AvgThroughput)
+			fmt.Printf("  %-20s  %-12s  %s\n", "Confidence", "Date", "Days")
+			fmt.Printf("  %-20s  %-12s  %s\n", "----------", "----", "----")
+			for _, p := range []int{50, 70, 85, 95} {
+				fmt.Printf("  %-20s  %-12s  %d\n",
+					fmt.Sprintf("%d%%", p),
+					aggResult.Percentiles[p].Format("Jan 02, 2006"),
+					aggResult.PercentileDays[p])
+			}
+
+			if aggResult.DeadlineDate != nil {
+				fmt.Printf("\n  Deadline: %s\n", aggResult.DeadlineDate.Format("January 2, 2006"))
+				fmt.Printf("  Probability of meeting deadline: %.1f%%\n", aggResult.DeadlineConfidence*100)
+			}
+		}
+	}
+
 	// Export to CSV
 	outputPath := getOutputPath("epic-forecasts", "csv")
 	if err := exportForecastsCSV(forecasts, outputPath); err == nil {
