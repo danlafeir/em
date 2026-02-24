@@ -27,7 +27,7 @@ func New(ds *Dataset) *Server {
 	}
 	s.mux = http.NewServeMux()
 	s.mux.HandleFunc("/rest/api/3/myself", s.handleMyself)
-	s.mux.HandleFunc("/rest/api/3/search", s.handleSearch)
+	s.mux.HandleFunc("/rest/api/3/search/jql", s.handleSearch)
 	s.mux.HandleFunc("/rest/api/3/issue/", s.handleIssue)
 	return s
 }

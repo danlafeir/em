@@ -150,7 +150,7 @@ func (c *Client) SearchIssues(ctx context.Context, jql string, opts SearchOption
 		query.Set("expand", opts.Expand)
 	}
 
-	data, err := c.doRequest(ctx, "GET", "/rest/api/3/search", query)
+	data, err := c.doRequest(ctx, "GET", "/rest/api/3/search/jql", query)
 	if err != nil {
 		return nil, err
 	}
