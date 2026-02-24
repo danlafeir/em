@@ -12,26 +12,26 @@ CLI tools for engineering managers to generate JIRA agile metrics reports.
 - **Burn-up Charts** - Track progress with forecast confidence bands
 - **HTML Reports** - Comprehensive dashboards with all metrics
 
+## Installation
+
+```sh
+curl -sSL https://raw.githubusercontent.com/danlafeir/devctl-em/main/scripts/install.sh | sh
+```
+
+This script will detect your OS and architecture, download the latest pre-built binary, and install it to `~/.local/bin`. Ensure `~/.local/bin` is in your PATH.
+
 ## Requirements
 
-- Go 1.21+
+- Go 1.21+ (for building from source)
 - JIRA Cloud instance with API access
 
 ## Building
 
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/devctl-em.git
-cd devctl-em
-
-# Download dependencies
-go mod download
-
-# Build the binary
-go build -o devctl-em .
-
-# Or install to $GOPATH/bin
-go install .
+make build          # Build for current platform
+make build-all      # Cross-compile for all supported OS/ARCH
+make install        # Install to ~/.local/bin
+make test           # Run all tests
 ```
 
 ## Testing

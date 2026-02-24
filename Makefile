@@ -6,7 +6,7 @@ GOFILES=$(shell find . -type f -name '*.go' -not -path "./vendor/*")
 GOOS?=$(shell go env GOOS)
 GOARCH?=$(shell go env GOARCH)
 
-.PHONY: all build build-all clean test mock-jira
+.PHONY: all build build-all install clean test run mock-jira
 
 # Usage:
 #   make build           # builds for your current system, output: bin/devctl-em (+ bin/devctl-em-<os>-<arch>-<hash>)
@@ -31,11 +31,19 @@ build-all:
 	CGO_ENABLED=1 GOOS=darwin GOARCH=amd64 go build -ldflags "-X 'main.BuildGitHash=$$GIT_HASH' -X 'main.BuildLatestHash=$$GIT_HASH'" -o $(BUILD_DIR)/$(APP_NAME)-darwin-amd64-$$GIT_HASH ./main.go; \
 	CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 go build -ldflags "-X 'main.BuildGitHash=$$GIT_HASH' -X 'main.BuildLatestHash=$$GIT_HASH'" -o $(BUILD_DIR)/$(APP_NAME)-darwin-arm64-$$GIT_HASH ./main.go
 
+install: build
+	@mkdir -p ~/.local/bin
+	@cp $(BUILD_DIR)/$(APP_NAME) ~/.local/bin/$(APP_NAME)
+	@echo "Installed $(APP_NAME) to ~/.local/bin/$(APP_NAME)"
+
 clean:
 	rm -rf $(BUILD_DIR)
 
 test:
 	go test ./...
+
+run:
+	go run ./main.go $(ARGS)
 
 mock-jira:
 	go run ./internal/testutil/mockjira/cmd $(ARGS)
