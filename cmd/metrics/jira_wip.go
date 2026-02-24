@@ -58,7 +58,7 @@ func runWIP(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get JQL
-	jql, err := getJQL()
+	jql, err := resolveJQL(ctx, client)
 	if err != nil {
 		return err
 	}

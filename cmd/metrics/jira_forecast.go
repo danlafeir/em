@@ -100,8 +100,8 @@ func runForecast(cmd *cobra.Command, args []string) error {
 func runAllEpicsForecast(ctx context.Context, client *jira.Client) error {
 	fmt.Println("Discovering open epics...")
 
-	// Get base JQL for project scope
-	baseJQL, err := getJQL()
+	// Get project-level JQL for epic discovery (not children JQL)
+	baseJQL, err := getProjectJQL()
 	if err != nil {
 		return err
 	}
@@ -123,11 +123,17 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client) error {
 	fmt.Printf("Found %d open epics\n\n", len(epics))
 
 	// Get historical throughput data (shared across all forecasts)
+	// Use resolveJQL for throughput to scope to active epic children
+	throughputBaseJQL, err := resolveJQL(ctx, client)
+	if err != nil {
+		return err
+	}
+
 	historyEnd := time.Now()
 	historyStart := historyEnd.AddDate(0, 0, -historyDaysFlag)
 
 	throughputJQL := fmt.Sprintf("(%s) AND resolved >= %s AND resolved <= %s",
-		baseJQL, historyStart.Format("2006-01-02"), historyEnd.Format("2006-01-02"))
+		throughputBaseJQL, historyStart.Format("2006-01-02"), historyEnd.Format("2006-01-02"))
 
 	fmt.Println("Fetching historical throughput data...")
 	completedIssues, err := client.FetchIssuesWithHistory(ctx, throughputJQL, func(current, total int) {
@@ -344,7 +350,7 @@ func runSingleEpicForecast(ctx context.Context, client *jira.Client, epicKey str
 
 func runManualForecast(ctx context.Context, client *jira.Client, remaining int) error {
 	// Get historical throughput data
-	jql, err := getJQL()
+	jql, err := resolveJQL(ctx, client)
 	if err != nil {
 		return err
 	}

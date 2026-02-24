@@ -58,7 +58,7 @@ func runBurnup(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get JQL and date range
-	jql, err := getJQL()
+	jql, err := resolveJQL(ctx, client)
 	if err != nil {
 		return err
 	}

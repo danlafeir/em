@@ -1,8 +1,10 @@
 package metrics
 
 import (
+	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/danlafeir/devctl/pkg/config"
@@ -55,6 +57,12 @@ Configure your JIRA connection first:
   devctl-em config set jira.domain mycompany
   devctl-em config set jira.email user@company.com
   devctl-em config set jira.api_token
+
+Set a project to automatically scope metrics to active epics:
+  devctl-em config set jira.project MYPROJ
+
+JQL resolution order: --jql flag > jira.default_jql config > jira.project config.
+When jira.project is set, metrics are scoped to child issues of active (unresolved) epics.
 
 Examples:
   devctl-em metrics jira cycle-time --jql "project = MYPROJ"
@@ -120,16 +128,71 @@ func getJiraClient() (*jira.Client, error) {
 	return jira.NewClient(creds), nil
 }
 
-// getJQL returns the JQL query to use (flag or config default).
+// getJQL returns the JQL query from the flag or config default (no API calls).
 func getJQL() (string, error) {
 	if jqlFlag != "" {
 		return jqlFlag, nil
 	}
 	jql := getConfigString("jira.default_jql")
 	if jql == "" {
-		return "", fmt.Errorf("no JQL query provided. Use --jql flag or set jira.default_jql in config")
+		return "", fmt.Errorf("no JQL query provided. Use --jql flag or set jira.default_jql or jira.project in config")
 	}
 	return jql, nil
+}
+
+// resolveJQL returns the JQL query to use, with fallback to jira.project config.
+// When jira.project is set, it queries JIRA for active epics and builds a
+// children JQL to scope metrics to child issues of those epics.
+func resolveJQL(ctx context.Context, client *jira.Client) (string, error) {
+	// 1. --jql flag takes priority
+	if jqlFlag != "" {
+		return jqlFlag, nil
+	}
+
+	// 2. jira.default_jql config
+	if jql := getConfigString("jira.default_jql"); jql != "" {
+		return jql, nil
+	}
+
+	// 3. jira.project config — query for active epics
+	project := getConfigString("jira.project")
+	if project == "" {
+		return "", fmt.Errorf("no JQL query provided. Use --jql flag or set jira.default_jql or jira.project in config")
+	}
+
+	epicJQL := fmt.Sprintf("project = %s AND issuetype = Epic AND resolution IS EMPTY", project)
+	epics, err := client.SearchAllIssues(ctx, epicJQL, "key", "")
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch active epics for project %s: %w", project, err)
+	}
+
+	if len(epics) == 0 {
+		return "", fmt.Errorf("no active epics found in project %s", project)
+	}
+
+	keys := make([]string, len(epics))
+	for i, e := range epics {
+		keys[i] = e.Key
+	}
+	keyList := strings.Join(keys, ", ")
+
+	return fmt.Sprintf("\"Epic Link\" in (%s) OR parent in (%s)", keyList, keyList), nil
+}
+
+// getProjectJQL returns a simple "project = PROJ" JQL from config.
+// Used by forecast for epic discovery where the full children JQL is not needed.
+func getProjectJQL() (string, error) {
+	if jqlFlag != "" {
+		return jqlFlag, nil
+	}
+	if jql := getConfigString("jira.default_jql"); jql != "" {
+		return jql, nil
+	}
+	project := getConfigString("jira.project")
+	if project == "" {
+		return "", fmt.Errorf("no JQL query provided. Use --jql flag or set jira.default_jql or jira.project in config")
+	}
+	return fmt.Sprintf("project = %s", project), nil
 }
 
 // getDateRange returns the from/to date range.
