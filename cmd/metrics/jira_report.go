@@ -134,7 +134,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 				Completed: r.EndDate.Format("Jan 02"),
 			})
 		}
-		longestCTPlot = charts.LongestCycleTimeTable(ctRows)
+		longestCTPlot = charts.LongestCycleTimeTable(ctRows, fmt.Sprintf("Longest Cycle Times — %s to %s", from.Format("Jan 02"), to.Format("Jan 02")))
 	}
 
 	// 4. Forecast table

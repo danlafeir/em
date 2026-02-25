@@ -308,9 +308,12 @@ type LongestCycleTimeRow struct {
 }
 
 // LongestCycleTimeTable creates a plot that renders a longest cycle time table.
-func LongestCycleTimeTable(rows []LongestCycleTimeRow) *plot.Plot {
+func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string) *plot.Plot {
 	p := plot.New()
-	p.Title.Text = "Longest Cycle Times"
+	p.Title.Text = title
+	if p.Title.Text == "" {
+		p.Title.Text = "Longest Cycle Times"
+	}
 	p.HideAxes()
 
 	tableRows := make([][]string, len(rows))
