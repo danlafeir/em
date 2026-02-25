@@ -554,3 +554,10 @@ func maxInt(values []int) int {
 	}
 	return max
 }
+
+func truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
+}

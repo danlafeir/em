@@ -13,6 +13,7 @@ import (
 	"gonum.org/v1/plot/vg/draw"
 
 	"devctl-em/internal/metrics"
+
 )
 
 // Config holds common chart configuration.
@@ -173,135 +174,6 @@ func ThroughputLine(data metrics.ThroughputResult, cfg Config) (*plot.Plot, erro
 	return p, nil
 }
 
-// CFDStackedArea creates a stacked area chart for Cumulative Flow Diagram.
-func CFDStackedArea(data metrics.CFDResult, cfg Config) (*plot.Plot, error) {
-	p := plot.New()
-	p.Title.Text = cfg.Title
-	if p.Title.Text == "" {
-		p.Title.Text = "Cumulative Flow Diagram"
-	}
-	p.X.Label.Text = "Date"
-	p.Y.Label.Text = "Issue Count"
-	p.X.Padding = vg.Points(20)
-	p.Y.Padding = vg.Points(20)
-
-
-	// Define colors for stages (from done to backlog)
-	stageColors := []color.Color{
-		color.RGBA{R: 76, G: 175, B: 80, A: 200},  // Done - Green
-		color.RGBA{R: 139, G: 195, B: 74, A: 200}, // Testing - Light Green
-		color.RGBA{R: 255, G: 193, B: 7, A: 200},  // Review - Amber
-		color.RGBA{R: 255, G: 152, B: 0, A: 200},  // In Progress - Orange
-		color.RGBA{R: 33, G: 150, B: 243, A: 200}, // Analysis - Blue
-		color.RGBA{R: 158, G: 158, B: 158, A: 200}, // Backlog - Gray
-	}
-
-	// Create stacked areas for each stage (in reverse order for proper stacking)
-	for i := len(data.StageNames) - 1; i >= 0; i-- {
-		stageName := data.StageNames[i]
-
-		pts := make(plotter.XYs, len(data.DataPoints))
-		for j, dp := range data.DataPoints {
-			pts[j].X = float64(dp.Date.Unix())
-			pts[j].Y = float64(dp.Stages[stageName])
-		}
-
-		line, err := plotter.NewLine(pts)
-		if err != nil {
-			continue
-		}
-
-		colorIdx := i
-		if colorIdx >= len(stageColors) {
-			colorIdx = len(stageColors) - 1
-		}
-		line.LineStyle.Color = stageColors[colorIdx]
-		line.LineStyle.Width = vg.Points(2)
-		line.FillColor = stageColors[colorIdx]
-
-		p.Add(line)
-		p.Legend.Add(stageName, line)
-	}
-
-	p.Legend.Top = true
-	p.X.Tick.Marker = dateTicker{}
-
-	return p, nil
-}
-
-// BurnupChart creates a burn-up chart with scope and completed lines.
-func BurnupChart(completed, scope []plotter.XY, forecastBands []ForecastBand, cfg Config) (*plot.Plot, error) {
-	p := plot.New()
-	p.Title.Text = cfg.Title
-	if p.Title.Text == "" {
-		p.Title.Text = "Burn-up Chart"
-	}
-	p.X.Label.Text = "Date"
-	p.Y.Label.Text = "Items"
-	p.X.Padding = vg.Points(20)
-	p.Y.Padding = vg.Points(20)
-
-
-	// Scope line
-	scopeLine, err := plotter.NewLine(plotter.XYs(scope))
-	if err != nil {
-		return nil, err
-	}
-	scopeLine.LineStyle.Color = color.RGBA{R: 158, G: 158, B: 158, A: 255}
-	scopeLine.LineStyle.Width = vg.Points(2)
-	p.Add(scopeLine)
-	p.Legend.Add("Scope", scopeLine)
-
-	// Completed line
-	completedLine, err := plotter.NewLine(plotter.XYs(completed))
-	if err != nil {
-		return nil, err
-	}
-	completedLine.LineStyle.Color = color.RGBA{R: 66, G: 133, B: 244, A: 255}
-	completedLine.LineStyle.Width = vg.Points(2)
-	p.Add(completedLine)
-	p.Legend.Add("Completed", completedLine)
-
-	// Forecast bands
-	bandColors := map[int]color.Color{
-		50: color.RGBA{R: 76, G: 175, B: 80, A: 100},
-		85: color.RGBA{R: 255, G: 193, B: 7, A: 100},
-		95: color.RGBA{R: 244, G: 67, B: 54, A: 100},
-	}
-
-	for _, band := range forecastBands {
-		pts := make(plotter.XYs, len(band.Points))
-		for i, pt := range band.Points {
-			pts[i] = pt
-		}
-
-		line, err := plotter.NewLine(pts)
-		if err != nil {
-			continue
-		}
-
-		if c, ok := bandColors[band.Percentile]; ok {
-			line.LineStyle.Color = c
-		}
-		line.LineStyle.Width = vg.Points(1.5)
-		line.LineStyle.Dashes = []vg.Length{vg.Points(5), vg.Points(3)}
-
-		p.Add(line)
-		p.Legend.Add(formatPercentile(band.Percentile), line)
-	}
-
-	p.Legend.Top = true
-	p.X.Tick.Marker = dateTicker{}
-
-	return p, nil
-}
-
-// ForecastBand represents a forecast confidence band.
-type ForecastBand struct {
-	Percentile int
-	Points     []plotter.XY
-}
-
 // dateTicker formats X axis as dates.
 type dateTicker struct{}
 
@@ -373,6 +245,3 @@ func intToString(n int) string {
 	return result
 }
 
-func formatPercentile(p int) string {
-	return intToString(p) + "% forecast"
-}

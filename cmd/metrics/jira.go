@@ -49,9 +49,7 @@ var JiraCmd = &cobra.Command{
 
   - Cycle time analysis with scatter plots and histograms
   - Throughput trends over time
-  - Cumulative Flow Diagrams (CFD)
-  - Burn-up charts with Monte Carlo forecasting
-  - WIP aging analysis
+  - Monte Carlo forecasting
 
 Configure your JIRA connection first:
   devctl-em config set jira.domain mycompany

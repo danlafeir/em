@@ -22,7 +22,6 @@ var reportCmd = &cobra.Command{
 Includes:
   - Cycle time analysis with scatter plot
   - Throughput trends
-  - Work-in-progress analysis
   - Monte Carlo forecast (if applicable)
 
 Example:
@@ -74,10 +73,8 @@ func runReport(cmd *cobra.Command, args []string) error {
 	fmt.Printf("JQL: %s\n", jql)
 	fmt.Printf("Date range: %s to %s\n\n", from.Format("2006-01-02"), to.Format("2006-01-02"))
 
-	// Fetch all issues (both completed and open)
+	// Fetch completed issues for cycle time and throughput
 	fmt.Printf("Fetching issues from JIRA...\n")
-
-	// Completed issues for cycle time and throughput
 	jqlCompleted := fmt.Sprintf("(%s) AND resolved >= %s AND resolved <= %s",
 		jql, from.Format("2006-01-02"), to.Format("2006-01-02"))
 
@@ -89,17 +86,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println()
 
-	// Open issues for WIP
-	jqlOpen := fmt.Sprintf("(%s) AND resolution IS EMPTY", jql)
-	openIssues, err := client.FetchIssuesWithHistory(ctx, jqlOpen, func(current, total int) {
-		fmt.Printf("\rProcessing open issues: %d/%d...", current, total)
-	})
-	if err != nil {
-		return fmt.Errorf("failed to fetch open issues: %w", err)
-	}
-	fmt.Println()
-
-	fmt.Printf("\nFound %d completed issues and %d open issues\n\n", len(completedIssues), len(openIssues))
+	fmt.Printf("\nFound %d completed issues\n\n", len(completedIssues))
 
 	// Get workflow mapper
 	mapper := getWorkflowMapper()
@@ -108,11 +95,6 @@ func runReport(cmd *cobra.Command, args []string) error {
 	completedHistories := make([]workflow.IssueHistory, len(completedIssues))
 	for i, issue := range completedIssues {
 		completedHistories[i] = mapper.MapIssueHistory(issue)
-	}
-
-	openHistories := make([]workflow.IssueHistory, len(openIssues))
-	for i, issue := range openIssues {
-		openHistories[i] = mapper.MapIssueHistory(issue)
 	}
 
 	// Prepare report sections
@@ -168,72 +150,30 @@ func runReport(cmd *cobra.Command, args []string) error {
 		})
 	}
 
-	// 3. WIP Analysis
-	fmt.Printf("Calculating WIP metrics...\n")
-	wipCalc := pkgmetrics.NewWIPCalculator(mapper)
-	wipResult := wipCalc.Calculate(openHistories, from, to)
+	// 3. Forecast (if there's remaining work)
+	if len(throughputResult.Periods) > 0 {
+		// Count open issues for forecast
+		jqlOpen := fmt.Sprintf("(%s) AND resolution IS EMPTY", jql)
+		openIssues, err := client.SearchAllIssues(ctx, jqlOpen, "key", "")
+		if err == nil && len(openIssues) > 0 {
+			fmt.Printf("Running Monte Carlo forecast...\n")
 
-	if len(wipResult.CurrentWIP) > 0 {
-		thresholds := pkgmetrics.DefaultAgingThresholds()
-		healthy, warning, critical := pkgmetrics.CategorizeByAge(wipResult.CurrentWIP, thresholds)
+			weeklyThroughput := pkgmetrics.GetWeeklyThroughputValues(throughputResult)
 
-		wipHTML := fmt.Sprintf(`
-            <div class="stat-grid">
-                <div class="stat-card">
-                    <div class="stat-value">%d</div>
-                    <div class="stat-label">Total WIP</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" style="color: #28a745">%d</div>
-                    <div class="stat-label">Healthy</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" style="color: #ffc107">%d</div>
-                    <div class="stat-label">Warning</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" style="color: #dc3545">%d</div>
-                    <div class="stat-label">Critical</div>
-                </div>
-            </div>
-        `, len(wipResult.CurrentWIP), len(healthy), len(warning), len(critical))
-
-		// Add critical items table if any
-		if len(critical) > 0 {
-			wipHTML += `<h3>Critical Aging Items</h3><table><tr><th>Issue</th><th>Stage</th><th>Age (days)</th></tr>`
-			for _, item := range critical {
-				ageDays := int(item.Age.Hours() / 24)
-				wipHTML += fmt.Sprintf(`<tr><td>%s</td><td>%s</td><td>%d</td></tr>`,
-					item.Key, item.Stage, ageDays)
+			mcConfig := pkgmetrics.MonteCarloConfig{
+				Trials:          10000,
+				SimulationStart: time.Now(),
 			}
-			wipHTML += `</table>`
-		}
 
-		sections = append(sections, export.HTMLSection{
-			Title:   "Work-In-Progress",
-			Content: wipHTML,
-		})
-	}
+			simulator := pkgmetrics.NewMonteCarloSimulator(mcConfig, weeklyThroughput)
+			forecast, err := simulator.Run(len(openIssues))
 
-	// 4. Forecast (if there's remaining work)
-	if len(openHistories) > 0 && len(throughputResult.Periods) > 0 {
-		fmt.Printf("Running Monte Carlo forecast...\n")
-
-		weeklyThroughput := pkgmetrics.GetWeeklyThroughputValues(throughputResult)
-
-		config := pkgmetrics.MonteCarloConfig{
-			Trials:          10000,
-			SimulationStart: time.Now(),
-		}
-
-		simulator := pkgmetrics.NewMonteCarloSimulator(config, weeklyThroughput)
-		forecast, err := simulator.Run(len(openHistories))
-
-		if err == nil {
-			sections = append(sections, export.HTMLSection{
-				Title:   "Completion Forecast",
-				Content: export.FormatForecastHTML(forecast),
-			})
+			if err == nil {
+				sections = append(sections, export.HTMLSection{
+					Title:   "Completion Forecast",
+					Content: export.FormatForecastHTML(forecast),
+				})
+			}
 		}
 	}
 

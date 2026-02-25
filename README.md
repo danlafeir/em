@@ -6,10 +6,7 @@ CLI tools for engineering managers to generate JIRA agile metrics reports.
 
 - **Cycle Time Analysis** - Scatter plots and statistics for issue completion times
 - **Throughput Metrics** - Track team delivery velocity over time
-- **Cumulative Flow Diagram (CFD)** - Visualize work distribution across stages
-- **WIP Aging** - Identify stale items and bottlenecks
 - **Monte Carlo Forecasting** - Probabilistic completion predictions for epics
-- **Burn-up Charts** - Track progress with forecast confidence bands
 - **HTML Reports** - Comprehensive dashboards with all metrics
 
 ## Installation
@@ -162,29 +159,6 @@ devctl-em metrics jira throughput \
 
 Frequency options: `daily`, `weekly`, `biweekly`, `monthly`
 
-### Cumulative Flow Diagram
-
-Visualize work distribution across workflow stages:
-
-```bash
-devctl-em metrics jira cfd --jql "project = MYPROJ"
-```
-
-### WIP Aging
-
-Identify stale work items:
-
-```bash
-# Show current WIP with aging analysis
-devctl-em metrics jira wip --jql "project = MYPROJ"
-
-# Custom thresholds (days)
-devctl-em metrics jira wip \
-  --jql "project = MYPROJ" \
-  --warning 7 \
-  --critical 14
-```
-
 ### Monte Carlo Forecast
 
 Predict epic completion dates using Monte Carlo simulation:
@@ -207,14 +181,6 @@ Output includes probability distribution:
 - **50th percentile** - 50% chance of completion by this date
 - **85th percentile** - 85% chance (common planning target)
 - **95th percentile** - 95% chance (conservative estimate)
-
-### Burn-up Chart
-
-Track progress with forecast confidence bands:
-
-```bash
-devctl-em metrics jira burnup --epic MYPROJ-123
-```
 
 ### Comprehensive Report
 
@@ -257,10 +223,6 @@ devctl-em metrics jira forecast \
 ### Team Health Check
 
 ```bash
-# Check for aging work items
-devctl-em metrics jira wip \
-  --jql "project = MYPROJ AND assignee in membersOf('my-team')"
-
 # Analyze cycle time trends
 devctl-em metrics jira cycle-time \
   --jql "project = MYPROJ" \
