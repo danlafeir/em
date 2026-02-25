@@ -187,12 +187,14 @@ type ForecastRow struct {
 	Forecast95 string
 }
 
-// tablePlotter renders a table as text annotations on a plot canvas.
-type tablePlotter struct {
-	rows []ForecastRow
+// genericTablePlotter renders a table as text annotations on a plot canvas.
+type genericTablePlotter struct {
+	headers  []string
+	colFracs []float64
+	rows     [][]string
 }
 
-func (t tablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
+func (t genericTablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
 	hdlr := text.Plain{
 		Fonts: font.DefaultCache,
 	}
@@ -215,10 +217,6 @@ func (t tablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
 	rowHeight := vg.Points(18)
 	headerHeight := vg.Points(22)
 
-	// Column X positions as fractions of width
-	colFracs := []float64{0.02, 0.15, 0.55, 0.65, 0.77, 0.88}
-	headers := []string{"Epic", "Summary", "Left", "50%", "85%", "95%"}
-
 	// Draw header background
 	headerY := c.Max.Y - headerHeight
 	headerPath := vg.Path{}
@@ -231,9 +229,9 @@ func (t tablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
 	c.Fill(headerPath)
 
 	// Draw header text
-	for i, h := range headers {
+	for i, h := range t.headers {
 		pt := vg.Point{
-			X: c.Min.X + vg.Length(colFracs[i])*width,
+			X: c.Min.X + vg.Length(t.colFracs[i])*width,
 			Y: headerY + vg.Points(5),
 		}
 		c.FillText(headerStyle, pt, h)
@@ -255,23 +253,9 @@ func (t tablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
 			c.Fill(bgPath)
 		}
 
-		summary := row.Summary
-		if len(summary) > 30 {
-			summary = summary[:27] + "..."
-		}
-
-		vals := []string{
-			row.EpicKey,
-			summary,
-			fmt.Sprintf("%d", row.Remaining),
-			row.Forecast50,
-			row.Forecast85,
-			row.Forecast95,
-		}
-
-		for i, v := range vals {
+		for i, v := range row {
 			pt := vg.Point{
-				X: c.Min.X + vg.Length(colFracs[i])*width,
+				X: c.Min.X + vg.Length(t.colFracs[i])*width,
 				Y: y + vg.Points(4),
 			}
 			c.FillText(bodyStyle, pt, v)
@@ -279,7 +263,7 @@ func (t tablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
 	}
 }
 
-func (t tablePlotter) DataRange() (xmin, xmax, ymin, ymax float64) {
+func (t genericTablePlotter) DataRange() (xmin, xmax, ymin, ymax float64) {
 	return 0, 1, 0, 1
 }
 
@@ -289,35 +273,88 @@ func ForecastTable(rows []ForecastRow) *plot.Plot {
 	p.Title.Text = "Epic Forecast"
 	p.HideAxes()
 
-	p.Add(tablePlotter{rows: rows})
+	tableRows := make([][]string, len(rows))
+	for i, row := range rows {
+		summary := row.Summary
+		if len(summary) > 30 {
+			summary = summary[:27] + "..."
+		}
+		tableRows[i] = []string{
+			row.EpicKey,
+			summary,
+			fmt.Sprintf("%d", row.Remaining),
+			row.Forecast50,
+			row.Forecast85,
+			row.Forecast95,
+		}
+	}
+
+	p.Add(genericTablePlotter{
+		headers:  []string{"Epic", "Summary", "Left", "50%", "85%", "95%"},
+		colFracs: []float64{0.02, 0.15, 0.55, 0.65, 0.77, 0.88},
+		rows:     tableRows,
+	})
 
 	return p
 }
 
-// CombinedReport renders cycle time, throughput, and forecast plots into a single PNG.
-func CombinedReport(cycleTimePlot, throughputPlot, forecastPlot *plot.Plot, path string) error {
+// LongestCycleTimeRow holds data for one row in the longest cycle time table.
+type LongestCycleTimeRow struct {
+	Key       string
+	Summary   string
+	Days      string
+	Started   string
+	Completed string
+}
+
+// LongestCycleTimeTable creates a plot that renders a longest cycle time table.
+func LongestCycleTimeTable(rows []LongestCycleTimeRow) *plot.Plot {
+	p := plot.New()
+	p.Title.Text = "Longest Cycle Times"
+	p.HideAxes()
+
+	tableRows := make([][]string, len(rows))
+	for i, row := range rows {
+		summary := row.Summary
+		if len(summary) > 30 {
+			summary = summary[:27] + "..."
+		}
+		tableRows[i] = []string{row.Key, summary, row.Days, row.Started, row.Completed}
+	}
+
+	p.Add(genericTablePlotter{
+		headers:  []string{"Key", "Summary", "Days", "Started", "Done"},
+		colFracs: []float64{0.02, 0.15, 0.55, 0.68, 0.82},
+		rows:     tableRows,
+	})
+
+	return p
+}
+
+// CombinedReport renders cycle time, throughput, longest cycle time, and forecast plots into a single PNG.
+func CombinedReport(cycleTimePlot, throughputPlot, longestCTPlot, forecastPlot *plot.Plot, path string) error {
 	const (
-		width  = 30 * vg.Centimeter
-		height = 45 * vg.Centimeter
+		width  = 40 * vg.Centimeter
+		height = 30 * vg.Centimeter
 	)
 
 	img := vgimg.New(width, height)
 	dc := draw.New(img)
 
 	tiles := draw.Tiles{
-		Rows:      3,
-		Cols:      1,
+		Rows:      2,
+		Cols:      2,
 		PadTop:    vg.Points(10),
 		PadBottom: vg.Points(10),
 		PadLeft:   vg.Points(10),
 		PadRight:  vg.Points(10),
+		PadX:      vg.Points(15),
 		PadY:      vg.Points(15),
 	}
 
 	plots := [][]*plot.Plot{
-		{cycleTimePlot},
-		{throughputPlot},
-		{forecastPlot},
+		{cycleTimePlot, throughputPlot},
+		{longestCTPlot, forecastPlot},
 	}
 
 	canvases := plot.Align(plots, tiles, dc)

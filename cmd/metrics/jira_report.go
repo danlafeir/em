@@ -3,6 +3,7 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -111,7 +112,32 @@ func runReport(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 3. Forecast table
+	// 3. Longest Cycle Time table
+	var longestCTPlot *plot.Plot
+	if len(cycleResults) > 0 {
+		sorted := make([]pkgmetrics.CycleTimeResult, len(cycleResults))
+		copy(sorted, cycleResults)
+		sort.Slice(sorted, func(i, j int) bool {
+			return sorted[i].CycleTime > sorted[j].CycleTime
+		})
+		n := len(sorted)
+		if n > 10 {
+			n = 10
+		}
+		var ctRows []charts.LongestCycleTimeRow
+		for _, r := range sorted[:n] {
+			ctRows = append(ctRows, charts.LongestCycleTimeRow{
+				Key:       r.IssueKey,
+				Summary:   r.Summary,
+				Days:      fmt.Sprintf("%.1f", r.CycleTimeDays()),
+				Started:   r.StartDate.Format("Jan 02"),
+				Completed: r.EndDate.Format("Jan 02"),
+			})
+		}
+		longestCTPlot = charts.LongestCycleTimeTable(ctRows)
+	}
+
+	// 4. Forecast table
 	var forecastPlot *plot.Plot
 	if len(throughputResult.Periods) > 0 {
 		weeklyThroughput := pkgmetrics.GetWeeklyThroughputValues(throughputResult)
@@ -126,7 +152,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if err := charts.CombinedReport(cycleTimePlot, throughputPlot, forecastPlot, outputPath); err != nil {
+	if err := charts.CombinedReport(cycleTimePlot, throughputPlot, longestCTPlot, forecastPlot, outputPath); err != nil {
 		return fmt.Errorf("failed to generate report: %w", err)
 	}
 
