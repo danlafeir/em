@@ -337,32 +337,40 @@ func CombinedReport(cycleTimePlot, throughputPlot, longestCTPlot, forecastPlot *
 		width  = 40 * vg.Centimeter
 		height = 30 * vg.Centimeter
 	)
+	var (
+		pad  = vg.Points(10)
+		gapX = vg.Points(15)
+		gapY = vg.Points(15)
+	)
 
 	img := vgimg.New(width, height)
 	dc := draw.New(img)
 
-	tiles := draw.Tiles{
-		Rows:      2,
-		Cols:      2,
-		PadTop:    vg.Points(10),
-		PadBottom: vg.Points(10),
-		PadLeft:   vg.Points(10),
-		PadRight:  vg.Points(10),
-		PadX:      vg.Points(15),
-		PadY:      vg.Points(15),
+	// Manually divide canvas into 2x2 quadrants to avoid plot.Align
+	// axis-alignment issues with hidden-axis table plots.
+	cellW := (dc.Max.X - dc.Min.X - 2*pad - gapX) / 2
+	cellH := (dc.Max.Y - dc.Min.Y - 2*pad - gapY) / 2
+
+	quadrant := func(row, col int) draw.Canvas {
+		minX := dc.Min.X + pad + vg.Length(col)*(cellW+gapX)
+		minY := dc.Max.Y - pad - vg.Length(row+1)*cellH - vg.Length(row)*gapY
+		return draw.Crop(dc,
+			minX-dc.Min.X,
+			-(dc.Max.X - (minX + cellW)),
+			minY-dc.Min.Y,
+			-(dc.Max.Y - (minY + cellH)),
+		)
 	}
 
-	plots := [][]*plot.Plot{
+	panels := [2][2]*plot.Plot{
 		{cycleTimePlot, throughputPlot},
 		{longestCTPlot, forecastPlot},
 	}
 
-	canvases := plot.Align(plots, tiles, dc)
-
-	for j, row := range plots {
-		for i, p := range row {
-			if p != nil {
-				p.Draw(canvases[j][i])
+	for r := 0; r < 2; r++ {
+		for c := 0; c < 2; c++ {
+			if panels[r][c] != nil {
+				panels[r][c].Draw(quadrant(r, c))
 			}
 		}
 	}
