@@ -96,7 +96,7 @@ func CycleTimeScatter(data []metrics.CycleTimeResult, percentiles []float64, cfg
 	return p, nil
 }
 
-// addPercentileLine adds a horizontal percentile line to the plot.
+// addPercentileLine adds a horizontal percentile line with an inline label.
 func addPercentileLine(p *plot.Plot, pts plotter.XYs, value float64, label string, c color.Color) {
 	if len(pts) < 2 {
 		return
@@ -115,7 +115,21 @@ func addPercentileLine(p *plot.Plot, pts plotter.XYs, value float64, label strin
 	line.LineStyle.Dashes = []vg.Length{vg.Points(5), vg.Points(3)}
 
 	p.Add(line)
-	p.Legend.Add(label+": "+formatDays(value), line)
+
+	// Inline label at the right end of the line
+	labelPt := plotter.XYs{{X: pts[len(pts)-1].X, Y: value}}
+	labels, err := plotter.NewLabels(plotter.XYLabels{
+		XYs:    labelPt,
+		Labels: []string{label + ": " + formatDays(value)},
+	})
+	if err != nil {
+		return
+	}
+	labels.TextStyle[0].Color = c
+	labels.TextStyle[0].Font.Variant = "Sans"
+	labels.Offset.X = vg.Points(4)
+	labels.Offset.Y = vg.Points(-2)
+	p.Add(labels)
 }
 
 // ThroughputLine creates a line chart of throughput over time.
