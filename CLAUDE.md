@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-`devctl-em` is a Go CLI tool for engineering managers that generates JIRA agile metrics (cycle time, throughput, Monte Carlo forecasting) and comprehensive HTML reports. Built with Cobra.
+`devctl-em` is a Go CLI tool for engineering managers that generates JIRA agile metrics (cycle time, throughput, Monte Carlo forecasting) and combined PNG reports. Built with Cobra.
 
 ## Build & Test Commands
 
@@ -26,7 +26,7 @@ go test -run TestName ./pkg/metrics/  # Run a single test
 - **`pkg/jira`** — JIRA Cloud REST API client with basic auth, rate limiting (exponential backoff), and pagination. Issues are fetched with full changelog to extract status transitions.
 - **`pkg/workflow`** — Maps JIRA status names to workflow stages (Backlog, Analysis, In Progress, Review, Testing, Done). Stage definitions are user-configurable.
 - **`pkg/metrics`** — Pure calculation logic: cycle time statistics (percentile-based), throughput aggregation, Monte Carlo simulation. No I/O.
-- **`pkg/charts`** — Generates PNG/SVG visualizations using gonum/plot.
+- **`pkg/charts`** — Generates PNG/SVG visualizations using gonum/plot. Includes `CombinedReport` for single-PNG multi-panel output.
 - **`pkg/export`** — CSV and Excel (.xlsx) export.
 - **`cmd/metrics`** — CLI command handlers that wire together the above packages. `jira.go` contains shared config helpers (`getJiraClient`, `getConfigString`).
 

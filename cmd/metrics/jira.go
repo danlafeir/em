@@ -204,8 +204,8 @@ func getDateRange() (time.Time, time.Time, error) {
 			return time.Time{}, time.Time{}, fmt.Errorf("invalid --from date: %w", err)
 		}
 	} else {
-		// Default to 90 days ago
-		from = time.Now().AddDate(0, -3, 0)
+		// Default to 42 days (6 weeks)
+		from = time.Now().AddDate(0, 0, -42)
 	}
 
 	if toFlag != "" {

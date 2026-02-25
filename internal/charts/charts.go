@@ -2,18 +2,21 @@
 package charts
 
 import (
+	"fmt"
 	"image/color"
 	"os"
 	"path/filepath"
 	"time"
 
 	"gonum.org/v1/plot"
+	"gonum.org/v1/plot/font"
 	"gonum.org/v1/plot/plotter"
+	"gonum.org/v1/plot/text"
 	"gonum.org/v1/plot/vg"
 	"gonum.org/v1/plot/vg/draw"
+	"gonum.org/v1/plot/vg/vgimg"
 
 	"devctl-em/internal/metrics"
-
 )
 
 // Config holds common chart configuration.
@@ -172,6 +175,174 @@ func ThroughputLine(data metrics.ThroughputResult, cfg Config) (*plot.Plot, erro
 	p.X.Tick.Marker = dateTicker{}
 
 	return p, nil
+}
+
+// ForecastRow holds data for one row in the forecast table.
+type ForecastRow struct {
+	EpicKey    string
+	Summary    string
+	Remaining  int
+	Forecast50 string
+	Forecast85 string
+	Forecast95 string
+}
+
+// tablePlotter renders a table as text annotations on a plot canvas.
+type tablePlotter struct {
+	rows []ForecastRow
+}
+
+func (t tablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
+	hdlr := text.Plain{
+		Fonts: font.DefaultCache,
+	}
+
+	headerFont := font.Font{Typeface: "Liberation", Variant: "Sans"}
+	bodyFont := font.Font{Typeface: "Liberation", Variant: "Sans"}
+
+	headerStyle := draw.TextStyle{
+		Color:   color.RGBA{R: 255, G: 255, B: 255, A: 255},
+		Font:    headerFont,
+		Handler: hdlr,
+	}
+	bodyStyle := draw.TextStyle{
+		Color:   color.RGBA{R: 51, G: 51, B: 51, A: 255},
+		Font:    bodyFont,
+		Handler: hdlr,
+	}
+
+	width := c.Max.X - c.Min.X
+	rowHeight := vg.Points(18)
+	headerHeight := vg.Points(22)
+
+	// Column X positions as fractions of width
+	colFracs := []float64{0.02, 0.15, 0.55, 0.65, 0.77, 0.88}
+	headers := []string{"Epic", "Summary", "Left", "50%", "85%", "95%"}
+
+	// Draw header background
+	headerY := c.Max.Y - headerHeight
+	headerPath := vg.Path{}
+	headerPath.Move(vg.Point{X: c.Min.X, Y: headerY})
+	headerPath.Line(vg.Point{X: c.Max.X, Y: headerY})
+	headerPath.Line(vg.Point{X: c.Max.X, Y: c.Max.Y})
+	headerPath.Line(vg.Point{X: c.Min.X, Y: c.Max.Y})
+	headerPath.Close()
+	c.SetColor(color.RGBA{R: 102, G: 126, B: 234, A: 255})
+	c.Fill(headerPath)
+
+	// Draw header text
+	for i, h := range headers {
+		pt := vg.Point{
+			X: c.Min.X + vg.Length(colFracs[i])*width,
+			Y: headerY + vg.Points(5),
+		}
+		c.FillText(headerStyle, pt, h)
+	}
+
+	// Draw data rows
+	for r, row := range t.rows {
+		y := headerY - vg.Length(r+1)*rowHeight
+
+		// Alternate row background
+		if r%2 == 0 {
+			bgPath := vg.Path{}
+			bgPath.Move(vg.Point{X: c.Min.X, Y: y})
+			bgPath.Line(vg.Point{X: c.Max.X, Y: y})
+			bgPath.Line(vg.Point{X: c.Max.X, Y: y + rowHeight})
+			bgPath.Line(vg.Point{X: c.Min.X, Y: y + rowHeight})
+			bgPath.Close()
+			c.SetColor(color.RGBA{R: 245, G: 245, B: 245, A: 255})
+			c.Fill(bgPath)
+		}
+
+		summary := row.Summary
+		if len(summary) > 30 {
+			summary = summary[:27] + "..."
+		}
+
+		vals := []string{
+			row.EpicKey,
+			summary,
+			fmt.Sprintf("%d", row.Remaining),
+			row.Forecast50,
+			row.Forecast85,
+			row.Forecast95,
+		}
+
+		for i, v := range vals {
+			pt := vg.Point{
+				X: c.Min.X + vg.Length(colFracs[i])*width,
+				Y: y + vg.Points(4),
+			}
+			c.FillText(bodyStyle, pt, v)
+		}
+	}
+}
+
+func (t tablePlotter) DataRange() (xmin, xmax, ymin, ymax float64) {
+	return 0, 1, 0, 1
+}
+
+// ForecastTable creates a plot that renders a forecast table.
+func ForecastTable(rows []ForecastRow) *plot.Plot {
+	p := plot.New()
+	p.Title.Text = "Epic Forecast"
+	p.HideAxes()
+
+	p.Add(tablePlotter{rows: rows})
+
+	return p
+}
+
+// CombinedReport renders cycle time, throughput, and forecast plots into a single PNG.
+func CombinedReport(cycleTimePlot, throughputPlot, forecastPlot *plot.Plot, path string) error {
+	const (
+		width  = 30 * vg.Centimeter
+		height = 45 * vg.Centimeter
+	)
+
+	img := vgimg.New(width, height)
+	dc := draw.New(img)
+
+	tiles := draw.Tiles{
+		Rows:      3,
+		Cols:      1,
+		PadTop:    vg.Points(10),
+		PadBottom: vg.Points(10),
+		PadLeft:   vg.Points(10),
+		PadRight:  vg.Points(10),
+		PadY:      vg.Points(15),
+	}
+
+	plots := [][]*plot.Plot{
+		{cycleTimePlot},
+		{throughputPlot},
+		{forecastPlot},
+	}
+
+	canvases := plot.Align(plots, tiles, dc)
+
+	for j, row := range plots {
+		for i, p := range row {
+			if p != nil {
+				p.Draw(canvases[j][i])
+			}
+		}
+	}
+
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+
+	pngCanvas := vgimg.PngCanvas{Canvas: img}
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	_, err = pngCanvas.WriteTo(f)
+	return err
 }
 
 // dateTicker formats X axis as dates.

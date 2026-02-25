@@ -7,7 +7,7 @@ CLI tools for engineering managers to generate JIRA agile metrics reports.
 - **Cycle Time Analysis** - Scatter plots and statistics for issue completion times
 - **Throughput Metrics** - Track team delivery velocity over time
 - **Monte Carlo Forecasting** - Probabilistic completion predictions for epics
-- **HTML Reports** - Comprehensive dashboards with all metrics
+- **Combined PNG Reports** - Single-image reports with cycle time, throughput, and forecast
 
 ## Installation
 
@@ -80,7 +80,7 @@ With this set, you no longer need to pass `--jql` to every command:
 # These just work — scoped to active epics in MYPROJ
 devctl-em metrics jira cycle-time
 devctl-em metrics jira forecast
-devctl-em metrics jira report -o report.html
+devctl-em metrics jira report
 ```
 
 JQL resolution order: `--jql` flag > `jira.default_jql` config > `jira.project` config.
@@ -120,7 +120,7 @@ All JIRA metrics commands are under `devctl-em metrics jira`.
 | Flag | Description |
 |------|-------------|
 | `--jql` | JQL query to filter issues |
-| `--from` | Start date (YYYY-MM-DD), default: 90 days ago |
+| `--from` | Start date (YYYY-MM-DD), default: 6 weeks ago |
 | `--to` | End date (YYYY-MM-DD), default: today |
 | `-o, --output` | Output file path |
 | `-f, --format` | Output format: png, csv, xlsx, html |
@@ -182,31 +182,18 @@ Output includes probability distribution:
 - **85th percentile** - 85% chance (common planning target)
 - **95th percentile** - 95% chance (conservative estimate)
 
-### Comprehensive Report
+### Combined Report
 
-Generate an HTML report with all metrics:
+Generate a single PNG report with cycle time scatter, throughput trend, and epic forecast:
 
 ```bash
-devctl-em metrics jira report --jql "project = MYPROJ" -o report.html
+devctl-em metrics jira report
+devctl-em metrics jira report --from 2024-01-01 -o report.png
 ```
 
-This creates:
-- `report.html` - Interactive dashboard
-- `cycle-time-scatter.png` - Cycle time chart
-- `throughput-trend.png` - Throughput chart
-- `cycle-time-data.csv` - Raw cycle time data
-- `throughput-data.csv` - Raw throughput data
+This creates a single `jira-report.png` file combining all three panels.
 
 ## Examples
-
-### Sprint Retrospective Report
-
-```bash
-devctl-em metrics jira report \
-  --jql "project = MYPROJ AND sprint = 'Sprint 42'" \
-  --title "Sprint 42 Metrics" \
-  -o sprint-42-report.html
-```
 
 ### Epic Progress Tracking
 
@@ -238,7 +225,6 @@ devctl-em metrics jira cycle-time \
 | PNG | `.png` | Chart images |
 | CSV | `.csv` | Raw data for spreadsheets |
 | Excel | `.xlsx` | Formatted workbooks with multiple sheets |
-| HTML | `.html` | Self-contained reports with styling |
 
 ## License
 

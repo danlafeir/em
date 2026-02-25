@@ -3,58 +3,47 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"github.com/spf13/cobra"
+	"gonum.org/v1/plot"
 
 	"devctl-em/internal/charts"
-	"devctl-em/internal/export"
+	"devctl-em/internal/jira"
 	pkgmetrics "devctl-em/internal/metrics"
 	"devctl-em/internal/workflow"
 )
 
 var reportCmd = &cobra.Command{
 	Use:   "report",
-	Short: "Generate comprehensive metrics report",
-	Long: `Generate a comprehensive HTML report with all JIRA agile metrics.
+	Short: "Generate combined metrics report as a single PNG",
+	Long: `Generate a single PNG report combining cycle time scatter, throughput trend,
+and Monte Carlo epic forecast.
 
-Includes:
-  - Cycle time analysis with scatter plot
-  - Throughput trends
-  - Monte Carlo forecast (if applicable)
+Uses the last 6 weeks of data by default. Output is a single PNG image.
 
 Example:
-  devctl-em metrics jira report --jql "project = MYPROJ" -o report.html
-  devctl-em metrics jira report --jql "project = MYPROJ" --from 2024-01-01`,
+  devctl-em metrics jira report
+  devctl-em metrics jira report --from 2024-01-01 -o report.png`,
 	RunE: runReport,
 }
 
-var (
-	reportTitleFlag string
-)
-
 func init() {
 	JiraCmd.AddCommand(reportCmd)
-
-	reportCmd.Flags().StringVar(&reportTitleFlag, "title", "", "Report title")
 }
 
 func runReport(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	// Get JIRA client
 	client, err := getJiraClient()
 	if err != nil {
 		return err
 	}
 
-	// Test connection
 	if err := client.TestConnection(ctx); err != nil {
 		return fmt.Errorf("failed to connect to JIRA: %w", err)
 	}
 
-	// Get JQL and date range
 	jql, err := resolveJQL(ctx, client)
 	if err != nil {
 		return err
@@ -65,15 +54,13 @@ func runReport(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Determine output path
-	outputPath := getOutputPath("jira-metrics-report", "html")
-	outputDir := filepath.Dir(outputPath)
+	outputPath := getOutputPath("jira-report", "png")
 
-	fmt.Printf("Generating comprehensive metrics report...\n")
+	fmt.Printf("Generating JIRA Report...\n")
 	fmt.Printf("JQL: %s\n", jql)
 	fmt.Printf("Date range: %s to %s\n\n", from.Format("2006-01-02"), to.Format("2006-01-02"))
 
-	// Fetch completed issues for cycle time and throughput
+	// Fetch completed issues
 	fmt.Printf("Fetching issues from JIRA...\n")
 	jqlCompleted := fmt.Sprintf("(%s) AND resolved >= %s AND resolved <= %s",
 		jql, from.Format("2006-01-02"), to.Format("2006-01-02"))
@@ -85,125 +72,133 @@ func runReport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to fetch completed issues: %w", err)
 	}
 	fmt.Println()
-
 	fmt.Printf("\nFound %d completed issues\n\n", len(completedIssues))
 
-	// Get workflow mapper
 	mapper := getWorkflowMapper()
 
-	// Map issues to workflow history
 	completedHistories := make([]workflow.IssueHistory, len(completedIssues))
 	for i, issue := range completedIssues {
 		completedHistories[i] = mapper.MapIssueHistory(issue)
 	}
 
-	// Prepare report sections
-	var sections []export.HTMLSection
-
-	// 1. Cycle Time Analysis
+	// 1. Cycle Time
 	fmt.Printf("Calculating cycle time metrics...\n")
 	cycleCalc := pkgmetrics.NewCycleTimeCalculator(mapper)
 	cycleResults := cycleCalc.Calculate(completedHistories)
 
+	chartCfg := charts.DefaultConfig()
+	chartCfg.Title = "Cycle Time Distribution"
+
+	var cycleTimePlot *plot.Plot
 	if len(cycleResults) > 0 {
-		stats := pkgmetrics.CalculateStats(cycleResults)
-
-		// Generate scatter chart
-		chartPath := filepath.Join(outputDir, "cycle-time-scatter.png")
-		chartCfg := charts.DefaultConfig()
-		chartCfg.Title = "Cycle Time Distribution"
-
-		plot, err := charts.CycleTimeScatter(cycleResults, []float64{50, 85, 95}, chartCfg)
-		if err == nil {
-			if err := charts.SaveChart(plot, chartPath, chartCfg); err == nil {
-				fmt.Printf("  Generated: %s\n", chartPath)
-			}
+		cycleTimePlot, err = charts.CycleTimeScatter(cycleResults, []float64{50, 85, 95}, chartCfg)
+		if err != nil {
+			return fmt.Errorf("failed to create cycle time chart: %w", err)
 		}
-
-		sections = append(sections, export.HTMLSection{
-			Title:   "Cycle Time Analysis",
-			Content: export.FormatStatsHTML(stats),
-		})
 	}
 
-	// 2. Throughput Analysis
+	// 2. Throughput
 	fmt.Printf("Calculating throughput metrics...\n")
 	throughputCalc := pkgmetrics.NewThroughputCalculator(pkgmetrics.FrequencyWeekly)
 	throughputResult := throughputCalc.Calculate(completedHistories, from, to)
 
+	chartCfg.Title = "Weekly Throughput"
+	var throughputPlot *plot.Plot
 	if len(throughputResult.Periods) > 0 {
-		// Generate throughput chart
-		chartPath := filepath.Join(outputDir, "throughput-trend.png")
-		chartCfg := charts.DefaultConfig()
-		chartCfg.Title = "Weekly Throughput"
-
-		plot, err := charts.ThroughputLine(throughputResult, chartCfg)
-		if err == nil {
-			if err := charts.SaveChart(plot, chartPath, chartCfg); err == nil {
-				fmt.Printf("  Generated: %s\n", chartPath)
-			}
+		throughputPlot, err = charts.ThroughputLine(throughputResult, chartCfg)
+		if err != nil {
+			return fmt.Errorf("failed to create throughput chart: %w", err)
 		}
-
-		sections = append(sections, export.HTMLSection{
-			Title:   "Throughput Trend",
-			Content: export.FormatThroughputHTML(throughputResult),
-		})
 	}
 
-	// 3. Forecast (if there's remaining work)
+	// 3. Forecast table
+	var forecastPlot *plot.Plot
 	if len(throughputResult.Periods) > 0 {
-		// Count open issues for forecast
-		jqlOpen := fmt.Sprintf("(%s) AND resolution IS EMPTY", jql)
-		openIssues, err := client.SearchAllIssues(ctx, jqlOpen, "key", "")
-		if err == nil && len(openIssues) > 0 {
-			fmt.Printf("Running Monte Carlo forecast...\n")
+		weeklyThroughput := pkgmetrics.GetWeeklyThroughputValues(throughputResult)
 
-			weeklyThroughput := pkgmetrics.GetWeeklyThroughputValues(throughputResult)
-
-			mcConfig := pkgmetrics.MonteCarloConfig{
-				Trials:          10000,
-				SimulationStart: time.Now(),
-			}
-
-			simulator := pkgmetrics.NewMonteCarloSimulator(mcConfig, weeklyThroughput)
-			forecast, err := simulator.Run(len(openIssues))
-
-			if err == nil {
-				sections = append(sections, export.HTMLSection{
-					Title:   "Completion Forecast",
-					Content: export.FormatForecastHTML(forecast),
-				})
+		if len(weeklyThroughput) > 0 {
+			rows, forecastErr := discoverAndForecastEpics(ctx, client, mapper, weeklyThroughput)
+			if forecastErr != nil {
+				fmt.Printf("Warning: forecast unavailable: %v\n", forecastErr)
+			} else if len(rows) > 0 {
+				forecastPlot = charts.ForecastTable(rows)
 			}
 		}
 	}
 
-	// Generate HTML report
-	title := reportTitleFlag
-	if title == "" {
-		title = "JIRA Agile Metrics Report"
-	}
-
-	fmt.Printf("\nGenerating HTML report...\n")
-	if err := export.HTMLReport(title, sections, outputPath); err != nil {
+	if err := charts.CombinedReport(cycleTimePlot, throughputPlot, forecastPlot, outputPath); err != nil {
 		return fmt.Errorf("failed to generate report: %w", err)
 	}
 
 	fmt.Printf("\nReport generated: %s\n", outputPath)
-
-	// Also export CSV files
-	if len(cycleResults) > 0 {
-		csvPath := filepath.Join(outputDir, "cycle-time-data.csv")
-		if err := export.CycleTimeCSV(cycleResults, csvPath); err == nil {
-			fmt.Printf("Exported: %s\n", csvPath)
-		}
-	}
-
-	if len(throughputResult.Periods) > 0 {
-		csvPath := filepath.Join(outputDir, "throughput-data.csv")
-		if err := export.ThroughputCSV(throughputResult, csvPath); err == nil {
-			fmt.Printf("Exported: %s\n", csvPath)
-		}
-	}
-
 	return nil
+}
+
+// discoverAndForecastEpics finds open epics and runs Monte Carlo forecasts.
+func discoverAndForecastEpics(ctx context.Context, client *jira.Client, mapper *workflow.Mapper, weeklyThroughput []int) ([]charts.ForecastRow, error) {
+	projectJQL, err := getProjectJQL()
+	if err != nil {
+		return nil, err
+	}
+
+	epicJQL := fmt.Sprintf("(%s) AND issuetype = Epic AND resolution IS EMPTY ORDER BY key", projectJQL)
+	epics, err := client.SearchAllIssues(ctx, epicJQL, "summary,status", "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch epics: %w", err)
+	}
+
+	if len(epics) == 0 {
+		return nil, nil
+	}
+
+	fmt.Printf("Found %d open epics, forecasting...\n", len(epics))
+
+	var rows []charts.ForecastRow
+	for _, epic := range epics {
+		row := forecastEpicRow(ctx, client, mapper, epic, weeklyThroughput)
+		if row != nil {
+			rows = append(rows, *row)
+		}
+	}
+
+	return rows, nil
+}
+
+func forecastEpicRow(ctx context.Context, client *jira.Client, mapper *workflow.Mapper, epic jira.Issue, weeklyThroughput []int) *charts.ForecastRow {
+	jql := fmt.Sprintf("\"Epic Link\" = %s OR parent = %s", epic.Key, epic.Key)
+	issues, err := client.SearchAllIssues(ctx, jql, "status,summary,issuetype", "")
+	if err != nil {
+		return nil
+	}
+
+	var remaining int
+	for _, issue := range issues {
+		if !mapper.IsCompleted(issue.Fields.Status.Name) {
+			remaining++
+		}
+	}
+
+	if remaining == 0 {
+		return nil
+	}
+
+	config := pkgmetrics.MonteCarloConfig{
+		Trials:          10000,
+		SimulationStart: time.Now(),
+	}
+
+	simulator := pkgmetrics.NewMonteCarloSimulator(config, weeklyThroughput)
+	result, err := simulator.Run(remaining)
+	if err != nil {
+		return nil
+	}
+
+	return &charts.ForecastRow{
+		EpicKey:    epic.Key,
+		Summary:    epic.Fields.Summary,
+		Remaining:  remaining,
+		Forecast50: result.Percentiles[50].Format("Jan 02"),
+		Forecast85: result.Percentiles[85].Format("Jan 02"),
+		Forecast95: result.Percentiles[95].Format("Jan 02"),
+	}
 }
