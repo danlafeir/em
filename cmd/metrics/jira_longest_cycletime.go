@@ -1,0 +1,117 @@
+package metrics
+
+import (
+	"context"
+	"fmt"
+	"sort"
+
+	"github.com/spf13/cobra"
+
+	"devctl-em/internal/metrics"
+	"devctl-em/internal/workflow"
+)
+
+var longestCycleTimeCmd = &cobra.Command{
+	Use:   "longest-cycle-time",
+	Short: "List issues with the longest cycle times",
+	Long: `Show the top 10 issues with the longest cycle times in the last 6 weeks.
+
+Example:
+  devctl-em metrics jira longest-cycle-time
+  devctl-em metrics jira longest-cycle-time --from 2024-01-01`,
+	RunE: runLongestCycleTime,
+}
+
+func init() {
+	JiraCmd.AddCommand(longestCycleTimeCmd)
+}
+
+func runLongestCycleTime(cmd *cobra.Command, args []string) error {
+	ctx := context.Background()
+
+	client, err := getJiraClient()
+	if err != nil {
+		return err
+	}
+
+	if err := client.TestConnection(ctx); err != nil {
+		return fmt.Errorf("failed to connect to JIRA: %w", err)
+	}
+
+	jql, err := resolveJQL(ctx, client)
+	if err != nil {
+		return err
+	}
+
+	from, to, err := getDateRange()
+	if err != nil {
+		return err
+	}
+
+	jqlWithDates := fmt.Sprintf("(%s) AND resolved >= %s AND resolved <= %s",
+		jql, from.Format("2006-01-02"), to.Format("2006-01-02"))
+
+	fmt.Printf("Fetching issues from JIRA...\n")
+	fmt.Printf("JQL: %s\n", jqlWithDates)
+
+	issues, err := client.FetchIssuesWithHistory(ctx, jqlWithDates, func(current, total int) {
+		fmt.Printf("\rProcessing issue %d/%d...", current, total)
+	})
+	if err != nil {
+		return fmt.Errorf("failed to fetch issues: %w", err)
+	}
+	fmt.Println()
+
+	if len(issues) == 0 {
+		fmt.Println("No issues found matching the query.")
+		return nil
+	}
+
+	mapper := getWorkflowMapper()
+
+	histories := make([]workflow.IssueHistory, len(issues))
+	for i, issue := range issues {
+		histories[i] = mapper.MapIssueHistory(issue)
+	}
+
+	calculator := metrics.NewCycleTimeCalculator(mapper)
+	results := calculator.Calculate(histories)
+
+	if len(results) == 0 {
+		fmt.Println("No completed issues found for cycle time calculation.")
+		return nil
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].CycleTime > results[j].CycleTime
+	})
+
+	limit := 10
+	if len(results) < limit {
+		limit = len(results)
+	}
+	top := results[:limit]
+
+	fmt.Printf("\nTop %d Longest Cycle Times\n", limit)
+	fmt.Printf("=========================\n\n")
+
+	fmt.Printf("%-12s  %-40s  %10s  %-12s  %-12s\n",
+		"Key", "Summary", "Cycle Time", "Started", "Completed")
+	fmt.Printf("%-12s  %-40s  %10s  %-12s  %-12s\n",
+		"---", "-------", "----------", "-------", "---------")
+
+	for _, r := range top {
+		summary := r.Summary
+		if len(summary) > 40 {
+			summary = summary[:37] + "..."
+		}
+		fmt.Printf("%-12s  %-40s  %8.1f d  %-12s  %-12s\n",
+			r.IssueKey,
+			summary,
+			r.CycleTimeDays(),
+			r.StartDate.Format("Jan 02"),
+			r.EndDate.Format("Jan 02"))
+	}
+
+	return nil
+}
