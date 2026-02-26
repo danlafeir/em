@@ -213,8 +213,8 @@ func (t genericTablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
 		Fonts: font.DefaultCache,
 	}
 
-	headerFont := font.Font{Typeface: "Liberation", Variant: "Sans"}
-	bodyFont := font.Font{Typeface: "Liberation", Variant: "Sans"}
+	headerFont := font.Font{Typeface: "Liberation", Variant: "Sans", Size: vg.Points(11)}
+	bodyFont := font.Font{Typeface: "Liberation", Variant: "Sans", Size: vg.Points(10)}
 
 	headerStyle := draw.TextStyle{
 		Color:   color.RGBA{R: 255, G: 255, B: 255, A: 255},
