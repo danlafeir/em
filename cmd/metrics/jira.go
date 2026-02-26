@@ -59,8 +59,8 @@ Configure your JIRA connection first:
 Set a project to automatically scope metrics to active epics:
   devctl-em config set jira.project MYPROJ
 
-JQL resolution order: --jql flag > jira.default_jql config > jira.project config.
-When jira.project is set, metrics are scoped to child issues of active (unresolved) epics.
+JQL resolution order: --jql flag > jira.default_jql config > --project flag > jira.project config.
+Use --project to override the configured project for a single invocation.
 
 Examples:
   devctl-em metrics jira cycle-time --jql "project = MYPROJ"
@@ -73,11 +73,12 @@ Examples:
 
 // Common flags for all jira subcommands
 var (
-	jqlFlag    string
-	fromFlag   string
-	toFlag     string
-	outputFlag string
-	formatFlag string
+	jqlFlag     string
+	projectFlag string
+	fromFlag    string
+	toFlag      string
+	outputFlag  string
+	formatFlag  string
 )
 
 func init() {
@@ -86,6 +87,7 @@ func init() {
 
 	// Define persistent flags for all jira subcommands
 	JiraCmd.PersistentFlags().StringVar(&jqlFlag, "jql", "", "JQL query (overrides config default)")
+	JiraCmd.PersistentFlags().StringVar(&projectFlag, "project", "", "JIRA project key (overrides jira.project config)")
 	JiraCmd.PersistentFlags().StringVar(&fromFlag, "from", "", "Start date (YYYY-MM-DD)")
 	JiraCmd.PersistentFlags().StringVar(&toFlag, "to", "", "End date (YYYY-MM-DD)")
 	JiraCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "", "Output file path")
@@ -133,7 +135,7 @@ func getJQL() (string, error) {
 	}
 	jql := getConfigString("jira.default_jql")
 	if jql == "" {
-		return "", fmt.Errorf("no JQL query provided. Use --jql flag or set jira.default_jql or jira.project in config")
+		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or set jira.default_jql or jira.project in config")
 	}
 	return jql, nil
 }
@@ -152,10 +154,13 @@ func resolveJQL(ctx context.Context, client *jira.Client) (string, error) {
 		return jql, nil
 	}
 
-	// 3. jira.project config — query for active epics
-	project := getConfigString("jira.project")
+	// 3. --project flag or jira.project config — query for active epics
+	project := projectFlag
 	if project == "" {
-		return "", fmt.Errorf("no JQL query provided. Use --jql flag or set jira.default_jql or jira.project in config")
+		project = getConfigString("jira.project")
+	}
+	if project == "" {
+		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or set jira.default_jql or jira.project in config")
 	}
 
 	epicJQL := fmt.Sprintf("project = %s AND issuetype = Epic AND resolution IS EMPTY", project)
@@ -186,9 +191,12 @@ func getProjectJQL() (string, error) {
 	if jql := getConfigString("jira.default_jql"); jql != "" {
 		return jql, nil
 	}
-	project := getConfigString("jira.project")
+	project := projectFlag
 	if project == "" {
-		return "", fmt.Errorf("no JQL query provided. Use --jql flag or set jira.default_jql or jira.project in config")
+		project = getConfigString("jira.project")
+	}
+	if project == "" {
+		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or set jira.default_jql or jira.project in config")
 	}
 	return fmt.Sprintf("project = %s", project), nil
 }
