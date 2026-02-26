@@ -412,6 +412,26 @@ func CombinedReport(cycleTimePlot, throughputPlot, longestCTPlot, forecastPlot *
 		}
 	}
 
+	// Draw divider lines between sections
+	dividerColor := color.RGBA{R: 200, G: 200, B: 200, A: 255}
+	dividerWidth := vg.Points(2)
+
+	// Vertical divider
+	midX := dc.Min.X + pad + cellW + gapX/2
+	vLine := vg.Path{}
+	vLine.Move(vg.Point{X: midX, Y: dc.Min.Y + pad})
+	vLine.Line(vg.Point{X: midX, Y: dc.Max.Y - pad})
+	dc.SetLineWidth(dividerWidth)
+	dc.SetColor(dividerColor)
+	dc.Stroke(vLine)
+
+	// Horizontal divider
+	midY := dc.Max.Y - pad - cellH - gapY/2
+	hLine := vg.Path{}
+	hLine.Move(vg.Point{X: dc.Min.X + pad, Y: midY})
+	hLine.Line(vg.Point{X: dc.Max.X - pad, Y: midY})
+	dc.Stroke(hLine)
+
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
