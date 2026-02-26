@@ -203,9 +203,10 @@ type ForecastRow struct {
 
 // genericTablePlotter renders a table as text annotations on a plot canvas.
 type genericTablePlotter struct {
-	headers  []string
-	colFracs []float64
-	rows     [][]string
+	headers    []string
+	colFracs   []float64
+	rows       [][]string
+	noTruncate bool
 }
 
 func (t genericTablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
@@ -268,16 +269,17 @@ func (t genericTablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
 		}
 
 		for i, v := range row {
-			// Truncate text if it would overflow into the next column
 			colStart := vg.Length(t.colFracs[i]) * width
-			var colEnd vg.Length
-			if i+1 < len(t.colFracs) {
-				colEnd = vg.Length(t.colFracs[i+1]) * width
-			} else {
-				colEnd = width
+			if !t.noTruncate {
+				var colEnd vg.Length
+				if i+1 < len(t.colFracs) {
+					colEnd = vg.Length(t.colFracs[i+1]) * width
+				} else {
+					colEnd = width
+				}
+				avail := colEnd - colStart - vg.Points(4)
+				v = truncateToFit(v, bodyStyle, avail)
 			}
-			avail := colEnd - colStart - vg.Points(4)
-			v = truncateToFit(v, bodyStyle, avail)
 
 			pt := vg.Point{
 				X: c.Min.X + colStart,
@@ -343,7 +345,7 @@ type LongestCycleTimeRow struct {
 }
 
 // LongestCycleTimeTable creates a plot that renders a longest cycle time table.
-func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string) *plot.Plot {
+func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, noTruncate bool) *plot.Plot {
 	p := plot.New()
 	p.Title.Text = title
 	if p.Title.Text == "" {
@@ -357,9 +359,10 @@ func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string) *plot.Plot 
 	}
 
 	p.Add(genericTablePlotter{
-		headers:  []string{"Key", "Summary", "Days", "Started", "Done"},
-		colFracs: []float64{0.02, 0.12, 0.58, 0.68, 0.82},
-		rows:     tableRows,
+		headers:    []string{"Key", "Summary", "Days", "Started", "Done"},
+		colFracs:   []float64{0.02, 0.12, 0.58, 0.68, 0.82},
+		rows:       tableRows,
+		noTruncate: noTruncate,
 	})
 
 	return p

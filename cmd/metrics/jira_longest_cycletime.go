@@ -128,7 +128,7 @@ func runLongestCycleTime(cmd *cobra.Command, args []string) error {
 			})
 		}
 		title := fmt.Sprintf("Longest Cycle Times — %s to %s", from.Format("Jan 02"), to.Format("Jan 02"))
-		p := charts.LongestCycleTimeTable(rows, title)
+		p := charts.LongestCycleTimeTable(rows, title, true)
 		cfg := charts.DefaultConfig()
 		outputPath := getOutputPath("longest-cycle-time", "png")
 		if err := charts.SaveChart(p, outputPath, cfg); err != nil {
