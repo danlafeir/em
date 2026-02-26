@@ -4,6 +4,7 @@ package charts
 import (
 	"fmt"
 	"image/color"
+	"math"
 	"os"
 	"path/filepath"
 	"time"
@@ -45,6 +46,31 @@ func SaveChart(p *plot.Plot, filename string, cfg Config) error {
 	return p.Save(cfg.Width, cfg.Height, filename)
 }
 
+// stylePlotTitle makes the plot title 2x bigger and bold.
+func stylePlotTitle(p *plot.Plot) {
+	p.Title.TextStyle.Font.Size = p.Title.TextStyle.Font.Size * 2
+	p.Title.TextStyle.Font.Variant = "Mono"
+}
+
+// linearRegression computes slope and intercept for y = slope*x + intercept.
+func linearRegression(pts plotter.XYs) (slope, intercept float64) {
+	n := float64(len(pts))
+	var sumX, sumY, sumXY, sumX2 float64
+	for _, p := range pts {
+		sumX += p.X
+		sumY += p.Y
+		sumXY += p.X * p.Y
+		sumX2 += p.X * p.X
+	}
+	denom := n*sumX2 - sumX*sumX
+	if math.Abs(denom) < 1e-12 {
+		return 0, sumY / n
+	}
+	slope = (n*sumXY - sumX*sumY) / denom
+	intercept = (sumY - slope*sumX) / n
+	return
+}
+
 // CycleTimeScatter creates a scatter plot of cycle times over time.
 func CycleTimeScatter(data []metrics.CycleTimeResult, percentiles []float64, cfg Config) (*plot.Plot, error) {
 	p := plot.New()
@@ -52,11 +78,11 @@ func CycleTimeScatter(data []metrics.CycleTimeResult, percentiles []float64, cfg
 	if p.Title.Text == "" {
 		p.Title.Text = "Cycle Time Scatter Plot"
 	}
+	stylePlotTitle(p)
 	p.X.Label.Text = "Completion Date"
 	p.Y.Label.Text = "Cycle Time (days)"
 	p.X.Padding = vg.Points(0)
 	p.Y.Padding = vg.Points(0)
-
 
 	// Convert data to XY points
 	pts := make(plotter.XYs, len(data))
@@ -139,11 +165,11 @@ func ThroughputLine(data metrics.ThroughputResult, cfg Config) (*plot.Plot, erro
 	if p.Title.Text == "" {
 		p.Title.Text = "Throughput Over Time"
 	}
+	stylePlotTitle(p)
 	p.X.Label.Text = "Period"
 	p.Y.Label.Text = "Items Completed"
 	p.X.Padding = vg.Points(0)
 	p.Y.Padding = vg.Points(0)
-
 
 	// Convert data to XY points
 	pts := make(plotter.XYs, len(data.Periods))
@@ -169,17 +195,20 @@ func ThroughputLine(data metrics.ThroughputResult, cfg Config) (*plot.Plot, erro
 	scatter.GlyphStyle.Radius = vg.Points(4)
 	scatter.GlyphStyle.Color = color.RGBA{R: 66, G: 133, B: 244, A: 255}
 
-	// Add average line
-	avgLine, err := plotter.NewLine(plotter.XYs{
-		{X: pts[0].X, Y: data.AvgCount},
-		{X: pts[len(pts)-1].X, Y: data.AvgCount},
-	})
-	if err == nil {
-		avgLine.LineStyle.Color = color.RGBA{R: 244, G: 67, B: 54, A: 200}
-		avgLine.LineStyle.Width = vg.Points(1.5)
-		avgLine.LineStyle.Dashes = []vg.Length{vg.Points(5), vg.Points(3)}
-		p.Add(avgLine)
-		p.Legend.Add("Average: "+formatFloat(data.AvgCount), avgLine)
+	// Add trend line (linear regression)
+	if len(pts) >= 2 {
+		slope, intercept := linearRegression(pts)
+		trendLine, err := plotter.NewLine(plotter.XYs{
+			{X: pts[0].X, Y: slope*pts[0].X + intercept},
+			{X: pts[len(pts)-1].X, Y: slope*pts[len(pts)-1].X + intercept},
+		})
+		if err == nil {
+			trendLine.LineStyle.Color = color.RGBA{R: 244, G: 67, B: 54, A: 200}
+			trendLine.LineStyle.Width = vg.Points(1.5)
+			trendLine.LineStyle.Dashes = []vg.Length{vg.Points(5), vg.Points(3)}
+			p.Add(trendLine)
+			p.Legend.Add("Trend", trendLine)
+		}
 	}
 
 	p.Add(line, scatter)
@@ -407,6 +436,7 @@ func (t genericTablePlotter) DataRange() (xmin, xmax, ymin, ymax float64) {
 func ForecastTable(rows []ForecastRow) *plot.Plot {
 	p := plot.New()
 	p.Title.Text = "Epic Forecast"
+	stylePlotTitle(p)
 	p.HideAxes()
 
 	tableRows := make([][]string, len(rows))
@@ -447,6 +477,7 @@ func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, noTruncate 
 	if p.Title.Text == "" {
 		p.Title.Text = "Longest Cycle Times"
 	}
+	stylePlotTitle(p)
 	p.HideAxes()
 
 	tableRows := make([][]string, len(rows))
