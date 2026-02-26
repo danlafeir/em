@@ -48,6 +48,7 @@ func SaveChart(p *plot.Plot, filename string, cfg Config) error {
 
 // stylePlotTitle makes the plot title 2x bigger and bold.
 func stylePlotTitle(p *plot.Plot) {
+	p.Title.Text = "\n" + p.Title.Text
 	p.Title.TextStyle.Font.Size = p.Title.TextStyle.Font.Size * 2
 	p.Title.TextStyle.Font.Variant = "Mono"
 }
@@ -264,7 +265,7 @@ func (t genericTablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
 	headerHeight := vg.Points(22)
 
 	// Draw header background (with padding below the title)
-	headerY := c.Max.Y - headerHeight - vg.Points(8)
+	headerY := c.Max.Y - headerHeight
 	headerPath := vg.Path{}
 	headerPath.Move(vg.Point{X: c.Min.X, Y: headerY})
 	headerPath.Line(vg.Point{X: c.Max.X, Y: headerY})
