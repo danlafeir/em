@@ -453,7 +453,7 @@ func ForecastTable(rows []ForecastRow) *plot.Plot {
 
 	p.Add(genericTablePlotter{
 		headers:  []string{"Epic", "Title", "Remaining", "50%", "85%", "95%"},
-		colFracs: []float64{0.02, 0.12, 0.62, 0.72, 0.82, 0.92},
+		colFracs: []float64{0.02, 0.16, 0.72, 0.80, 0.87, 0.94},
 		rows:     tableRows,
 		wrapCols: map[int]bool{1: true},
 	})
@@ -487,7 +487,7 @@ func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, noTruncate 
 
 	p.Add(genericTablePlotter{
 		headers:    []string{"Epic", "Title", "Days", "Started", "Done"},
-		colFracs:   []float64{0.02, 0.12, 0.72, 0.80, 0.90},
+		colFracs:   []float64{0.02, 0.16, 0.78, 0.85, 0.93},
 		rows:       tableRows,
 		noTruncate: noTruncate,
 		wrapCols:   map[int]bool{1: true},
@@ -500,7 +500,7 @@ func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, noTruncate 
 func CombinedReport(cycleTimePlot, throughputPlot, longestCTPlot, forecastPlot *plot.Plot, path string) error {
 	const (
 		width  = 55 * vg.Centimeter
-		height = 40 * vg.Centimeter
+		height = 34 * vg.Centimeter
 	)
 	var (
 		pad  = vg.Points(10)
@@ -528,8 +528,8 @@ func CombinedReport(cycleTimePlot, throughputPlot, longestCTPlot, forecastPlot *
 	}
 
 	panels := [2][2]*plot.Plot{
-		{cycleTimePlot, longestCTPlot},
-		{throughputPlot, forecastPlot},
+		{cycleTimePlot, throughputPlot},
+		{longestCTPlot, forecastPlot},
 	}
 
 	for r := 0; r < 2; r++ {
