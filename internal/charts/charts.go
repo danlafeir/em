@@ -268,13 +268,38 @@ func (t genericTablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
 		}
 
 		for i, v := range row {
+			// Truncate text if it would overflow into the next column
+			colStart := vg.Length(t.colFracs[i]) * width
+			var colEnd vg.Length
+			if i+1 < len(t.colFracs) {
+				colEnd = vg.Length(t.colFracs[i+1]) * width
+			} else {
+				colEnd = width
+			}
+			avail := colEnd - colStart - vg.Points(4)
+			v = truncateToFit(v, bodyStyle, avail)
+
 			pt := vg.Point{
-				X: c.Min.X + vg.Length(t.colFracs[i])*width,
+				X: c.Min.X + colStart,
 				Y: y + vg.Points(4),
 			}
 			c.FillText(bodyStyle, pt, v)
 		}
 	}
+}
+
+// truncateToFit truncates s with "..." if its rendered width exceeds avail.
+func truncateToFit(s string, sty draw.TextStyle, avail vg.Length) string {
+	if sty.Width(s) <= avail {
+		return s
+	}
+	for i := len(s) - 1; i > 0; i-- {
+		t := s[:i] + "..."
+		if sty.Width(t) <= avail {
+			return t
+		}
+	}
+	return "..."
 }
 
 func (t genericTablePlotter) DataRange() (xmin, xmax, ymin, ymax float64) {
@@ -289,13 +314,9 @@ func ForecastTable(rows []ForecastRow) *plot.Plot {
 
 	tableRows := make([][]string, len(rows))
 	for i, row := range rows {
-		summary := row.Summary
-		if len(summary) > 30 {
-			summary = summary[:27] + "..."
-		}
 		tableRows[i] = []string{
 			row.EpicKey,
-			summary,
+			row.Summary,
 			fmt.Sprintf("%d", row.Remaining),
 			row.Forecast50,
 			row.Forecast85,
@@ -305,7 +326,7 @@ func ForecastTable(rows []ForecastRow) *plot.Plot {
 
 	p.Add(genericTablePlotter{
 		headers:  []string{"Epic", "Summary", "Left", "50%", "85%", "95%"},
-		colFracs: []float64{0.02, 0.15, 0.55, 0.65, 0.77, 0.88},
+		colFracs: []float64{0.02, 0.12, 0.55, 0.65, 0.77, 0.88},
 		rows:     tableRows,
 	})
 
@@ -332,16 +353,12 @@ func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string) *plot.Plot 
 
 	tableRows := make([][]string, len(rows))
 	for i, row := range rows {
-		summary := row.Summary
-		if len(summary) > 30 {
-			summary = summary[:27] + "..."
-		}
-		tableRows[i] = []string{row.Key, summary, row.Days, row.Started, row.Completed}
+		tableRows[i] = []string{row.Key, row.Summary, row.Days, row.Started, row.Completed}
 	}
 
 	p.Add(genericTablePlotter{
 		headers:  []string{"Key", "Summary", "Days", "Started", "Done"},
-		colFracs: []float64{0.02, 0.15, 0.55, 0.68, 0.82},
+		colFracs: []float64{0.02, 0.12, 0.58, 0.68, 0.82},
 		rows:     tableRows,
 	})
 
