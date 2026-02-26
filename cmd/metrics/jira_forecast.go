@@ -2,17 +2,14 @@ package metrics
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"devctl-em/internal/charts"
-	"devctl-em/internal/output"
 	"devctl-em/internal/jira"
 	"devctl-em/internal/metrics"
 	"devctl-em/internal/workflow"
@@ -263,12 +260,6 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client) error {
 		}
 	}
 
-	// Export to CSV
-	csvPath := getOutputPath("epic-forecasts", "csv")
-	if err := exportForecastsCSV(forecasts, csvPath); err == nil {
-		fmt.Printf("\nExported to %s\n", csvPath)
-	}
-
 	// Export PNG chart
 	var rows []charts.ForecastRow
 	for _, f := range forecasts {
@@ -460,50 +451,6 @@ func runManualForecast(ctx context.Context, client *jira.Client, remaining int) 
 	fmt.Printf("  Weeks sampled: %d\n", len(weeklyThroughput))
 	fmt.Printf("  Weekly throughput range: %d to %d items\n",
 		minInt(weeklyThroughput), maxInt(weeklyThroughput))
-
-	return nil
-}
-
-func exportForecastsCSV(forecasts []EpicForecast, path string) error {
-	file, err := output.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	header := []string{"Epic Key", "Summary", "Total Items", "Completed", "Remaining", "Progress %", "50% Date", "85% Date", "95% Date", "Days to 85%", "Status"}
-	if err := writer.Write(header); err != nil {
-		return err
-	}
-
-	for _, f := range forecasts {
-		status := "In Progress"
-		if f.Error != "" {
-			status = "Error: " + f.Error
-		} else if f.RemainingItems == 0 {
-			status = "Complete"
-		}
-
-		row := []string{
-			f.EpicKey,
-			f.EpicSummary,
-			strconv.Itoa(f.TotalItems),
-			strconv.Itoa(f.CompletedItems),
-			strconv.Itoa(f.RemainingItems),
-			strconv.FormatFloat(f.Progress, 'f', 1, 64),
-			f.Forecast50.Format("2006-01-02"),
-			f.Forecast85.Format("2006-01-02"),
-			f.Forecast95.Format("2006-01-02"),
-			strconv.Itoa(f.Days85),
-			status,
-		}
-		if err := writer.Write(row); err != nil {
-			return err
-		}
-	}
 
 	return nil
 }
