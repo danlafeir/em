@@ -213,6 +213,7 @@ func ThroughputLine(data metrics.ThroughputResult, cfg Config) (*plot.Plot, erro
 
 	p.Add(line, scatter)
 	p.Legend.Add("Throughput", line)
+	p.Legend.Top = true
 
 	// Format X axis as dates
 	p.X.Tick.Marker = dateTicker{}
@@ -262,8 +263,8 @@ func (t genericTablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
 	rowHeight := vg.Points(18)
 	headerHeight := vg.Points(22)
 
-	// Draw header background
-	headerY := c.Max.Y - headerHeight
+	// Draw header background (with padding below the title)
+	headerY := c.Max.Y - headerHeight - vg.Points(8)
 	headerPath := vg.Path{}
 	headerPath.Move(vg.Point{X: c.Min.X, Y: headerY})
 	headerPath.Line(vg.Point{X: c.Max.X, Y: headerY})

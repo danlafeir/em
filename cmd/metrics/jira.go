@@ -283,3 +283,31 @@ func getOutputFormat(defaultFormat string) string {
 	}
 	return defaultFormat
 }
+
+// wrapString wraps s into lines of at most maxWidth characters, breaking on spaces.
+func wrapString(s string, maxWidth int) []string {
+	if len(s) <= maxWidth {
+		return []string{s}
+	}
+	var lines []string
+	for len(s) > 0 {
+		if len(s) <= maxWidth {
+			lines = append(lines, s)
+			break
+		}
+		// Find last space within maxWidth
+		cut := maxWidth
+		for cut > 0 && s[cut] != ' ' {
+			cut--
+		}
+		if cut == 0 {
+			cut = maxWidth // no space found, hard break
+		}
+		lines = append(lines, s[:cut])
+		s = s[cut:]
+		if len(s) > 0 && s[0] == ' ' {
+			s = s[1:]
+		}
+	}
+	return lines
+}

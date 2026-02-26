@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -96,22 +97,33 @@ func runLongestCycleTime(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\nTop %d Longest Cycle Times\n", limit)
 	fmt.Printf("=========================\n\n")
 
-	fmt.Printf("%-12s  %-40s  %10s  %-12s  %-12s\n",
-		"Epic", "Title", "Cycle Time", "Started", "Completed")
-	fmt.Printf("%-12s  %-40s  %10s  %-12s  %-12s\n",
-		"----", "-----", "----------", "-------", "---------")
+	titleWidth := 50
+	fmt.Printf("| %-16s | %-*s | %-10s | %-10s | %-10s |\n",
+		"Epic", titleWidth, "Title", "Cycle Time", "Started", "Completed")
+	fmt.Printf("|%s|%s|%s|%s|%s|\n",
+		strings.Repeat("_", 18),
+		strings.Repeat("_", titleWidth+2),
+		strings.Repeat("_", 12),
+		strings.Repeat("_", 12),
+		strings.Repeat("_", 12))
 
 	for _, r := range top {
-		summary := r.Summary
-		if len(summary) > 40 {
-			summary = summary[:37] + "..."
+		title := r.Summary
+		// Wrap title across multiple lines if needed
+		lines := wrapString(title, titleWidth)
+		for l, line := range lines {
+			if l == 0 {
+				fmt.Printf("| %-16s | %-*s | %-10s | %-10s | %-10s |\n",
+					r.IssueKey,
+					titleWidth, line,
+					fmt.Sprintf("%.1f d", r.CycleTimeDays()),
+					r.StartDate.Format("Jan 02"),
+					r.EndDate.Format("Jan 02"))
+			} else {
+				fmt.Printf("| %-16s | %-*s | %-10s | %-10s | %-10s |\n",
+					"", titleWidth, line, "", "", "")
+			}
 		}
-		fmt.Printf("%-12s  %-40s  %8.1f d  %-12s  %-12s\n",
-			r.IssueKey,
-			summary,
-			r.CycleTimeDays(),
-			r.StartDate.Format("Jan 02"),
-			r.EndDate.Format("Jan 02"))
 	}
 
 	// Export PNG
