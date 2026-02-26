@@ -328,7 +328,7 @@ func ForecastTable(rows []ForecastRow) *plot.Plot {
 
 	p.Add(genericTablePlotter{
 		headers:  []string{"Epic", "Summary", "Left", "50%", "85%", "95%"},
-		colFracs: []float64{0.02, 0.12, 0.55, 0.65, 0.77, 0.88},
+		colFracs: []float64{0.02, 0.12, 0.62, 0.70, 0.80, 0.90},
 		rows:     tableRows,
 	})
 
@@ -360,7 +360,7 @@ func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, noTruncate 
 
 	p.Add(genericTablePlotter{
 		headers:    []string{"Key", "Summary", "Days", "Started", "Done"},
-		colFracs:   []float64{0.02, 0.12, 0.58, 0.68, 0.82},
+		colFracs:   []float64{0.02, 0.12, 0.72, 0.80, 0.90},
 		rows:       tableRows,
 		noTruncate: noTruncate,
 	})
@@ -385,23 +385,30 @@ func CombinedReport(cycleTimePlot, throughputPlot, longestCTPlot, forecastPlot *
 
 	// Manually divide canvas into 2x2 quadrants to avoid plot.Align
 	// axis-alignment issues with hidden-axis table plots.
-	cellW := (dc.Max.X - dc.Min.X - 2*pad - gapX) / 2
+	// Left column (charts) gets 40%, right column (tables) gets 60%.
+	totalW := dc.Max.X - dc.Min.X - 2*pad - gapX
+	colW := [2]vg.Length{totalW * 0.4, totalW * 0.6}
 	cellH := (dc.Max.Y - dc.Min.Y - 2*pad - gapY) / 2
 
 	quadrant := func(row, col int) draw.Canvas {
-		minX := dc.Min.X + pad + vg.Length(col)*(cellW+gapX)
+		var minX vg.Length
+		if col == 0 {
+			minX = dc.Min.X + pad
+		} else {
+			minX = dc.Min.X + pad + colW[0] + gapX
+		}
 		minY := dc.Max.Y - pad - vg.Length(row+1)*cellH - vg.Length(row)*gapY
 		return draw.Crop(dc,
 			minX-dc.Min.X,
-			-(dc.Max.X - (minX + cellW)),
+			-(dc.Max.X - (minX + colW[col])),
 			minY-dc.Min.Y,
 			-(dc.Max.Y - (minY + cellH)),
 		)
 	}
 
 	panels := [2][2]*plot.Plot{
-		{cycleTimePlot, throughputPlot},
-		{longestCTPlot, forecastPlot},
+		{cycleTimePlot, longestCTPlot},
+		{throughputPlot, forecastPlot},
 	}
 
 	for r := 0; r < 2; r++ {
@@ -417,7 +424,7 @@ func CombinedReport(cycleTimePlot, throughputPlot, longestCTPlot, forecastPlot *
 	dividerWidth := vg.Points(2)
 
 	// Vertical divider
-	midX := dc.Min.X + pad + cellW + gapX/2
+	midX := dc.Min.X + pad + colW[0] + gapX/2
 	vLine := vg.Path{}
 	vLine.Move(vg.Point{X: midX, Y: dc.Min.Y + pad})
 	vLine.Line(vg.Point{X: midX, Y: dc.Max.Y - pad})
