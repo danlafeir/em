@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"devctl-em/internal/charts"
 	"devctl-em/internal/output"
 	"devctl-em/internal/jira"
 	"devctl-em/internal/metrics"
@@ -174,6 +175,9 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client) error {
 		fmt.Printf("\r[%d/%d] %s...", i+1, len(epics), epic.Key)
 
 		forecast := forecastEpic(ctx, client, mapper, epic, weeklyThroughput)
+		if forecast.RemainingItems == 0 {
+			continue
+		}
 		forecasts = append(forecasts, forecast)
 	}
 	fmt.Println()
@@ -186,13 +190,6 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client) error {
 		}
 		if forecasts[i].Error == "" && forecasts[j].Error != "" {
 			return true
-		}
-		// Put completed epics at the beginning
-		if forecasts[i].RemainingItems == 0 && forecasts[j].RemainingItems > 0 {
-			return true
-		}
-		if forecasts[i].RemainingItems > 0 && forecasts[j].RemainingItems == 0 {
-			return false
 		}
 		return forecasts[i].Forecast85.Before(forecasts[j].Forecast85)
 	})
@@ -214,12 +211,6 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client) error {
 		if f.Error != "" {
 			fmt.Printf("%-12s  %-40s  %5s  %5s  %6s  %s\n",
 				f.EpicKey, summary, "-", "-", "-", f.Error)
-			continue
-		}
-
-		if f.RemainingItems == 0 {
-			fmt.Printf("%-12s  %-40s  %5d  %5d  %5.0f%%  %-12s\n",
-				f.EpicKey, summary, f.CompletedItems, f.RemainingItems, f.Progress, "COMPLETE")
 			continue
 		}
 
@@ -256,53 +247,33 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client) error {
 		}
 	}
 
-	// Aggregate forecast across all active epics
-	totalRemaining := 0
-	for _, f := range forecasts {
-		if f.Error == "" && f.RemainingItems > 0 {
-			totalRemaining += f.RemainingItems
-		}
-	}
-
-	if totalRemaining > 0 {
-		config := metrics.MonteCarloConfig{
-			Trials:          trialsFlag,
-			SimulationStart: time.Now(),
-		}
-
-		if deadlineFlag != "" {
-			if deadline, err := time.Parse("2006-01-02", deadlineFlag); err == nil {
-				config.Deadline = &deadline
-			}
-		}
-
-		simulator := metrics.NewMonteCarloSimulator(config, weeklyThroughput)
-		aggResult, err := simulator.Run(totalRemaining)
-		if err == nil {
-			fmt.Printf("\n\nAggregate Forecast (all active epics)\n")
-			fmt.Printf("=====================================\n")
-			fmt.Printf("Total remaining items: %d\n", totalRemaining)
-			fmt.Printf("Average throughput:    %.1f items/week\n\n", aggResult.AvgThroughput)
-			fmt.Printf("  %-20s  %-12s  %s\n", "Confidence", "Date", "Days")
-			fmt.Printf("  %-20s  %-12s  %s\n", "----------", "----", "----")
-			for _, p := range []int{50, 70, 85, 95} {
-				fmt.Printf("  %-20s  %-12s  %d\n",
-					fmt.Sprintf("%d%%", p),
-					aggResult.Percentiles[p].Format("Jan 02, 2006"),
-					aggResult.PercentileDays[p])
-			}
-
-			if aggResult.DeadlineDate != nil {
-				fmt.Printf("\n  Deadline: %s\n", aggResult.DeadlineDate.Format("January 2, 2006"))
-				fmt.Printf("  Probability of meeting deadline: %.1f%%\n", aggResult.DeadlineConfidence*100)
-			}
-		}
-	}
-
 	// Export to CSV
-	outputPath := getOutputPath("epic-forecasts", "csv")
-	if err := exportForecastsCSV(forecasts, outputPath); err == nil {
-		fmt.Printf("\nExported to %s\n", outputPath)
+	csvPath := getOutputPath("epic-forecasts", "csv")
+	if err := exportForecastsCSV(forecasts, csvPath); err == nil {
+		fmt.Printf("\nExported to %s\n", csvPath)
+	}
+
+	// Export PNG chart
+	var rows []charts.ForecastRow
+	for _, f := range forecasts {
+		if f.Error != "" {
+			continue
+		}
+		rows = append(rows, charts.ForecastRow{
+			EpicKey:    f.EpicKey,
+			Summary:    f.EpicSummary,
+			Remaining:  f.RemainingItems,
+			Forecast50: f.Forecast50.Format("Jan 02"),
+			Forecast85: f.Forecast85.Format("Jan 02"),
+			Forecast95: f.Forecast95.Format("Jan 02"),
+		})
+	}
+	if len(rows) > 0 {
+		p := charts.ForecastTable(rows)
+		pngPath := getOutputPath("epic-forecasts", "png")
+		if err := charts.SaveChart(p, pngPath, charts.DefaultConfig()); err == nil {
+			fmt.Printf("Chart saved to %s\n", pngPath)
+		}
 	}
 
 	return nil
