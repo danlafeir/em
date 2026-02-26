@@ -97,9 +97,9 @@ func runLongestCycleTime(cmd *cobra.Command, args []string) error {
 	fmt.Printf("=========================\n\n")
 
 	fmt.Printf("%-12s  %-40s  %10s  %-12s  %-12s\n",
-		"Key", "Summary", "Cycle Time", "Started", "Completed")
+		"Epic", "Title", "Cycle Time", "Started", "Completed")
 	fmt.Printf("%-12s  %-40s  %10s  %-12s  %-12s\n",
-		"---", "-------", "----------", "-------", "---------")
+		"----", "-----", "----------", "-------", "---------")
 
 	for _, r := range top {
 		summary := r.Summary

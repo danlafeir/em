@@ -207,6 +207,7 @@ type genericTablePlotter struct {
 	colFracs   []float64
 	rows       [][]string
 	noTruncate bool
+	wrapCols   map[int]bool // column indices that wrap instead of truncate
 }
 
 func (t genericTablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
@@ -252,17 +253,50 @@ func (t genericTablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
 		c.FillText(headerStyle, pt, h)
 	}
 
-	// Draw data rows
+	// Pre-compute row heights (may vary if text wraps)
+	type rowLayout struct {
+		lines []int // number of lines per cell
+		h     vg.Length
+	}
+	layouts := make([]rowLayout, len(t.rows))
 	for r, row := range t.rows {
-		y := headerY - vg.Length(r+1)*rowHeight
+		maxLines := 1
+		cellLines := make([]int, len(row))
+		for i := range row {
+			colStart := vg.Length(t.colFracs[i]) * width
+			var colEnd vg.Length
+			if i+1 < len(t.colFracs) {
+				colEnd = vg.Length(t.colFracs[i+1]) * width
+			} else {
+				colEnd = width
+			}
+			avail := colEnd - colStart - vg.Points(4)
+			if t.wrapCols[i] {
+				lines := wrapText(row[i], bodyStyle, avail)
+				cellLines[i] = len(lines)
+				if len(lines) > maxLines {
+					maxLines = len(lines)
+				}
+			} else {
+				cellLines[i] = 1
+			}
+		}
+		layouts[r] = rowLayout{lines: cellLines, h: vg.Length(maxLines) * rowHeight}
+	}
+
+	// Draw data rows
+	yOffset := headerY
+	for r, row := range t.rows {
+		rh := layouts[r].h
+		yOffset -= rh
 
 		// Alternate row background
 		if r%2 == 0 {
 			bgPath := vg.Path{}
-			bgPath.Move(vg.Point{X: c.Min.X, Y: y})
-			bgPath.Line(vg.Point{X: c.Max.X, Y: y})
-			bgPath.Line(vg.Point{X: c.Max.X, Y: y + rowHeight})
-			bgPath.Line(vg.Point{X: c.Min.X, Y: y + rowHeight})
+			bgPath.Move(vg.Point{X: c.Min.X, Y: yOffset})
+			bgPath.Line(vg.Point{X: c.Max.X, Y: yOffset})
+			bgPath.Line(vg.Point{X: c.Max.X, Y: yOffset + rh})
+			bgPath.Line(vg.Point{X: c.Min.X, Y: yOffset + rh})
 			bgPath.Close()
 			c.SetColor(color.RGBA{R: 245, G: 245, B: 245, A: 255})
 			c.Fill(bgPath)
@@ -270,24 +304,85 @@ func (t genericTablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
 
 		for i, v := range row {
 			colStart := vg.Length(t.colFracs[i]) * width
-			if !t.noTruncate {
-				var colEnd vg.Length
-				if i+1 < len(t.colFracs) {
-					colEnd = vg.Length(t.colFracs[i+1]) * width
-				} else {
-					colEnd = width
-				}
-				avail := colEnd - colStart - vg.Points(4)
-				v = truncateToFit(v, bodyStyle, avail)
+			var colEnd vg.Length
+			if i+1 < len(t.colFracs) {
+				colEnd = vg.Length(t.colFracs[i+1]) * width
+			} else {
+				colEnd = width
 			}
+			avail := colEnd - colStart - vg.Points(4)
 
-			pt := vg.Point{
-				X: c.Min.X + colStart,
-				Y: y + vg.Points(4),
+			if t.wrapCols[i] {
+				lines := wrapText(v, bodyStyle, avail)
+				for l, line := range lines {
+					pt := vg.Point{
+						X: c.Min.X + colStart,
+						Y: yOffset + rh - vg.Length(l+1)*rowHeight + vg.Points(4),
+					}
+					c.FillText(bodyStyle, pt, line)
+				}
+			} else {
+				if !t.noTruncate {
+					v = truncateToFit(v, bodyStyle, avail)
+				}
+				pt := vg.Point{
+					X: c.Min.X + colStart,
+					Y: yOffset + rh - rowHeight + vg.Points(4),
+				}
+				c.FillText(bodyStyle, pt, v)
 			}
-			c.FillText(bodyStyle, pt, v)
 		}
 	}
+}
+
+// wrapText splits s into lines that each fit within avail width.
+func wrapText(s string, sty draw.TextStyle, avail vg.Length) []string {
+	if sty.Width(s) <= avail {
+		return []string{s}
+	}
+	words := splitWords(s)
+	var lines []string
+	cur := ""
+	for _, w := range words {
+		test := cur
+		if test != "" {
+			test += " "
+		}
+		test += w
+		if cur != "" && sty.Width(test) > avail {
+			lines = append(lines, cur)
+			cur = w
+		} else {
+			cur = test
+		}
+	}
+	if cur != "" {
+		lines = append(lines, cur)
+	}
+	if len(lines) == 0 {
+		return []string{s}
+	}
+	return lines
+}
+
+// splitWords splits a string on spaces.
+func splitWords(s string) []string {
+	var words []string
+	cur := ""
+	for _, ch := range s {
+		if ch == ' ' {
+			if cur != "" {
+				words = append(words, cur)
+				cur = ""
+			}
+		} else {
+			cur += string(ch)
+		}
+	}
+	if cur != "" {
+		words = append(words, cur)
+	}
+	return words
 }
 
 // truncateToFit truncates s with "..." if its rendered width exceeds avail.
@@ -327,9 +422,10 @@ func ForecastTable(rows []ForecastRow) *plot.Plot {
 	}
 
 	p.Add(genericTablePlotter{
-		headers:  []string{"Epic", "Summary", "Left", "50%", "85%", "95%"},
-		colFracs: []float64{0.02, 0.12, 0.62, 0.70, 0.80, 0.90},
+		headers:  []string{"Epic", "Title", "Remaining", "50%", "85%", "95%"},
+		colFracs: []float64{0.02, 0.12, 0.62, 0.72, 0.82, 0.92},
 		rows:     tableRows,
+		wrapCols: map[int]bool{1: true},
 	})
 
 	return p
@@ -359,10 +455,11 @@ func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, noTruncate 
 	}
 
 	p.Add(genericTablePlotter{
-		headers:    []string{"Key", "Summary", "Days", "Started", "Done"},
+		headers:    []string{"Epic", "Title", "Days", "Started", "Done"},
 		colFracs:   []float64{0.02, 0.12, 0.72, 0.80, 0.90},
 		rows:       tableRows,
 		noTruncate: noTruncate,
+		wrapCols:   map[int]bool{1: true},
 	})
 
 	return p
@@ -371,8 +468,8 @@ func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, noTruncate 
 // CombinedReport renders cycle time, throughput, longest cycle time, and forecast plots into a single PNG.
 func CombinedReport(cycleTimePlot, throughputPlot, longestCTPlot, forecastPlot *plot.Plot, path string) error {
 	const (
-		width  = 40 * vg.Centimeter
-		height = 30 * vg.Centimeter
+		width  = 55 * vg.Centimeter
+		height = 40 * vg.Centimeter
 	)
 	var (
 		pad  = vg.Points(10)
@@ -385,22 +482,15 @@ func CombinedReport(cycleTimePlot, throughputPlot, longestCTPlot, forecastPlot *
 
 	// Manually divide canvas into 2x2 quadrants to avoid plot.Align
 	// axis-alignment issues with hidden-axis table plots.
-	// Left column (charts) gets 40%, right column (tables) gets 60%.
-	totalW := dc.Max.X - dc.Min.X - 2*pad - gapX
-	colW := [2]vg.Length{totalW * 0.4, totalW * 0.6}
+	cellW := (dc.Max.X - dc.Min.X - 2*pad - gapX) / 2
 	cellH := (dc.Max.Y - dc.Min.Y - 2*pad - gapY) / 2
 
 	quadrant := func(row, col int) draw.Canvas {
-		var minX vg.Length
-		if col == 0 {
-			minX = dc.Min.X + pad
-		} else {
-			minX = dc.Min.X + pad + colW[0] + gapX
-		}
+		minX := dc.Min.X + pad + vg.Length(col)*(cellW+gapX)
 		minY := dc.Max.Y - pad - vg.Length(row+1)*cellH - vg.Length(row)*gapY
 		return draw.Crop(dc,
 			minX-dc.Min.X,
-			-(dc.Max.X - (minX + colW[col])),
+			-(dc.Max.X - (minX + cellW)),
 			minY-dc.Min.Y,
 			-(dc.Max.Y - (minY + cellH)),
 		)
@@ -424,7 +514,7 @@ func CombinedReport(cycleTimePlot, throughputPlot, longestCTPlot, forecastPlot *
 	dividerWidth := vg.Points(2)
 
 	// Vertical divider
-	midX := dc.Min.X + pad + colW[0] + gapX/2
+	midX := dc.Min.X + pad + cellW + gapX/2
 	vLine := vg.Path{}
 	vLine.Move(vg.Point{X: midX, Y: dc.Min.Y + pad})
 	vLine.Line(vg.Point{X: midX, Y: dc.Max.Y - pad})
