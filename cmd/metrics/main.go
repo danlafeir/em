@@ -16,6 +16,7 @@ var MetricsCmd = &cobra.Command{
 
 Available data sources:
   jira    - JIRA Cloud agile metrics
+  github  - GitHub DORA metrics
 
 Use "devctl-em metrics [source] --help" for more information about a source.`,
 	Run: func(cmd *cobra.Command, args []string) {
