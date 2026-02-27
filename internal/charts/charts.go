@@ -648,3 +648,70 @@ func intToString(n int) string {
 	return result
 }
 
+// DeploymentWeek holds deployment count for a single week.
+type DeploymentWeek struct {
+	WeekStart time.Time
+	Count     int
+}
+
+// DeploymentFrequencyLine creates a line chart of deployment frequency over time.
+func DeploymentFrequencyLine(weeks []DeploymentWeek, cfg Config) (*plot.Plot, error) {
+	p := plot.New()
+	p.Title.Text = cfg.Title
+	if p.Title.Text == "" {
+		p.Title.Text = "Deployment Frequency"
+	}
+	stylePlotTitle(p)
+	p.X.Label.Text = "Week"
+	p.Y.Label.Text = "Deployments"
+	p.X.Padding = vg.Points(0)
+	p.Y.Padding = vg.Points(0)
+
+	pts := make(plotter.XYs, len(weeks))
+	for i, w := range weeks {
+		pts[i].X = float64(w.WeekStart.Unix())
+		pts[i].Y = float64(w.Count)
+	}
+
+	// Line
+	line, err := plotter.NewLine(pts)
+	if err != nil {
+		return nil, err
+	}
+	line.LineStyle.Color = color.RGBA{R: 66, G: 133, B: 244, A: 255}
+	line.LineStyle.Width = vg.Points(2)
+
+	// Scatter markers
+	scatter, err := plotter.NewScatter(pts)
+	if err != nil {
+		return nil, err
+	}
+	scatter.GlyphStyle.Shape = draw.CircleGlyph{}
+	scatter.GlyphStyle.Radius = vg.Points(4)
+	scatter.GlyphStyle.Color = color.RGBA{R: 66, G: 133, B: 244, A: 255}
+
+	// Trend line
+	if len(pts) >= 2 {
+		slope, intercept := linearRegression(pts)
+		trendLine, err := plotter.NewLine(plotter.XYs{
+			{X: pts[0].X, Y: slope*pts[0].X + intercept},
+			{X: pts[len(pts)-1].X, Y: slope*pts[len(pts)-1].X + intercept},
+		})
+		if err == nil {
+			trendLine.LineStyle.Color = color.RGBA{R: 244, G: 67, B: 54, A: 200}
+			trendLine.LineStyle.Width = vg.Points(1.5)
+			trendLine.LineStyle.Dashes = []vg.Length{vg.Points(5), vg.Points(3)}
+			p.Add(trendLine)
+			p.Legend.Add("Trend", trendLine)
+		}
+	}
+
+	p.Add(line, scatter)
+	p.Legend.Add("Deployments", line)
+	p.Legend.Top = true
+
+	p.X.Tick.Marker = dateTicker{}
+
+	return p, nil
+}
+
