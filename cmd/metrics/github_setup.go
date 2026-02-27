@@ -11,6 +11,8 @@ import (
 
 	"github.com/danlafeir/devctl/pkg/config"
 	"github.com/spf13/cobra"
+
+	"devctl-em/internal/github"
 )
 
 var setupCmd = &cobra.Command{
@@ -96,17 +98,32 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		}
 
 		fmt.Printf("  Workflows:\n")
+		suggested := suggestDeployWorkflow(workflows)
 		for i, wf := range workflows {
 			filename := filepath.Base(wf.Path)
 			fmt.Printf("    %d) %s (%s)\n", i+1, wf.Name, filename)
 		}
 		fmt.Printf("    0) Skip this repo\n")
-		fmt.Printf("  Select deploy workflow [0]: ")
+
+		if suggested > 0 {
+			suggestedWf := workflows[suggested-1]
+			fmt.Printf("  Select deploy workflow [%d - %s]: ", suggested, suggestedWf.Name)
+		} else {
+			fmt.Printf("  Select deploy workflow [0]: ")
+		}
 
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(input)
 
-		if input == "" || input == "0" {
+		if input == "" {
+			if suggested > 0 {
+				input = strconv.Itoa(suggested)
+			} else {
+				fmt.Println()
+				continue
+			}
+		}
+		if input == "0" {
 			fmt.Println()
 			continue
 		}
@@ -147,4 +164,19 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Saved %d workflow selections to config.\n", len(selections))
 	return nil
+}
+
+// suggestDeployWorkflow returns the 1-based index of a workflow whose name or
+// filename contains "prod", "deploy", or "release". Returns 0 if no match.
+func suggestDeployWorkflow(workflows []github.Workflow) int {
+	for i, wf := range workflows {
+		name := strings.ToLower(wf.Name)
+		filename := strings.ToLower(filepath.Base(wf.Path))
+		for _, keyword := range []string{"prod", "deploy", "release"} {
+			if strings.Contains(name, keyword) || strings.Contains(filename, keyword) {
+				return i + 1
+			}
+		}
+	}
+	return 0
 }
