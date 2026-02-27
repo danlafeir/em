@@ -71,12 +71,22 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	reader := bufio.NewReader(os.Stdin)
 	selections := make(map[string]string)
 
+	notAccessible := 0
 	for _, repo := range repos {
 		fmt.Printf("--- %s ---\n", repo.Name)
 
-		workflows, err := client.ListWorkflows(ctx, org, repo.Name)
+		owner := repo.Owner.Login
+		if owner == "" {
+			owner = org
+		}
+		workflows, err := client.ListWorkflows(ctx, owner, repo.Name)
 		if err != nil {
-			fmt.Printf("  Error listing workflows: %v\n\n", err)
+			if strings.Contains(err.Error(), "404") {
+				fmt.Printf("  Actions not accessible, skipping.\n\n")
+				notAccessible++
+			} else {
+				fmt.Printf("  Error listing workflows: %v\n\n", err)
+			}
 			continue
 		}
 
@@ -111,6 +121,11 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		filename := filepath.Base(wf.Path)
 		selections[repo.Name] = filename
 		fmt.Printf("  Selected: %s\n\n", filename)
+	}
+
+	if notAccessible > 0 && notAccessible == len(repos) {
+		fmt.Println("All repositories returned 404. Your token may need the 'actions:read' permission.")
+		return nil
 	}
 
 	if len(selections) == 0 {

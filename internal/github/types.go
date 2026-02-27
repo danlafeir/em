@@ -18,13 +18,19 @@ func (c *Credentials) BaseURL() string {
 	return "https://api.github.com"
 }
 
+// RepositoryOwner represents the owner of a GitHub repository.
+type RepositoryOwner struct {
+	Login string `json:"login"`
+}
+
 // Repository represents a GitHub repository.
 type Repository struct {
-	ID       int64  `json:"id"`
-	Name     string `json:"name"`
-	FullName string `json:"full_name"`
-	Private  bool   `json:"private"`
-	HTMLURL  string `json:"html_url"`
+	ID       int64           `json:"id"`
+	Name     string          `json:"name"`
+	FullName string          `json:"full_name"`
+	Owner    RepositoryOwner `json:"owner"`
+	Private  bool            `json:"private"`
+	HTMLURL  string          `json:"html_url"`
 }
 
 // Workflow represents a GitHub Actions workflow.
