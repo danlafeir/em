@@ -75,6 +75,10 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 	notAccessible := 0
 	for _, repo := range repos {
+		if repo.Archived {
+			continue
+		}
+
 		fmt.Printf("--- %s ---\n", repo.Name)
 
 		owner := repo.Owner.Login

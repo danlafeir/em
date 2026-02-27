@@ -30,6 +30,7 @@ type Repository struct {
 	FullName string          `json:"full_name"`
 	Owner    RepositoryOwner `json:"owner"`
 	Private  bool            `json:"private"`
+	Archived bool            `json:"archived"`
 	HTMLURL  string          `json:"html_url"`
 }
 
