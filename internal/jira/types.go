@@ -215,6 +215,35 @@ type IssueWithHistory struct {
 	Transitions []StatusTransition
 }
 
+// Board represents a JIRA agile board.
+type Board struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+	Type string `json:"type"`
+}
+
+// BoardListResult represents the paginated board list response.
+type BoardListResult struct {
+	PaginatedResponse
+	Values []Board `json:"values"`
+}
+
+// BoardConfig represents a JIRA board's configuration.
+type BoardConfig struct {
+	Filter BoardFilter `json:"filter"`
+}
+
+// BoardFilter represents the filter reference in a board config.
+type BoardFilter struct {
+	ID string `json:"id"`
+}
+
+// Filter represents a JIRA saved filter.
+type Filter struct {
+	ID  string `json:"id"`
+	JQL string `json:"jql"`
+}
+
 // ErrorResponse represents a JIRA API error.
 type ErrorResponse struct {
 	ErrorMessages []string          `json:"errorMessages"`

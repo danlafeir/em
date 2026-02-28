@@ -332,6 +332,69 @@ func (c *Client) FetchIssuesWithHistory(ctx context.Context, jql string, progres
 	return result, nil
 }
 
+// ListBoards returns all agile boards for the given project key.
+func (c *Client) ListBoards(ctx context.Context, projectKey string) ([]Board, error) {
+	var allBoards []Board
+	startAt := 0
+
+	for {
+		query := url.Values{}
+		query.Set("projectKeyOrId", projectKey)
+		query.Set("startAt", strconv.Itoa(startAt))
+
+		data, err := c.doRequest(ctx, "GET", "/rest/agile/1.0/board", query)
+		if err != nil {
+			return nil, fmt.Errorf("listing boards: %w", err)
+		}
+
+		var result BoardListResult
+		if err := json.Unmarshal(data, &result); err != nil {
+			return nil, fmt.Errorf("parsing board list: %w", err)
+		}
+
+		allBoards = append(allBoards, result.Values...)
+
+		if result.IsLast || len(result.Values) == 0 {
+			break
+		}
+		startAt += len(result.Values)
+	}
+
+	return allBoards, nil
+}
+
+// GetBoardConfiguration returns the configuration for a board, including its filter.
+func (c *Client) GetBoardConfiguration(ctx context.Context, boardID int) (*BoardConfig, error) {
+	path := fmt.Sprintf("/rest/agile/1.0/board/%d/configuration", boardID)
+	data, err := c.doRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("getting board configuration: %w", err)
+	}
+
+	var config BoardConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("parsing board configuration: %w", err)
+	}
+
+	return &config, nil
+}
+
+// GetFilter returns a JIRA saved filter by ID.
+func (c *Client) GetFilter(ctx context.Context, filterID string) (*Filter, error) {
+	path := fmt.Sprintf("/rest/api/3/filter/%s", filterID)
+	data, err := c.doRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, fmt.Errorf("getting filter: %w", err)
+	}
+
+	var filter Filter
+	if err := json.Unmarshal(data, &filter); err != nil {
+		return nil, fmt.Errorf("parsing filter: %w", err)
+	}
+
+	return &filter, nil
+}
+
 // TestConnection verifies the JIRA credentials work.
 func (c *Client) TestConnection(ctx context.Context) error {
 	_, err := c.doRequest(ctx, "GET", "/rest/api/3/myself", nil)

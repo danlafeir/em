@@ -2,11 +2,14 @@ package metrics
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
 	"syscall"
+
+	"devctl-em/internal/jira"
 
 	"github.com/danlafeir/devctl/pkg/config"
 	"github.com/danlafeir/devctl/pkg/secrets"
@@ -93,6 +96,11 @@ func runJiraSetup(cmd *cobra.Command, args []string) error {
 		}
 		config.SetConfigValue(configNamespace, fmt.Sprintf("jira.teams.%s.project", team), project)
 		fmt.Printf("Set jira.teams.%s.project = %s\n", team, project)
+
+		// Offer board-based JQL selection
+		if err := promptBoardJQL(reader, team, project); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: could not fetch boards: %v\n", err)
+		}
 
 		fmt.Print("Add another team? [y/N]: ")
 		input, _ := reader.ReadString('\n')
@@ -208,4 +216,64 @@ func resolveJiraSetupTeam(reader *bufio.Reader) (string, error) {
 	}
 
 	return input, nil
+}
+
+// promptBoardJQL queries JIRA for boards in the project and lets the user
+// pick one to use its filter JQL as the team's default_jql.
+func promptBoardJQL(reader *bufio.Reader, team, projectKey string) error {
+	client, err := getJiraClient()
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	boards, err := client.ListBoards(ctx, projectKey)
+	if err != nil {
+		return err
+	}
+
+	if len(boards) == 0 {
+		fmt.Println("No boards found for project", projectKey)
+		return nil
+	}
+
+	fmt.Println("\nBoards found:")
+	for i, b := range boards {
+		fmt.Printf("  %d) %s (%s)\n", i+1, b.Name, b.Type)
+	}
+	fmt.Printf("  0) Skip — don't set default JQL\n")
+	fmt.Print("Select board [0]: ")
+
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+	if input == "" || input == "0" {
+		return nil
+	}
+
+	choice, err := strconv.Atoi(input)
+	if err != nil || choice < 1 || choice > len(boards) {
+		fmt.Println("Invalid selection, skipping board JQL.")
+		return nil
+	}
+
+	board := boards[choice-1]
+	return fetchAndStoreBoardJQL(ctx, client, team, board)
+}
+
+// fetchAndStoreBoardJQL retrieves the board's filter JQL and stores it as the team's default_jql.
+func fetchAndStoreBoardJQL(ctx context.Context, client *jira.Client, team string, board jira.Board) error {
+	boardCfg, err := client.GetBoardConfiguration(ctx, board.ID)
+	if err != nil {
+		return fmt.Errorf("getting board config: %w", err)
+	}
+
+	filter, err := client.GetFilter(ctx, boardCfg.Filter.ID)
+	if err != nil {
+		return fmt.Errorf("getting filter: %w", err)
+	}
+
+	key := fmt.Sprintf("jira.teams.%s.default_jql", team)
+	config.SetConfigValue(configNamespace, key, filter.JQL)
+	fmt.Printf("Set %s = %s\n", key, filter.JQL)
+	return nil
 }
