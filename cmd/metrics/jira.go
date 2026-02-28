@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -11,8 +12,8 @@ import (
 	"github.com/danlafeir/devctl/pkg/secrets"
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/output"
 	"devctl-em/internal/jira"
+	"devctl-em/internal/output"
 	"devctl-em/internal/workflow"
 )
 
@@ -56,16 +57,18 @@ Configure your JIRA connection first:
   devctl-em config set jira.email user@company.com
   devctl-em config set jira.api_token
 
-Set a project to automatically scope metrics to active epics:
-  devctl-em config set jira.project MYPROJ
+Configure teams with their projects:
+  devctl-em config set jira.teams.platform.project PLAT
+  devctl-em config set jira.teams.backend.project API
+  devctl-em config set jira.teams.backend.default_jql "project = API AND ..."
 
-JQL resolution order: --jql flag > jira.default_jql config > --project flag > jira.project config.
-Use --project to override the configured project for a single invocation.
+JQL resolution order: --jql flag > --project flag > team default_jql > team project config.
+Use --team to filter to a single team; omit it to aggregate all teams.
 
 Examples:
-  devctl-em metrics jira cycle-time --jql "project = MYPROJ"
+  devctl-em metrics jira cycle-time --team platform
   devctl-em metrics jira throughput --from 2024-01-01 --to 2024-12-31
-  devctl-em metrics jira forecast --epic MYPROJ-123`,
+  devctl-em metrics jira forecast --team backend --epic API-123`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
@@ -73,12 +76,13 @@ Examples:
 
 // Common flags for all jira subcommands
 var (
-	jqlFlag     string
-	projectFlag string
-	fromFlag    string
-	toFlag      string
-	outputFlag  string
-	formatFlag  string
+	jqlFlag      string
+	projectFlag  string
+	jiraTeamFlag string
+	fromFlag     string
+	toFlag       string
+	outputFlag   string
+	formatFlag   string
 )
 
 func init() {
@@ -87,11 +91,14 @@ func init() {
 
 	// Define persistent flags for all jira subcommands
 	JiraCmd.PersistentFlags().StringVar(&jqlFlag, "jql", "", "JQL query (overrides config default)")
-	JiraCmd.PersistentFlags().StringVar(&projectFlag, "project", "", "JIRA project key (overrides jira.project config)")
+	JiraCmd.PersistentFlags().StringVar(&projectFlag, "project", "", "JIRA project key (overrides config)")
+	JiraCmd.PersistentFlags().StringVar(&jiraTeamFlag, "team", "", "JIRA team slug (filters to one team)")
 	JiraCmd.PersistentFlags().StringVar(&fromFlag, "from", "", "Start date (YYYY-MM-DD)")
 	JiraCmd.PersistentFlags().StringVar(&toFlag, "to", "", "End date (YYYY-MM-DD)")
 	JiraCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "", "Output file path")
 	JiraCmd.PersistentFlags().StringVarP(&formatFlag, "format", "f", "", "Output format (png, csv, xlsx, html)")
+
+	migrateJiraConfig()
 }
 
 // getJiraClient creates a JIRA client from configuration.
@@ -128,20 +135,93 @@ func getJiraClient() (*jira.Client, error) {
 	return jira.NewClient(creds), nil
 }
 
+// migrateJiraConfig migrates old-style jira.project + jira.default_jql
+// to the new jira.teams.<slug>.* format.
+func migrateJiraConfig() {
+	initConfig()
+
+	oldProject := getConfigString("jira.project")
+	oldJQL := getConfigString("jira.default_jql")
+	if oldProject == "" && oldJQL == "" {
+		return
+	}
+
+	// Determine team slug: lowercase project key, or "default" if only JQL exists
+	slug := "default"
+	if oldProject != "" {
+		slug = strings.ToLower(oldProject)
+	}
+
+	if oldProject != "" {
+		config.SetConfigValue(configNamespace, fmt.Sprintf("jira.teams.%s.project", slug), oldProject)
+	}
+	if oldJQL != "" {
+		config.SetConfigValue(configNamespace, fmt.Sprintf("jira.teams.%s.default_jql", slug), oldJQL)
+	}
+
+	// Remove old keys
+	config.DeleteConfigValue(configNamespace, "jira.project")
+	config.DeleteConfigValue(configNamespace, "jira.default_jql")
+
+	config.WriteConfig()
+	fmt.Printf("Migrated JIRA config to jira.teams.%s\n", slug)
+}
+
+// getJiraTeams returns all configured team slugs, or just the --team flag if set.
+func getJiraTeams() []string {
+	if jiraTeamFlag != "" {
+		return []string{jiraTeamFlag}
+	}
+
+	raw := getConfigAny("jira.teams")
+	if raw == nil {
+		return nil
+	}
+
+	rawMap, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	teams := make([]string, 0, len(rawMap))
+	for slug := range rawMap {
+		teams = append(teams, slug)
+	}
+	sort.Strings(teams)
+	return teams
+}
+
+// getTeamConfigString reads jira.teams.<team>.<key> from config.
+func getTeamConfigString(team, key string) string {
+	return getConfigString(fmt.Sprintf("jira.teams.%s.%s", team, key))
+}
+
 // getJQL returns the JQL query from the flag or config default (no API calls).
 func getJQL() (string, error) {
 	if jqlFlag != "" {
 		return jqlFlag, nil
 	}
-	jql := getConfigString("jira.default_jql")
-	if jql == "" {
-		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or set jira.default_jql or jira.project in config")
+
+	teams := getJiraTeams()
+	if len(teams) == 0 {
+		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure jira.teams in config")
 	}
-	return jql, nil
+
+	var parts []string
+	for _, team := range teams {
+		if jql := getTeamConfigString(team, "default_jql"); jql != "" {
+			parts = append(parts, "("+jql+")")
+		}
+	}
+
+	if len(parts) == 0 {
+		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or set default_jql for teams in config")
+	}
+	return strings.Join(parts, " OR "), nil
 }
 
-// resolveJQL returns the JQL query to use, with fallback to jira.project config.
-// When jira.project is set, it queries JIRA for active epics and builds a
+// resolveJQL returns the JQL query to use, with fallback to team project configs.
+// When a team's project is set, it queries JIRA for active epics and builds a
 // children JQL to scope metrics to child issues of those epics.
 func resolveJQL(ctx context.Context, client *jira.Client) (string, error) {
 	// 1. --jql flag takes priority
@@ -149,20 +229,44 @@ func resolveJQL(ctx context.Context, client *jira.Client) (string, error) {
 		return jqlFlag, nil
 	}
 
-	// 2. jira.default_jql config
-	if jql := getConfigString("jira.default_jql"); jql != "" {
-		return jql, nil
+	// 2. --project flag — single project override
+	if projectFlag != "" {
+		return resolveProjectEpics(ctx, client, projectFlag)
 	}
 
-	// 3. --project flag or jira.project config — query for active epics
-	project := projectFlag
-	if project == "" {
-		project = getConfigString("jira.project")
-	}
-	if project == "" {
-		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or set jira.default_jql or jira.project in config")
+	// 3. Team-based resolution
+	teams := getJiraTeams()
+	if len(teams) == 0 {
+		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure jira.teams in config")
 	}
 
+	var parts []string
+	for _, team := range teams {
+		// Team default_jql takes priority over team project
+		if jql := getTeamConfigString(team, "default_jql"); jql != "" {
+			parts = append(parts, "("+jql+")")
+			continue
+		}
+		project := getTeamConfigString(team, "project")
+		if project == "" {
+			continue
+		}
+		teamJQL, err := resolveProjectEpics(ctx, client, project)
+		if err != nil {
+			return "", fmt.Errorf("team %s: %w", team, err)
+		}
+		parts = append(parts, "("+teamJQL+")")
+	}
+
+	if len(parts) == 0 {
+		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure teams with project or default_jql")
+	}
+	return strings.Join(parts, " OR "), nil
+}
+
+// resolveProjectEpics queries JIRA for active epics in a project and returns
+// a JQL that scopes to child issues of those epics.
+func resolveProjectEpics(ctx context.Context, client *jira.Client, project string) (string, error) {
 	epicJQL := fmt.Sprintf("project = %s AND issuetype = Epic AND resolution IS EMPTY", project)
 	epics, err := client.SearchAllIssues(ctx, epicJQL, "key", "")
 	if err != nil {
@@ -188,17 +292,44 @@ func getProjectJQL() (string, error) {
 	if jqlFlag != "" {
 		return jqlFlag, nil
 	}
-	if jql := getConfigString("jira.default_jql"); jql != "" {
-		return jql, nil
+
+	// --project flag override
+	if projectFlag != "" {
+		return fmt.Sprintf("project = %s", projectFlag), nil
 	}
-	project := projectFlag
-	if project == "" {
-		project = getConfigString("jira.project")
+
+	// Team-based resolution
+	teams := getJiraTeams()
+	if len(teams) == 0 {
+		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure jira.teams in config")
 	}
-	if project == "" {
-		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or set jira.default_jql or jira.project in config")
+
+	// Check for default_jql first, then collect projects
+	var jqlParts []string
+	var projects []string
+	for _, team := range teams {
+		if jql := getTeamConfigString(team, "default_jql"); jql != "" {
+			jqlParts = append(jqlParts, "("+jql+")")
+			continue
+		}
+		if project := getTeamConfigString(team, "project"); project != "" {
+			projects = append(projects, project)
+		}
 	}
-	return fmt.Sprintf("project = %s", project), nil
+
+	// Combine: teams with default_jql OR-ed, projects combined into project in (...)
+	if len(projects) > 0 {
+		if len(projects) == 1 {
+			jqlParts = append(jqlParts, fmt.Sprintf("project = %s", projects[0]))
+		} else {
+			jqlParts = append(jqlParts, fmt.Sprintf("project in (%s)", strings.Join(projects, ", ")))
+		}
+	}
+
+	if len(jqlParts) == 0 {
+		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure teams with project or default_jql")
+	}
+	return strings.Join(jqlParts, " OR "), nil
 }
 
 // getDateRange returns the from/to date range.
