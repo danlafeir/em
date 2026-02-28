@@ -715,3 +715,67 @@ func DeploymentFrequencyLine(weeks []DeploymentWeek, cfg Config) (*plot.Plot, er
 	return p, nil
 }
 
+// SnykIssueWeek holds vulnerability counts by severity for a single week.
+type SnykIssueWeek struct {
+	WeekStart              time.Time
+	Critical, High, Medium, Low int
+}
+
+// SnykIssuesLine creates a multi-line chart of Snyk issues by severity over time.
+func SnykIssuesLine(weeks []SnykIssueWeek, cfg Config) (*plot.Plot, error) {
+	p := plot.New()
+	p.Title.Text = cfg.Title
+	if p.Title.Text == "" {
+		p.Title.Text = "Snyk Issues — Weekly Trend"
+	}
+	stylePlotTitle(p)
+	p.X.Label.Text = "Week"
+	p.Y.Label.Text = "Issues"
+	p.X.Padding = vg.Points(0)
+	p.Y.Padding = vg.Points(0)
+
+	type seriesDef struct {
+		name  string
+		color color.RGBA
+		val   func(SnykIssueWeek) int
+	}
+
+	series := []seriesDef{
+		{"Critical", color.RGBA{R: 220, G: 38, B: 38, A: 255}, func(w SnykIssueWeek) int { return w.Critical }},
+		{"High", color.RGBA{R: 234, G: 88, B: 12, A: 255}, func(w SnykIssueWeek) int { return w.High }},
+		{"Medium", color.RGBA{R: 202, G: 138, B: 4, A: 255}, func(w SnykIssueWeek) int { return w.Medium }},
+		{"Low", color.RGBA{R: 37, G: 99, B: 235, A: 255}, func(w SnykIssueWeek) int { return w.Low }},
+	}
+
+	for _, s := range series {
+		pts := make(plotter.XYs, len(weeks))
+		for i, w := range weeks {
+			pts[i].X = float64(w.WeekStart.Unix())
+			pts[i].Y = float64(s.val(w))
+		}
+
+		line, err := plotter.NewLine(pts)
+		if err != nil {
+			return nil, err
+		}
+		line.LineStyle.Color = s.color
+		line.LineStyle.Width = vg.Points(2)
+
+		scatter, err := plotter.NewScatter(pts)
+		if err != nil {
+			return nil, err
+		}
+		scatter.GlyphStyle.Shape = draw.CircleGlyph{}
+		scatter.GlyphStyle.Radius = vg.Points(3)
+		scatter.GlyphStyle.Color = s.color
+
+		p.Add(line, scatter)
+		p.Legend.Add(s.name, line)
+	}
+
+	p.Legend.Top = true
+	p.X.Tick.Marker = dateTicker{}
+
+	return p, nil
+}
+
