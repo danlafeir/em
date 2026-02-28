@@ -3,8 +3,10 @@ package metrics
 import (
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
+	"github.com/danlafeir/devctl/pkg/config"
 	"github.com/danlafeir/devctl/pkg/secrets"
 	"github.com/spf13/cobra"
 
@@ -23,14 +25,19 @@ Available metrics:
 
 Setup:
   devctl-em config set github.org myorg
-  devctl-em config set github.team my-team
   devctl-em config set github.api_token
 
-Then run setup to pick deploy workflows:
-  devctl-em metrics github setup
+Then run setup to pick deploy workflows per team:
+  devctl-em metrics github setup --team my-team
+
+Config structure:
+  github.teams.<team>.workflows:
+    repo-a: deploy.yml
+    repo-b: release.yaml
 
 Examples:
   devctl-em metrics github deployment-frequency --from 2025-01-01
+  devctl-em metrics github deployment-frequency --team platform
   devctl-em metrics github deployment-frequency -f csv`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
@@ -53,7 +60,9 @@ func init() {
 	GithubCmd.PersistentFlags().StringVar(&ghFromFlag, "from", "", "Start date (YYYY-MM-DD)")
 	GithubCmd.PersistentFlags().StringVar(&ghToFlag, "to", "", "End date (YYYY-MM-DD)")
 	GithubCmd.PersistentFlags().StringVar(&ghOrgFlag, "org", "", "GitHub organization (overrides config)")
-	GithubCmd.PersistentFlags().StringVar(&ghTeamFlag, "team", "", "GitHub team slug (overrides config)")
+	GithubCmd.PersistentFlags().StringVar(&ghTeamFlag, "team", "", "GitHub team slug (filters to one team)")
+
+	migrateGithubConfig()
 	GithubCmd.PersistentFlags().StringVarP(&ghOutputFlag, "output", "o", "", "Output file path")
 	GithubCmd.PersistentFlags().StringVarP(&ghFormatFlag, "format", "f", "", "Output format (csv)")
 }
@@ -89,12 +98,28 @@ func getGithubOrg() string {
 	return getConfigString("github.org")
 }
 
-// getGithubTeam returns the GitHub team slug from flag or config.
-func getGithubTeam() string {
+// getGithubTeams returns all configured team slugs, or just the --team flag if set.
+func getGithubTeams() []string {
 	if ghTeamFlag != "" {
-		return ghTeamFlag
+		return []string{ghTeamFlag}
 	}
-	return getConfigString("github.team")
+
+	raw := getConfigAny("github.teams")
+	if raw == nil {
+		return nil
+	}
+
+	rawMap, ok := raw.(map[string]any)
+	if !ok {
+		return nil
+	}
+
+	teams := make([]string, 0, len(rawMap))
+	for slug := range rawMap {
+		teams = append(teams, slug)
+	}
+	sort.Strings(teams)
+	return teams
 }
 
 // getGithubDateRange returns the from/to date range for GitHub commands.
@@ -140,17 +165,18 @@ func getGithubOutputFormat(defaultFormat string) string {
 	return defaultFormat
 }
 
-// getConfiguredWorkflows reads the github.workflows map from config.
+// getConfiguredWorkflowsByTeam reads workflows for a specific team from config.
 // Returns a map of repo name → workflow filename.
-func getConfiguredWorkflows() (map[string]string, error) {
-	raw := getConfigAny("github.workflows")
+func getConfiguredWorkflowsByTeam(team string) (map[string]string, error) {
+	key := fmt.Sprintf("github.teams.%s.workflows", team)
+	raw := getConfigAny(key)
 	if raw == nil {
-		return nil, fmt.Errorf("no workflows configured. Run: devctl-em metrics github setup")
+		return nil, fmt.Errorf("no workflows configured for team %q. Run: devctl-em metrics github setup --team %s", team, team)
 	}
 
 	rawMap, ok := raw.(map[string]any)
 	if !ok {
-		return nil, fmt.Errorf("invalid github.workflows config format")
+		return nil, fmt.Errorf("invalid config format for %s", key)
 	}
 
 	workflows := make(map[string]string, len(rawMap))
@@ -163,8 +189,65 @@ func getConfiguredWorkflows() (map[string]string, error) {
 	}
 
 	if len(workflows) == 0 {
-		return nil, fmt.Errorf("no workflows configured. Run: devctl-em metrics github setup")
+		return nil, fmt.Errorf("no workflows configured for team %q. Run: devctl-em metrics github setup --team %s", team, team)
 	}
 
 	return workflows, nil
+}
+
+// teamWorkflows holds workflows for a specific team.
+type teamWorkflows struct {
+	Team      string
+	Workflows map[string]string
+}
+
+// getAllConfiguredWorkflows returns workflows for all teams (or just --team if set).
+func getAllConfiguredWorkflows() ([]teamWorkflows, error) {
+	teams := getGithubTeams()
+	if len(teams) == 0 {
+		return nil, fmt.Errorf("no teams configured. Run: devctl-em metrics github setup --team <team>")
+	}
+
+	var result []teamWorkflows
+	for _, team := range teams {
+		wf, err := getConfiguredWorkflowsByTeam(team)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, teamWorkflows{Team: team, Workflows: wf})
+	}
+
+	return result, nil
+}
+
+// migrateGithubConfig migrates old-style github.team + github.workflows
+// to the new github.teams.<team>.workflows format.
+func migrateGithubConfig() {
+	initConfig()
+
+	oldTeam := getConfigString("github.team")
+	if oldTeam == "" {
+		return
+	}
+
+	oldWorkflows := getConfigAny("github.workflows")
+	if oldWorkflows == nil {
+		return
+	}
+
+	rawMap, ok := oldWorkflows.(map[string]any)
+	if !ok || len(rawMap) == 0 {
+		return
+	}
+
+	// Write under new structure
+	teamsKey := fmt.Sprintf("github.teams.%s.workflows", oldTeam)
+	config.SetConfigValue(configNamespace, teamsKey, rawMap)
+
+	// Remove old keys
+	config.DeleteConfigValue(configNamespace, "github.team")
+	config.DeleteConfigValue(configNamespace, "github.workflows")
+
+	config.WriteConfig()
+	fmt.Printf("Migrated GitHub config: team %q workflows moved to github.teams.%s.workflows\n", oldTeam, oldTeam)
 }

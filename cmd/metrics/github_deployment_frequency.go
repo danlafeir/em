@@ -36,6 +36,7 @@ func init() {
 }
 
 type repoDeploymentResult struct {
+	Team        string
 	Repo        string
 	Workflow    string
 	Deployments int
@@ -61,7 +62,7 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("GitHub org not configured. Run: devctl-em config set github.org <org>")
 	}
 
-	workflows, err := getConfiguredWorkflows()
+	allTeamWorkflows, err := getAllConfiguredWorkflows()
 	if err != nil {
 		return err
 	}
@@ -76,81 +77,99 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 		weeks = 1
 	}
 
+	// Count total repos across all teams
+	totalRepos := 0
+	for _, tw := range allTeamWorkflows {
+		totalRepos += len(tw.Workflows)
+	}
+
+	multiTeam := len(allTeamWorkflows) > 1
+
 	fmt.Printf("Date range: %s to %s (%.1f weeks)\n", from.Format("2006-01-02"), to.Format("2006-01-02"), weeks)
-	fmt.Printf("Checking %d configured repositories...\n\n", len(workflows))
+	fmt.Printf("Checking %d configured repositories across %d team(s)...\n\n", totalRepos, len(allTeamWorkflows))
 
 	var results []repoDeploymentResult
 	var allRuns []gh.WorkflowRun
 
-	// Sort repos for deterministic output
-	repos := make([]string, 0, len(workflows))
-	for repo := range workflows {
-		repos = append(repos, repo)
-	}
-	sort.Strings(repos)
-
-	for _, repo := range repos {
-		wfFilename := workflows[repo]
-		fmt.Printf("  %s (%s)...", repo, wfFilename)
-
-		// Find workflow ID by matching filename
-		allWfs, err := client.ListWorkflows(ctx, org, repo)
-		if err != nil {
-			results = append(results, repoDeploymentResult{
-				Repo:     repo,
-				Workflow: wfFilename,
-				Error:    fmt.Sprintf("list workflows: %v", err),
-			})
-			fmt.Println(" error")
-			continue
+	for _, tw := range allTeamWorkflows {
+		if multiTeam {
+			fmt.Printf("[%s]\n", tw.Team)
 		}
 
-		var workflowID int64
-		for _, wf := range allWfs {
-			if filepath.Base(wf.Path) == wfFilename {
-				workflowID = wf.ID
-				break
+		// Sort repos for deterministic output
+		repos := make([]string, 0, len(tw.Workflows))
+		for repo := range tw.Workflows {
+			repos = append(repos, repo)
+		}
+		sort.Strings(repos)
+
+		for _, repo := range repos {
+			wfFilename := tw.Workflows[repo]
+			fmt.Printf("  %s (%s)...", repo, wfFilename)
+
+			// Find workflow ID by matching filename
+			allWfs, err := client.ListWorkflows(ctx, org, repo)
+			if err != nil {
+				results = append(results, repoDeploymentResult{
+					Team:     tw.Team,
+					Repo:     repo,
+					Workflow: wfFilename,
+					Error:    fmt.Sprintf("list workflows: %v", err),
+				})
+				fmt.Println(" error")
+				continue
 			}
-		}
-		if workflowID == 0 {
-			results = append(results, repoDeploymentResult{
-				Repo:     repo,
-				Workflow: wfFilename,
-				Error:    "workflow not found",
-			})
-			fmt.Println(" not found")
-			continue
-		}
 
-		runs, err := client.ListWorkflowRuns(ctx, org, repo, workflowID, "", from, to)
-		if err != nil {
-			results = append(results, repoDeploymentResult{
-				Repo:     repo,
-				Workflow: wfFilename,
-				Error:    fmt.Sprintf("list runs: %v", err),
-			})
-			fmt.Println(" error")
-			continue
-		}
-
-		// Count only successful runs
-		successCount := 0
-		for _, run := range runs {
-			if run.Conclusion == "success" {
-				successCount++
-				allRuns = append(allRuns, run)
+			var workflowID int64
+			for _, wf := range allWfs {
+				if filepath.Base(wf.Path) == wfFilename {
+					workflowID = wf.ID
+					break
+				}
 			}
+			if workflowID == 0 {
+				results = append(results, repoDeploymentResult{
+					Team:     tw.Team,
+					Repo:     repo,
+					Workflow: wfFilename,
+					Error:    "workflow not found",
+				})
+				fmt.Println(" not found")
+				continue
+			}
+
+			runs, err := client.ListWorkflowRuns(ctx, org, repo, workflowID, "", from, to)
+			if err != nil {
+				results = append(results, repoDeploymentResult{
+					Team:     tw.Team,
+					Repo:     repo,
+					Workflow: wfFilename,
+					Error:    fmt.Sprintf("list runs: %v", err),
+				})
+				fmt.Println(" error")
+				continue
+			}
+
+			// Count only successful runs
+			successCount := 0
+			for _, run := range runs {
+				if run.Conclusion == "success" {
+					successCount++
+					allRuns = append(allRuns, run)
+				}
+			}
+
+			deploysPerWeek := float64(successCount) / weeks
+
+			results = append(results, repoDeploymentResult{
+				Team:        tw.Team,
+				Repo:        repo,
+				Workflow:    wfFilename,
+				Deployments: successCount,
+				DeploysWeek: deploysPerWeek,
+			})
+			fmt.Printf(" %d deployments\n", successCount)
 		}
-
-		deploysPerWeek := float64(successCount) / weeks
-
-		results = append(results, repoDeploymentResult{
-			Repo:        repo,
-			Workflow:    wfFilename,
-			Deployments: successCount,
-			DeploysWeek: deploysPerWeek,
-		})
-		fmt.Printf(" %d deployments\n", successCount)
 	}
 
 	// Print table
@@ -158,9 +177,13 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 	fmt.Printf("====================\n\n")
 
 	// Calculate column widths
+	teamW := 4 // "Team"
 	repoW := 4 // "Repo"
 	wfW := 8   // "Workflow"
 	for _, r := range results {
+		if len(r.Team) > teamW {
+			teamW = len(r.Team)
+		}
 		if len(r.Repo) > repoW {
 			repoW = len(r.Repo)
 		}
@@ -169,22 +192,44 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Header
-	fmt.Printf("| %-*s | %-*s | %11s | %12s |\n",
-		repoW, "Repo", wfW, "Workflow", "Deployments", "Deploys/Week")
-	fmt.Printf("|%s|%s|%s|%s|\n",
-		strings.Repeat("-", repoW+2),
-		strings.Repeat("-", wfW+2),
-		strings.Repeat("-", 13),
-		strings.Repeat("-", 14))
+	if multiTeam {
+		// Header with Team column
+		fmt.Printf("| %-*s | %-*s | %-*s | %11s | %12s |\n",
+			teamW, "Team", repoW, "Repo", wfW, "Workflow", "Deployments", "Deploys/Week")
+		fmt.Printf("|%s|%s|%s|%s|%s|\n",
+			strings.Repeat("-", teamW+2),
+			strings.Repeat("-", repoW+2),
+			strings.Repeat("-", wfW+2),
+			strings.Repeat("-", 13),
+			strings.Repeat("-", 14))
 
-	for _, r := range results {
-		if r.Error != "" {
-			fmt.Printf("| %-*s | %-*s | %11s | %12s |\n",
-				repoW, r.Repo, wfW, r.Workflow, r.Error, "")
-		} else {
-			fmt.Printf("| %-*s | %-*s | %11d | %12.1f |\n",
-				repoW, r.Repo, wfW, r.Workflow, r.Deployments, r.DeploysWeek)
+		for _, r := range results {
+			if r.Error != "" {
+				fmt.Printf("| %-*s | %-*s | %-*s | %11s | %12s |\n",
+					teamW, r.Team, repoW, r.Repo, wfW, r.Workflow, r.Error, "")
+			} else {
+				fmt.Printf("| %-*s | %-*s | %-*s | %11d | %12.1f |\n",
+					teamW, r.Team, repoW, r.Repo, wfW, r.Workflow, r.Deployments, r.DeploysWeek)
+			}
+		}
+	} else {
+		// Header without Team column
+		fmt.Printf("| %-*s | %-*s | %11s | %12s |\n",
+			repoW, "Repo", wfW, "Workflow", "Deployments", "Deploys/Week")
+		fmt.Printf("|%s|%s|%s|%s|\n",
+			strings.Repeat("-", repoW+2),
+			strings.Repeat("-", wfW+2),
+			strings.Repeat("-", 13),
+			strings.Repeat("-", 14))
+
+		for _, r := range results {
+			if r.Error != "" {
+				fmt.Printf("| %-*s | %-*s | %11s | %12s |\n",
+					repoW, r.Repo, wfW, r.Workflow, r.Error, "")
+			} else {
+				fmt.Printf("| %-*s | %-*s | %11d | %12.1f |\n",
+					repoW, r.Repo, wfW, r.Workflow, r.Deployments, r.DeploysWeek)
+			}
 		}
 	}
 
@@ -272,7 +317,7 @@ func exportDeploymentFrequencyCSV(results []repoDeploymentResult, path string) e
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
-	header := []string{"Repo", "Workflow", "Deployments", "Deploys/Week"}
+	header := []string{"Team", "Repo", "Workflow", "Deployments", "Deploys/Week"}
 	if err := writer.Write(header); err != nil {
 		return err
 	}
@@ -283,13 +328,14 @@ func exportDeploymentFrequencyCSV(results []repoDeploymentResult, path string) e
 			deploysWeek = fmt.Sprintf("%.1f", math.Round(r.DeploysWeek*10)/10)
 		}
 		row := []string{
+			r.Team,
 			r.Repo,
 			r.Workflow,
 			fmt.Sprintf("%d", r.Deployments),
 			deploysWeek,
 		}
 		if r.Error != "" {
-			row[2] = r.Error
+			row[3] = r.Error
 		}
 		if err := writer.Write(row); err != nil {
 			return err

@@ -17,16 +17,20 @@ import (
 
 var setupCmd = &cobra.Command{
 	Use:   "setup",
-	Short: "Configure deploy workflows for each team repository",
+	Short: "Configure deploy workflows for a team's repositories",
 	Long: `Interactively select which GitHub Actions workflow represents a deployment
-for each repository owned by your team.
+for each repository owned by a team.
 
-This stores selections in github.workflows config, used by deployment-frequency.
+Selections are stored under github.teams.<team>.workflows in config,
+used by deployment-frequency.
 
 Prerequisites:
   devctl-em config set github.org myorg
-  devctl-em config set github.team my-team
-  devctl-em config set github.api_token`,
+  devctl-em config set github.api_token
+
+Examples:
+  devctl-em metrics github setup --team my-team
+  devctl-em metrics github setup`,
 	RunE: runSetup,
 }
 
@@ -48,13 +52,13 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	}
 
 	org := getGithubOrg()
-	team := getGithubTeam()
-
 	if org == "" {
 		return fmt.Errorf("GitHub org not configured. Run: devctl-em config set github.org <org>")
 	}
-	if team == "" {
-		return fmt.Errorf("GitHub team not configured. Run: devctl-em config set github.team <team>")
+
+	team, err := resolveSetupTeam()
+	if err != nil {
+		return err
 	}
 
 	fmt.Printf("Fetching repositories for %s/%s...\n", org, team)
@@ -161,13 +165,59 @@ func runSetup(cmd *cobra.Command, args []string) error {
 	}
 
 	initConfig()
-	config.SetConfigValue(configNamespace, "github.workflows", configMap)
+	configKey := fmt.Sprintf("github.teams.%s.workflows", team)
+	config.SetConfigValue(configNamespace, configKey, configMap)
 	if err := config.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("Saved %d workflow selections to config.\n", len(selections))
+	fmt.Printf("Saved %d workflow selections for team %q.\n", len(selections), team)
 	return nil
+}
+
+// resolveSetupTeam determines which team to set up.
+// If --team is set, use that. Otherwise prompt the user to pick from
+// configured teams or enter a new team slug.
+func resolveSetupTeam() (string, error) {
+	if ghTeamFlag != "" {
+		return ghTeamFlag, nil
+	}
+
+	reader := bufio.NewReader(os.Stdin)
+
+	// Check for existing teams
+	existingTeams := getGithubTeams()
+
+	if len(existingTeams) > 0 {
+		fmt.Println("Configured teams:")
+		for i, t := range existingTeams {
+			fmt.Printf("  %d) %s\n", i+1, t)
+		}
+		fmt.Printf("  %d) Add new team\n", len(existingTeams)+1)
+		fmt.Printf("Select team [%d]: ", len(existingTeams)+1)
+
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(input)
+
+		if input == "" {
+			input = strconv.Itoa(len(existingTeams) + 1)
+		}
+
+		choice, err := strconv.Atoi(input)
+		if err == nil && choice >= 1 && choice <= len(existingTeams) {
+			return existingTeams[choice-1], nil
+		}
+	}
+
+	fmt.Print("Enter team slug: ")
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+
+	if input == "" {
+		return "", fmt.Errorf("team slug is required. Use --team flag or enter a slug when prompted")
+	}
+
+	return input, nil
 }
 
 // suggestDeployWorkflow returns the 1-based index of a workflow whose name or
