@@ -219,7 +219,7 @@ func resolveJiraSetupTeam(reader *bufio.Reader) (string, error) {
 }
 
 // promptBoardJQL queries JIRA for boards in the project and lets the user
-// pick one to use its filter JQL as the team's default_jql.
+// pick one to use its filter JQL as the team's jql_filter_for_metrics.
 func promptBoardJQL(reader *bufio.Reader, team, projectKey string) error {
 	client, err := getJiraClient()
 	if err != nil {
@@ -260,7 +260,7 @@ func promptBoardJQL(reader *bufio.Reader, team, projectKey string) error {
 	return fetchAndStoreBoardJQL(ctx, client, team, board)
 }
 
-// fetchAndStoreBoardJQL retrieves the board's filter JQL and stores it as the team's default_jql.
+// fetchAndStoreBoardJQL retrieves the board's filter JQL and stores it as the team's jql_filter_for_metrics.
 func fetchAndStoreBoardJQL(ctx context.Context, client *jira.Client, team string, board jira.Board) error {
 	boardCfg, err := client.GetBoardConfiguration(ctx, board.ID)
 	if err != nil {
@@ -272,7 +272,7 @@ func fetchAndStoreBoardJQL(ctx context.Context, client *jira.Client, team string
 		return fmt.Errorf("getting filter: %w", err)
 	}
 
-	key := fmt.Sprintf("jira.teams.%s.default_jql", team)
+	key := fmt.Sprintf("jira.teams.%s.jql_filter_for_metrics", team)
 	config.SetConfigValue(configNamespace, key, filter.JQL)
 	fmt.Printf("Set %s = %s\n", key, filter.JQL)
 	return nil

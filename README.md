@@ -83,7 +83,7 @@ devctl-em metrics jira forecast
 devctl-em metrics jira report
 ```
 
-JQL resolution order: `--jql` flag > `jira.default_jql` config > `jira.project` config.
+JQL resolution order: `--jql` flag > `jira.jql_filter_for_metrics` config > `jira.project` config.
 
 ### Workflow Mapping (Optional)
 
@@ -93,7 +93,7 @@ Create `~/.devctl-em/config.yaml` to customize workflow stage mapping:
 jira:
   domain: "mycompany"
   email: "user@company.com"
-  default_jql: "project = MYPROJ"
+  jql_filter_for_metrics: "project = MYPROJ"
   story_points_field: "customfield_10026"
 
 workflow:

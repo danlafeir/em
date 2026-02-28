@@ -60,9 +60,9 @@ Configure your JIRA connection first:
 Configure teams with their projects:
   devctl-em config set jira.teams.platform.project PLAT
   devctl-em config set jira.teams.backend.project API
-  devctl-em config set jira.teams.backend.default_jql "project = API AND ..."
+  devctl-em config set jira.teams.backend.jql_filter_for_metrics "project = API AND ..."
 
-JQL resolution order: --jql flag > --project flag > team default_jql > team project config.
+JQL resolution order: --jql flag > --project flag > team jql_filter_for_metrics > team project config.
 Use --team to filter to a single team; omit it to aggregate all teams.
 
 Examples:
@@ -136,35 +136,56 @@ func getJiraClient() (*jira.Client, error) {
 }
 
 // migrateJiraConfig migrates old-style jira.project + jira.default_jql
-// to the new jira.teams.<slug>.* format.
+// to the new jira.teams.<slug>.* format, and renames default_jql to
+// jql_filter_for_metrics in existing team configs.
 func migrateJiraConfig() {
 	initConfig()
 
+	changed := false
+
+	// Migrate old top-level keys to team format
 	oldProject := getConfigString("jira.project")
 	oldJQL := getConfigString("jira.default_jql")
-	if oldProject == "" && oldJQL == "" {
-		return
+	if oldProject != "" || oldJQL != "" {
+		slug := "default"
+		if oldProject != "" {
+			slug = strings.ToLower(oldProject)
+		}
+
+		if oldProject != "" {
+			config.SetConfigValue(configNamespace, fmt.Sprintf("jira.teams.%s.project", slug), oldProject)
+		}
+		if oldJQL != "" {
+			config.SetConfigValue(configNamespace, fmt.Sprintf("jira.teams.%s.jql_filter_for_metrics", slug), oldJQL)
+		}
+
+		config.DeleteConfigValue(configNamespace, "jira.project")
+		config.DeleteConfigValue(configNamespace, "jira.default_jql")
+		changed = true
+		fmt.Printf("Migrated JIRA config to jira.teams.%s\n", slug)
 	}
 
-	// Determine team slug: lowercase project key, or "default" if only JQL exists
-	slug := "default"
-	if oldProject != "" {
-		slug = strings.ToLower(oldProject)
+	// Rename default_jql to jql_filter_for_metrics in existing teams
+	if raw := getConfigAny("jira.teams"); raw != nil {
+		if rawMap, ok := raw.(map[string]any); ok {
+			for slug, v := range rawMap {
+				teamMap, ok := v.(map[string]any)
+				if !ok {
+					continue
+				}
+				if jql, exists := teamMap["default_jql"]; exists {
+					config.SetConfigValue(configNamespace, fmt.Sprintf("jira.teams.%s.jql_filter_for_metrics", slug), jql)
+					config.DeleteConfigValue(configNamespace, fmt.Sprintf("jira.teams.%s.default_jql", slug))
+					changed = true
+					fmt.Printf("Renamed jira.teams.%s.default_jql → jql_filter_for_metrics\n", slug)
+				}
+			}
+		}
 	}
 
-	if oldProject != "" {
-		config.SetConfigValue(configNamespace, fmt.Sprintf("jira.teams.%s.project", slug), oldProject)
+	if changed {
+		config.WriteConfig()
 	}
-	if oldJQL != "" {
-		config.SetConfigValue(configNamespace, fmt.Sprintf("jira.teams.%s.default_jql", slug), oldJQL)
-	}
-
-	// Remove old keys
-	config.DeleteConfigValue(configNamespace, "jira.project")
-	config.DeleteConfigValue(configNamespace, "jira.default_jql")
-
-	config.WriteConfig()
-	fmt.Printf("Migrated JIRA config to jira.teams.%s\n", slug)
 }
 
 // getJiraTeams returns all configured team slugs, or just the --team flag if set.
@@ -209,13 +230,13 @@ func getJQL() (string, error) {
 
 	var parts []string
 	for _, team := range teams {
-		if jql := getTeamConfigString(team, "default_jql"); jql != "" {
+		if jql := getTeamConfigString(team, "jql_filter_for_metrics"); jql != "" {
 			parts = append(parts, "("+jql+")")
 		}
 	}
 
 	if len(parts) == 0 {
-		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or set default_jql for teams in config")
+		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or set jql_filter_for_metrics for teams in config")
 	}
 	return strings.Join(parts, " OR "), nil
 }
@@ -242,8 +263,8 @@ func resolveJQL(ctx context.Context, client *jira.Client) (string, error) {
 
 	var parts []string
 	for _, team := range teams {
-		// Team default_jql takes priority over team project
-		if jql := getTeamConfigString(team, "default_jql"); jql != "" {
+		// Team jql_filter_for_metrics takes priority over team project
+		if jql := getTeamConfigString(team, "jql_filter_for_metrics"); jql != "" {
 			parts = append(parts, "("+jql+")")
 			continue
 		}
@@ -259,7 +280,7 @@ func resolveJQL(ctx context.Context, client *jira.Client) (string, error) {
 	}
 
 	if len(parts) == 0 {
-		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure teams with project or default_jql")
+		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure teams with project or jql_filter_for_metrics")
 	}
 	return strings.Join(parts, " OR "), nil
 }
@@ -304,11 +325,11 @@ func getProjectJQL() (string, error) {
 		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure jira.teams in config")
 	}
 
-	// Check for default_jql first, then collect projects
+	// Check for jql_filter_for_metrics first, then collect projects
 	var jqlParts []string
 	var projects []string
 	for _, team := range teams {
-		if jql := getTeamConfigString(team, "default_jql"); jql != "" {
+		if jql := getTeamConfigString(team, "jql_filter_for_metrics"); jql != "" {
 			jqlParts = append(jqlParts, "("+jql+")")
 			continue
 		}
@@ -317,7 +338,7 @@ func getProjectJQL() (string, error) {
 		}
 	}
 
-	// Combine: teams with default_jql OR-ed, projects combined into project in (...)
+	// Combine: teams with jql_filter_for_metrics OR-ed, projects combined into project in (...)
 	if len(projects) > 0 {
 		if len(projects) == 1 {
 			jqlParts = append(jqlParts, fmt.Sprintf("project = %s", projects[0]))
@@ -327,7 +348,7 @@ func getProjectJQL() (string, error) {
 	}
 
 	if len(jqlParts) == 0 {
-		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure teams with project or default_jql")
+		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure teams with project or jql_filter_for_metrics")
 	}
 	return strings.Join(jqlParts, " OR "), nil
 }
