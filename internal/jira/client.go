@@ -333,13 +333,21 @@ func (c *Client) FetchIssuesWithHistory(ctx context.Context, jql string, progres
 }
 
 // ListBoards returns all agile boards for the given project key.
+// It resolves the project key to a numeric ID and uses the projectLocation
+// parameter, which is more reliable than projectKeyOrId for finding boards.
 func (c *Client) ListBoards(ctx context.Context, projectKey string) ([]Board, error) {
+	// Resolve project key to numeric ID
+	projectID, err := c.getProjectID(ctx, projectKey)
+	if err != nil {
+		return nil, fmt.Errorf("resolving project key: %w", err)
+	}
+
 	var allBoards []Board
 	startAt := 0
 
 	for {
 		query := url.Values{}
-		query.Set("projectKeyOrId", projectKey)
+		query.Set("projectLocation", projectID)
 		query.Set("startAt", strconv.Itoa(startAt))
 
 		data, err := c.doRequest(ctx, "GET", "/rest/agile/1.0/board", query)
@@ -361,6 +369,24 @@ func (c *Client) ListBoards(ctx context.Context, projectKey string) ([]Board, er
 	}
 
 	return allBoards, nil
+}
+
+// getProjectID resolves a project key to its numeric ID.
+func (c *Client) getProjectID(ctx context.Context, projectKey string) (string, error) {
+	path := fmt.Sprintf("/rest/api/3/project/%s", projectKey)
+	data, err := c.doRequest(ctx, "GET", path, nil)
+	if err != nil {
+		return "", err
+	}
+
+	var proj struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(data, &proj); err != nil {
+		return "", fmt.Errorf("parsing project: %w", err)
+	}
+
+	return proj.ID, nil
 }
 
 // GetBoardConfiguration returns the configuration for a board, including its filter.
