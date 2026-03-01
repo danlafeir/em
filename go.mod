@@ -3,7 +3,7 @@ module devctl-em
 go 1.24.3
 
 require (
-	github.com/danlafeir/devctl v0.0.0-20260213191800-fe9623d62ca6
+	github.com/danlafeir/devctl v0.0.0-20260301042750-4589f86805cd
 	github.com/spf13/cobra v1.10.2
 	github.com/xuri/excelize/v2 v2.10.0
 	golang.org/x/term v0.39.0
@@ -43,4 +43,5 @@ require (
 	golang.org/x/sys v0.41.0 // indirect
 	golang.org/x/text v0.33.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

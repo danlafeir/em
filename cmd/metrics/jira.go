@@ -98,7 +98,10 @@ func init() {
 	JiraCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "", "Output file path")
 	JiraCmd.PersistentFlags().StringVarP(&formatFlag, "format", "f", "", "Output format (png, csv, xlsx, html)")
 
-	migrateJiraConfig()
+	initConfig()
+	if unrecognized := config.ValidateNamespace(configNamespace, emConfigSchema); len(unrecognized) > 0 {
+		config.ClearNamespace(configNamespace)
+	}
 }
 
 // getJiraClient creates a JIRA client from configuration.
@@ -135,57 +138,24 @@ func getJiraClient() (*jira.Client, error) {
 	return jira.NewClient(creds), nil
 }
 
-// migrateJiraConfig migrates old-style jira.project + jira.default_jql
-// to the new jira.teams.<slug>.* format, and renames default_jql to
-// jql_filter_for_metrics in existing team configs.
-func migrateJiraConfig() {
-	initConfig()
-
-	changed := false
-
-	// Migrate old top-level keys to team format
-	oldProject := getConfigString("jira.project")
-	oldJQL := getConfigString("jira.default_jql")
-	if oldProject != "" || oldJQL != "" {
-		slug := "default"
-		if oldProject != "" {
-			slug = strings.ToLower(oldProject)
-		}
-
-		if oldProject != "" {
-			config.SetConfigValue(configNamespace, fmt.Sprintf("jira.teams.%s.project", slug), oldProject)
-		}
-		if oldJQL != "" {
-			config.SetConfigValue(configNamespace, fmt.Sprintf("jira.teams.%s.jql_filter_for_metrics", slug), oldJQL)
-		}
-
-		config.DeleteConfigValue(configNamespace, "jira.project")
-		config.DeleteConfigValue(configNamespace, "jira.default_jql")
-		changed = true
-		fmt.Printf("Migrated JIRA config to jira.teams.%s\n", slug)
-	}
-
-	// Rename default_jql to jql_filter_for_metrics in existing teams
-	if raw := getConfigAny("jira.teams"); raw != nil {
-		if rawMap, ok := raw.(map[string]any); ok {
-			for slug, v := range rawMap {
-				teamMap, ok := v.(map[string]any)
-				if !ok {
-					continue
-				}
-				if jql, exists := teamMap["default_jql"]; exists {
-					config.SetConfigValue(configNamespace, fmt.Sprintf("jira.teams.%s.jql_filter_for_metrics", slug), jql)
-					config.DeleteConfigValue(configNamespace, fmt.Sprintf("jira.teams.%s.default_jql", slug))
-					changed = true
-					fmt.Printf("Renamed jira.teams.%s.default_jql → jql_filter_for_metrics\n", slug)
-				}
-			}
-		}
-	}
-
-	if changed {
-		config.WriteConfig()
-	}
+// emConfigSchema lists all valid config keys under the "em" namespace.
+var emConfigSchema = config.ConfigSchema{
+	"jira.domain",
+	"jira.email",
+	"jira.teams.*.project",
+	"jira.teams.*.jql_filter_for_metrics",
+	"workflow.stages",
+	"workflow.cycle_time.started",
+	"workflow.cycle_time.completed",
+	"montecarlo.deadline",
+	"github.org",
+	"github.teams.*",
+	"github.workflows",
+	"snyk.org_id",
+	"snyk.site",
+	"snyk.team",
+	"datadog.site",
+	"datadog.team",
 }
 
 // getJiraTeams returns all configured team slugs, or just the --team flag if set.
