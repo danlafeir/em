@@ -428,6 +428,18 @@ func getWorkflowMapper() *workflow.Mapper {
 	return workflow.NewMapper(wfConfig)
 }
 
+// getTeamProjectJQL returns a project-scoped JQL for a single team.
+// Uses the team's project config, or falls back to jql_filter_for_metrics.
+func getTeamProjectJQL(team string) (string, error) {
+	if project := getTeamConfigString(team, "project"); project != "" {
+		return fmt.Sprintf("project = %s", project), nil
+	}
+	if jql := getTeamConfigString(team, "jql_filter_for_metrics"); jql != "" {
+		return jql, nil
+	}
+	return "", fmt.Errorf("team %s has no project or jql_filter_for_metrics configured", team)
+}
+
 // getOutputPath returns the output file path with default extension.
 func getOutputPath(defaultName, defaultExt string) string {
 	if outputFlag != "" {

@@ -18,13 +18,17 @@ import (
 var reportCmd = &cobra.Command{
 	Use:   "report",
 	Short: "Generate combined metrics report as a single PNG",
-	Long: `Generate a single PNG report combining cycle time scatter, throughput trend,
+	Long: `Generate a PNG report combining cycle time scatter, throughput trend,
 and Monte Carlo epic forecast.
 
-Uses the last 6 weeks of data by default. Output is a single PNG image.
+When teams are configured, generates one report per team. Use --team to
+generate for a single team, or --jql/--project to bypass team iteration.
+
+Uses the last 6 weeks of data by default. Output is a PNG image.
 
 Example:
   devctl-em metrics jira report
+  devctl-em metrics jira report --team platform
   devctl-em metrics jira report --from 2024-01-01 -o report.png`,
 	RunE: runReport,
 }
@@ -45,17 +49,65 @@ func runReport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to connect to JIRA: %w", err)
 	}
 
-	jql, err := resolveJQL(ctx, client)
-	if err != nil {
-		return err
-	}
-
 	from, to, err := getDateRange()
 	if err != nil {
 		return err
 	}
 
-	outputPath := getOutputPath("jira-report", "png")
+	// Direct JQL path: --jql or --project bypasses team iteration
+	if jqlFlag != "" || projectFlag != "" {
+		jql, err := resolveJQL(ctx, client)
+		if err != nil {
+			return err
+		}
+		return generateReport(ctx, client, "", jql, from, to)
+	}
+
+	// Team iteration path
+	teams := getJiraTeams()
+	if len(teams) == 0 {
+		return fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure jira.teams in config")
+	}
+
+	for _, team := range teams {
+		fmt.Printf("=== Team: %s ===\n\n", team)
+
+		jql, err := resolveTeamJQL(ctx, client, team)
+		if err != nil {
+			return fmt.Errorf("team %s: %w", team, err)
+		}
+
+		if err := generateReport(ctx, client, team, jql, from, to); err != nil {
+			return fmt.Errorf("team %s: %w", team, err)
+		}
+
+		fmt.Println()
+	}
+
+	return nil
+}
+
+// resolveTeamJQL resolves JQL for a single team, checking jql_filter_for_metrics
+// first, then falling back to the team's project via resolveProjectEpics.
+func resolveTeamJQL(ctx context.Context, client *jira.Client, team string) (string, error) {
+	if jql := getTeamConfigString(team, "jql_filter_for_metrics"); jql != "" {
+		return jql, nil
+	}
+	project := getTeamConfigString(team, "project")
+	if project == "" {
+		return "", fmt.Errorf("no jql_filter_for_metrics or project configured")
+	}
+	return resolveProjectEpics(ctx, client, project)
+}
+
+// generateReport generates a single combined PNG report for the given JQL.
+// When team is non-empty, the output file is named jira-report-<team>.png.
+func generateReport(ctx context.Context, client *jira.Client, team, jql string, from, to time.Time) error {
+	outputName := "jira-report"
+	if team != "" {
+		outputName = "jira-report-" + team
+	}
+	outputPath := getOutputPath(outputName, "png")
 
 	fmt.Printf("Generating JIRA Report...\n")
 	fmt.Printf("JQL: %s\n", jql)
@@ -143,7 +195,7 @@ func runReport(cmd *cobra.Command, args []string) error {
 		weeklyThroughput := pkgmetrics.GetWeeklyThroughputValues(throughputResult)
 
 		if len(weeklyThroughput) > 0 {
-			rows, forecastErr := discoverAndForecastEpics(ctx, client, mapper, weeklyThroughput)
+			rows, forecastErr := discoverAndForecastEpics(ctx, client, mapper, weeklyThroughput, team)
 			if forecastErr != nil {
 				fmt.Printf("Warning: forecast unavailable: %v\n", forecastErr)
 			} else if len(rows) > 0 {
@@ -161,8 +213,16 @@ func runReport(cmd *cobra.Command, args []string) error {
 }
 
 // discoverAndForecastEpics finds open epics and runs Monte Carlo forecasts.
-func discoverAndForecastEpics(ctx context.Context, client *jira.Client, mapper *workflow.Mapper, weeklyThroughput []int) ([]charts.ForecastRow, error) {
-	projectJQL, err := getProjectJQL()
+// When team is non-empty, scopes epic discovery to that team's project.
+func discoverAndForecastEpics(ctx context.Context, client *jira.Client, mapper *workflow.Mapper, weeklyThroughput []int, team string) ([]charts.ForecastRow, error) {
+	var projectJQL string
+	var err error
+
+	if team != "" {
+		projectJQL, err = getTeamProjectJQL(team)
+	} else {
+		projectJQL, err = getProjectJQL()
+	}
 	if err != nil {
 		return nil, err
 	}
