@@ -428,6 +428,62 @@ func getWorkflowMapper() *workflow.Mapper {
 	return workflow.NewMapper(wfConfig)
 }
 
+// resolveTeamJQL resolves JQL for a single team, checking jql_filter_for_metrics
+// first, then falling back to the team's project via resolveProjectEpics.
+func resolveTeamJQL(ctx context.Context, client *jira.Client, team string) (string, error) {
+	if jql := getTeamConfigString(team, "jql_filter_for_metrics"); jql != "" {
+		return jql, nil
+	}
+	project := getTeamConfigString(team, "project")
+	if project == "" {
+		return "", fmt.Errorf("no jql_filter_for_metrics or project configured")
+	}
+	return resolveProjectEpics(ctx, client, project)
+}
+
+// withTeamIteration runs fn once per configured team, or once with aggregated
+// JQL when --jql/--project is set. The callback receives the team slug (empty
+// for non-team mode) and the resolved JQL.
+func withTeamIteration(ctx context.Context, client *jira.Client, fn func(team, jql string) error) error {
+	if jqlFlag != "" || projectFlag != "" {
+		jql, err := resolveJQL(ctx, client)
+		if err != nil {
+			return err
+		}
+		return fn("", jql)
+	}
+
+	teams := getJiraTeams()
+	if len(teams) == 0 {
+		return fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure jira.teams in config")
+	}
+
+	for _, team := range teams {
+		fmt.Printf("=== Team: %s ===\n\n", team)
+
+		jql, err := resolveTeamJQL(ctx, client, team)
+		if err != nil {
+			return fmt.Errorf("team %s: %w", team, err)
+		}
+
+		if err := fn(team, jql); err != nil {
+			return fmt.Errorf("team %s: %w", team, err)
+		}
+
+		fmt.Println()
+	}
+
+	return nil
+}
+
+// teamOutputName returns defaultName with the team slug appended if non-empty.
+func teamOutputName(defaultName, team string) string {
+	if team != "" {
+		return defaultName + "-" + team
+	}
+	return defaultName
+}
+
 // getTeamProjectJQL returns a project-scoped JQL for a single team.
 // Uses the team's project config, or falls back to jql_filter_for_metrics.
 func getTeamProjectJQL(team string) (string, error) {

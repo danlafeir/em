@@ -72,35 +72,40 @@ type EpicForecast struct {
 func runForecast(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	// Get JIRA client
 	client, err := getJiraClient()
 	if err != nil {
 		return err
 	}
 
-	// Test connection
 	if err := client.TestConnection(ctx); err != nil {
 		return fmt.Errorf("failed to connect to JIRA: %w", err)
 	}
 
-	// Determine mode: all epics, single epic, or remaining count
-	if epicFlag == "" && remainingFlag == 0 {
-		// Default: forecast all open epics
-		return runAllEpicsForecast(ctx, client)
-	} else if epicFlag != "" {
-		// Single epic forecast
+	// --epic and --remaining bypass team iteration
+	if epicFlag != "" {
 		return runSingleEpicForecast(ctx, client, epicFlag)
-	} else {
-		// Manual remaining count
+	}
+	if remainingFlag > 0 {
 		return runManualForecast(ctx, client, remainingFlag)
 	}
+
+	// Default: forecast all open epics, iterating per team
+	return withTeamIteration(ctx, client, func(team, jql string) error {
+		return runAllEpicsForecast(ctx, client, team, jql)
+	})
 }
 
-func runAllEpicsForecast(ctx context.Context, client *jira.Client) error {
+func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, throughputJQLBase string) error {
 	fmt.Println("Discovering open epics...")
 
-	// Get project-level JQL for epic discovery (not children JQL)
-	baseJQL, err := getProjectJQL()
+	// Get project-level JQL for epic discovery
+	var baseJQL string
+	var err error
+	if team != "" {
+		baseJQL, err = getTeamProjectJQL(team)
+	} else {
+		baseJQL, err = getProjectJQL()
+	}
 	if err != nil {
 		return err
 	}
@@ -122,17 +127,11 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client) error {
 	fmt.Printf("Found %d open epics\n\n", len(epics))
 
 	// Get historical throughput data (shared across all forecasts)
-	// Use resolveJQL for throughput to scope to active epic children
-	throughputBaseJQL, err := resolveJQL(ctx, client)
-	if err != nil {
-		return err
-	}
-
 	historyEnd := time.Now()
 	historyStart := historyEnd.AddDate(0, 0, -historyDaysFlag)
 
 	throughputJQL := fmt.Sprintf("(%s) AND resolved >= %s AND resolved <= %s",
-		throughputBaseJQL, historyStart.Format("2006-01-02"), historyEnd.Format("2006-01-02"))
+		throughputJQLBase, historyStart.Format("2006-01-02"), historyEnd.Format("2006-01-02"))
 
 	fmt.Println("Fetching historical throughput data...")
 	completedIssues, err := client.FetchIssuesWithHistory(ctx, throughputJQL, func(current, total int) {
@@ -277,7 +276,7 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client) error {
 	}
 	if len(rows) > 0 {
 		p := charts.ForecastTable(rows)
-		pngPath := getOutputPath("epic-forecasts", "png")
+		pngPath := getOutputPath(teamOutputName("epic-forecasts", team), "png")
 		if err := charts.SaveChart(p, pngPath, charts.DefaultConfig()); err == nil {
 			fmt.Printf("Chart saved to %s\n", pngPath)
 		}

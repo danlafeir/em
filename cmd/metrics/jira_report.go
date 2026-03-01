@@ -54,60 +54,15 @@ func runReport(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Direct JQL path: --jql or --project bypasses team iteration
-	if jqlFlag != "" || projectFlag != "" {
-		jql, err := resolveJQL(ctx, client)
-		if err != nil {
-			return err
-		}
-		return generateReport(ctx, client, "", jql, from, to)
-	}
-
-	// Team iteration path
-	teams := getJiraTeams()
-	if len(teams) == 0 {
-		return fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure jira.teams in config")
-	}
-
-	for _, team := range teams {
-		fmt.Printf("=== Team: %s ===\n\n", team)
-
-		jql, err := resolveTeamJQL(ctx, client, team)
-		if err != nil {
-			return fmt.Errorf("team %s: %w", team, err)
-		}
-
-		if err := generateReport(ctx, client, team, jql, from, to); err != nil {
-			return fmt.Errorf("team %s: %w", team, err)
-		}
-
-		fmt.Println()
-	}
-
-	return nil
-}
-
-// resolveTeamJQL resolves JQL for a single team, checking jql_filter_for_metrics
-// first, then falling back to the team's project via resolveProjectEpics.
-func resolveTeamJQL(ctx context.Context, client *jira.Client, team string) (string, error) {
-	if jql := getTeamConfigString(team, "jql_filter_for_metrics"); jql != "" {
-		return jql, nil
-	}
-	project := getTeamConfigString(team, "project")
-	if project == "" {
-		return "", fmt.Errorf("no jql_filter_for_metrics or project configured")
-	}
-	return resolveProjectEpics(ctx, client, project)
+	return withTeamIteration(ctx, client, func(team, jql string) error {
+		return generateReport(ctx, client, team, jql, from, to)
+	})
 }
 
 // generateReport generates a single combined PNG report for the given JQL.
 // When team is non-empty, the output file is named jira-report-<team>.png.
 func generateReport(ctx context.Context, client *jira.Client, team, jql string, from, to time.Time) error {
-	outputName := "jira-report"
-	if team != "" {
-		outputName = "jira-report-" + team
-	}
-	outputPath := getOutputPath(outputName, "png")
+	outputPath := getOutputPath(teamOutputName("jira-report", team), "png")
 
 	fmt.Printf("Generating JIRA Report...\n")
 	fmt.Printf("JQL: %s\n", jql)

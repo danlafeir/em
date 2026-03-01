@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"devctl-em/internal/charts"
+	"devctl-em/internal/jira"
 	"devctl-em/internal/metrics"
 	"devctl-em/internal/workflow"
 )
@@ -40,16 +42,17 @@ func runLongestCycleTime(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to connect to JIRA: %w", err)
 	}
 
-	jql, err := resolveJQL(ctx, client)
-	if err != nil {
-		return err
-	}
-
 	from, to, err := getDateRange()
 	if err != nil {
 		return err
 	}
 
+	return withTeamIteration(ctx, client, func(team, jql string) error {
+		return generateLongestCycleTime(ctx, client, team, jql, from, to)
+	})
+}
+
+func generateLongestCycleTime(ctx context.Context, client *jira.Client, team, jql string, from, to time.Time) error {
 	jqlWithDates := fmt.Sprintf("(%s) AND resolved >= %s AND resolved <= %s",
 		jql, from.Format("2006-01-02"), to.Format("2006-01-02"))
 
@@ -108,9 +111,7 @@ func runLongestCycleTime(cmd *cobra.Command, args []string) error {
 		strings.Repeat("_", 12))
 
 	for _, r := range top {
-		title := r.Summary
-		// Wrap title across multiple lines if needed
-		lines := wrapString(title, titleWidth)
+		lines := wrapString(r.Summary, titleWidth)
 		for l, line := range lines {
 			if l == 0 {
 				fmt.Printf("| %-16s | %-*s | %-10s | %-10s | %-10s |\n",
@@ -126,7 +127,7 @@ func runLongestCycleTime(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// Export PNG
+	outputName := teamOutputName("longest-cycle-time", team)
 	outputFormat := getOutputFormat("png")
 	if outputFormat == "png" {
 		var rows []charts.LongestCycleTimeRow
@@ -142,7 +143,7 @@ func runLongestCycleTime(cmd *cobra.Command, args []string) error {
 		title := fmt.Sprintf("Longest Cycle Times — %s to %s", from.Format("Jan 02"), to.Format("Jan 02"))
 		p := charts.LongestCycleTimeTable(rows, title, true)
 		cfg := charts.DefaultConfig()
-		outputPath := getOutputPath("longest-cycle-time", "png")
+		outputPath := getOutputPath(outputName, "png")
 		if err := charts.SaveChart(p, outputPath, cfg); err != nil {
 			return fmt.Errorf("failed to save chart: %w", err)
 		}

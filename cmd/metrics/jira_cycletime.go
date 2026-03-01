@@ -9,9 +9,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/output"
 	"devctl-em/internal/charts"
+	"devctl-em/internal/jira"
 	"devctl-em/internal/metrics"
+	"devctl-em/internal/output"
 	"devctl-em/internal/workflow"
 )
 
@@ -45,21 +46,13 @@ func init() {
 func runCycleTime(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	// Get JIRA client
 	client, err := getJiraClient()
 	if err != nil {
 		return err
 	}
 
-	// Test connection
 	if err := client.TestConnection(ctx); err != nil {
 		return fmt.Errorf("failed to connect to JIRA: %w", err)
-	}
-
-	// Get JQL and date range
-	jql, err := resolveJQL(ctx, client)
-	if err != nil {
-		return err
 	}
 
 	from, to, err := getDateRange()
@@ -67,6 +60,12 @@ func runCycleTime(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	return withTeamIteration(ctx, client, func(team, jql string) error {
+		return generateCycleTime(ctx, client, team, jql, from, to)
+	})
+}
+
+func generateCycleTime(ctx context.Context, client *jira.Client, team, jql string, from, to time.Time) error {
 	// Add date filter to JQL
 	jqlWithDates := fmt.Sprintf("(%s) AND resolved >= %s AND resolved <= %s",
 		jql, from.Format("2006-01-02"), to.Format("2006-01-02"))
@@ -90,16 +89,13 @@ func runCycleTime(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Found %d issues\n\n", len(issues))
 
-	// Get workflow mapper
 	mapper := getWorkflowMapper()
 
-	// Map issues to workflow history
 	histories := make([]workflow.IssueHistory, len(issues))
 	for i, issue := range issues {
 		histories[i] = mapper.MapIssueHistory(issue)
 	}
 
-	// Calculate cycle times
 	calculator := metrics.NewCycleTimeCalculator(mapper)
 	results := calculator.Calculate(histories)
 
@@ -108,11 +104,9 @@ func runCycleTime(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Calculate statistics
 	stats := metrics.CalculateStats(results)
 	statsDays := stats.ToDays()
 
-	// Print summary
 	fmt.Printf("Cycle Time Analysis\n")
 	fmt.Printf("===================\n")
 	fmt.Printf("Issues analyzed: %d\n", stats.Count)
@@ -129,11 +123,11 @@ func runCycleTime(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Max:     %.1f\n", statsDays.Max)
 	fmt.Printf("  Std Dev: %.1f\n", statsDays.StdDev)
 
-	// Export results
+	outputName := teamOutputName("cycle-time", team)
 	outputFormat := getOutputFormat("png")
 	switch outputFormat {
 	case "csv", "xlsx":
-		outputPath := getOutputPath("cycle-time", "csv")
+		outputPath := getOutputPath(outputName, "csv")
 		if err := exportCycleTimeCSV(results, outputPath); err != nil {
 			return fmt.Errorf("failed to export CSV: %w", err)
 		}
@@ -144,7 +138,7 @@ func runCycleTime(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to generate chart: %w", err)
 		}
-		outputPath := getOutputPath("cycle-time", "png")
+		outputPath := getOutputPath(outputName, "png")
 		if err := charts.SaveChart(p, outputPath, cfg); err != nil {
 			return fmt.Errorf("failed to save chart: %w", err)
 		}

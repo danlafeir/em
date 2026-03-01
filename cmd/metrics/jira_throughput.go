@@ -5,11 +5,13 @@ import (
 	"encoding/csv"
 	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/output"
+	"devctl-em/internal/jira"
 	"devctl-em/internal/metrics"
+	"devctl-em/internal/output"
 	"devctl-em/internal/workflow"
 )
 
@@ -43,21 +45,13 @@ func init() {
 func runThroughput(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	// Get JIRA client
 	client, err := getJiraClient()
 	if err != nil {
 		return err
 	}
 
-	// Test connection
 	if err := client.TestConnection(ctx); err != nil {
 		return fmt.Errorf("failed to connect to JIRA: %w", err)
-	}
-
-	// Get JQL and date range
-	jql, err := resolveJQL(ctx, client)
-	if err != nil {
-		return err
 	}
 
 	from, to, err := getDateRange()
@@ -65,14 +59,18 @@ func runThroughput(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Add date filter to JQL
+	return withTeamIteration(ctx, client, func(team, jql string) error {
+		return generateThroughput(ctx, client, team, jql, from, to)
+	})
+}
+
+func generateThroughput(ctx context.Context, client *jira.Client, team, jql string, from, to time.Time) error {
 	jqlWithDates := fmt.Sprintf("(%s) AND resolved >= %s AND resolved <= %s",
 		jql, from.Format("2006-01-02"), to.Format("2006-01-02"))
 
 	fmt.Printf("Fetching issues from JIRA...\n")
 	fmt.Printf("JQL: %s\n", jqlWithDates)
 
-	// Fetch issues with history
 	issues, err := client.FetchIssuesWithHistory(ctx, jqlWithDates, func(current, total int) {
 		fmt.Printf("\rProcessing issue %d/%d...", current, total)
 	})
@@ -88,16 +86,13 @@ func runThroughput(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Found %d issues\n\n", len(issues))
 
-	// Get workflow mapper
 	mapper := getWorkflowMapper()
 
-	// Map issues to workflow history
 	histories := make([]workflow.IssueHistory, len(issues))
 	for i, issue := range issues {
 		histories[i] = mapper.MapIssueHistory(issue)
 	}
 
-	// Parse frequency
 	var frequency metrics.ThroughputFrequency
 	switch frequencyFlag {
 	case "daily":
@@ -112,14 +107,11 @@ func runThroughput(cmd *cobra.Command, args []string) error {
 		frequency = metrics.FrequencyWeekly
 	}
 
-	// Calculate throughput
 	calculator := metrics.NewThroughputCalculator(frequency)
 	result := calculator.Calculate(histories, from, to)
 
-	// Calculate statistics
 	stats := metrics.CalculateThroughputStats(result)
 
-	// Print summary
 	fmt.Printf("Throughput Analysis\n")
 	fmt.Printf("===================\n")
 	fmt.Printf("Date range: %s to %s\n", from.Format("2006-01-02"), to.Format("2006-01-02"))
@@ -133,7 +125,6 @@ func runThroughput(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  Max items:      %d\n", stats.MaxItems)
 	fmt.Printf("  Median items:   %d\n", stats.MedianItems)
 
-	// Print period breakdown
 	fmt.Printf("\nPeriod Breakdown:\n")
 	fmt.Printf("%-12s  %6s\n", "Period", "Items")
 	fmt.Printf("%-12s  %6s\n", "------", "-----")
@@ -143,10 +134,10 @@ func runThroughput(cmd *cobra.Command, args []string) error {
 			p.Count)
 	}
 
-	// Export to CSV
+	outputName := teamOutputName("throughput", team)
 	outputFormat := getOutputFormat("csv")
 	if outputFormat == "csv" || outputFormat == "xlsx" {
-		outputPath := getOutputPath("throughput", "csv")
+		outputPath := getOutputPath(outputName, "csv")
 		if err := exportThroughputCSV(result, outputPath); err != nil {
 			return fmt.Errorf("failed to export CSV: %w", err)
 		}
