@@ -11,6 +11,8 @@ import (
 type Dataset struct {
 	Issues     []jira.Issue
 	Changelogs map[string][]jira.ChangelogEntry // keyed by issue key
+	Boards     []jira.Board                     // boards for board API
+	Filters    map[string]jira.Filter           // filter ID -> filter
 }
 
 // IssueBuilder provides a fluent API for constructing realistic test issues.

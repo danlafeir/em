@@ -3,6 +3,8 @@ package workflow
 import (
 	"testing"
 	"time"
+
+	"devctl-em/internal/jira"
 )
 
 func TestGetStage(t *testing.T) {
@@ -176,6 +178,161 @@ func TestGetStageNames(t *testing.T) {
 		if names[i] != name {
 			t.Errorf("Stage %d: expected %q, got %q", i, name, names[i])
 		}
+	}
+}
+
+func TestMapIssueHistory_CompletedIssue(t *testing.T) {
+	mapper := NewMapper(DefaultConfig())
+
+	base := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
+	resolved := base.Add(5 * 24 * time.Hour)
+
+	issue := jira.IssueWithHistory{
+		Issue: jira.Issue{
+			Key: "TEST-1",
+			Fields: jira.Fields{
+				Summary:   "Test story",
+				IssueType: jira.IssueType{Name: "Story"},
+				Status:    jira.Status{Name: "Done"},
+				Created:   jira.JiraTime{Time: base},
+				ResolutionDate: &jira.JiraTime{Time: resolved},
+			},
+		},
+		Transitions: []jira.StatusTransition{
+			{Timestamp: base.Add(2 * time.Hour), FromStatus: "Open", ToStatus: "In Progress"},
+			{Timestamp: resolved, FromStatus: "In Progress", ToStatus: "Done"},
+		},
+	}
+
+	history := mapper.MapIssueHistory(issue)
+
+	if history.Key != "TEST-1" {
+		t.Errorf("expected key TEST-1, got %q", history.Key)
+	}
+	if history.Type != "Story" {
+		t.Errorf("expected type Story, got %q", history.Type)
+	}
+	if history.Summary != "Test story" {
+		t.Errorf("expected summary 'Test story', got %q", history.Summary)
+	}
+	if history.CurrentStage != "Done" {
+		t.Errorf("expected current stage Done, got %q", history.CurrentStage)
+	}
+	if history.Completed == nil {
+		t.Fatal("expected Completed to be set")
+	}
+	if !history.Completed.Equal(resolved) {
+		t.Errorf("expected completed time %v, got %v", resolved, *history.Completed)
+	}
+
+	// Open and In Progress are in different stages, so transition is recorded
+	// In Progress and Done are in different stages, so transition is recorded
+	if len(history.Transitions) != 2 {
+		t.Fatalf("expected 2 stage transitions, got %d", len(history.Transitions))
+	}
+	if history.Transitions[0].ToStage != "In Progress" {
+		t.Errorf("expected first transition to 'In Progress', got %q", history.Transitions[0].ToStage)
+	}
+	if history.Transitions[1].ToStage != "Done" {
+		t.Errorf("expected second transition to 'Done', got %q", history.Transitions[1].ToStage)
+	}
+}
+
+func TestMapIssueHistory_UnresolvedIssue(t *testing.T) {
+	mapper := NewMapper(DefaultConfig())
+
+	base := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
+
+	issue := jira.IssueWithHistory{
+		Issue: jira.Issue{
+			Key: "TEST-2",
+			Fields: jira.Fields{
+				Summary:   "WIP story",
+				IssueType: jira.IssueType{Name: "Task"},
+				Status:    jira.Status{Name: "In Progress"},
+				Created:   jira.JiraTime{Time: base},
+			},
+		},
+		Transitions: []jira.StatusTransition{
+			{Timestamp: base.Add(1 * time.Hour), FromStatus: "Open", ToStatus: "In Progress"},
+		},
+	}
+
+	history := mapper.MapIssueHistory(issue)
+
+	if history.Completed != nil {
+		t.Error("expected Completed to be nil for unresolved issue")
+	}
+	if history.CurrentStage != "In Progress" {
+		t.Errorf("expected current stage 'In Progress', got %q", history.CurrentStage)
+	}
+}
+
+func TestMapIssueHistory_FiltersSameStageTransitions(t *testing.T) {
+	mapper := NewMapper(DefaultConfig())
+
+	base := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
+	resolved := base.Add(3 * 24 * time.Hour)
+
+	// "In Progress" and "In Development" both map to "In Progress" stage
+	issue := jira.IssueWithHistory{
+		Issue: jira.Issue{
+			Key: "TEST-3",
+			Fields: jira.Fields{
+				Summary:        "Same-stage transitions",
+				IssueType:      jira.IssueType{Name: "Story"},
+				Status:         jira.Status{Name: "Done"},
+				Created:        jira.JiraTime{Time: base},
+				ResolutionDate: &jira.JiraTime{Time: resolved},
+			},
+		},
+		Transitions: []jira.StatusTransition{
+			{Timestamp: base.Add(1 * time.Hour), FromStatus: "Open", ToStatus: "In Progress"},
+			// In Progress → In Development: both map to "In Progress" stage, should be filtered
+			{Timestamp: base.Add(24 * time.Hour), FromStatus: "In Progress", ToStatus: "In Development"},
+			{Timestamp: resolved, FromStatus: "In Development", ToStatus: "Done"},
+		},
+	}
+
+	history := mapper.MapIssueHistory(issue)
+
+	// The In Progress → In Development transition should be filtered (same stage)
+	if len(history.Transitions) != 2 {
+		t.Fatalf("expected 2 stage transitions (filtering same-stage), got %d", len(history.Transitions))
+	}
+	if history.Transitions[0].ToStage != "In Progress" {
+		t.Errorf("first transition should be to 'In Progress', got %q", history.Transitions[0].ToStage)
+	}
+	if history.Transitions[1].ToStage != "Done" {
+		t.Errorf("second transition should be to 'Done', got %q", history.Transitions[1].ToStage)
+	}
+}
+
+func TestMapIssueHistory_NoTransitions(t *testing.T) {
+	mapper := NewMapper(DefaultConfig())
+
+	base := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
+
+	issue := jira.IssueWithHistory{
+		Issue: jira.Issue{
+			Key: "TEST-4",
+			Fields: jira.Fields{
+				Summary:   "Brand new issue",
+				IssueType: jira.IssueType{Name: "Story"},
+				Status:    jira.Status{Name: "Open"},
+				Created:   jira.JiraTime{Time: base},
+			},
+		},
+		Transitions: nil,
+	}
+
+	history := mapper.MapIssueHistory(issue)
+
+	if len(history.Transitions) != 0 {
+		t.Errorf("expected 0 transitions, got %d", len(history.Transitions))
+	}
+	if history.CurrentStage != "Backlog" {
+		t.Errorf("expected current stage 'Backlog', got %q", history.CurrentStage)
 	}
 }
 

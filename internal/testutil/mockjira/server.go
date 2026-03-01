@@ -29,6 +29,10 @@ func New(ds *Dataset) *Server {
 	s.mux.HandleFunc("/rest/api/3/myself", s.handleMyself)
 	s.mux.HandleFunc("/rest/api/3/search/jql", s.handleSearch)
 	s.mux.HandleFunc("/rest/api/3/issue/", s.handleIssue)
+	s.mux.HandleFunc("/rest/api/3/project/", s.handleProject)
+	s.mux.HandleFunc("/rest/api/3/filter/", s.handleFilter)
+	s.mux.HandleFunc("/rest/agile/1.0/board", s.handleBoards)
+	s.mux.HandleFunc("/rest/agile/1.0/board/", s.handleBoards)
 	return s
 }
 
@@ -159,6 +163,87 @@ func (s *Server) handleIssue(w http.ResponseWriter, r *http.Request) {
 		Values: entries[startAt:end],
 	}
 	writeJSON(w, result)
+}
+
+func (s *Server) handleProject(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s %s", r.Method, r.URL.String())
+	key := strings.TrimPrefix(r.URL.Path, "/rest/api/3/project/")
+	// Return a project with a deterministic ID based on the key
+	writeJSON(w, map[string]any{
+		"id":   "10000",
+		"key":  key,
+		"name": "Test Project",
+	})
+}
+
+func (s *Server) handleFilter(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s %s", r.Method, r.URL.String())
+	filterID := strings.TrimPrefix(r.URL.Path, "/rest/api/3/filter/")
+	if s.Dataset.Filters != nil {
+		if f, ok := s.Dataset.Filters[filterID]; ok {
+			writeJSON(w, f)
+			return
+		}
+	}
+	http.NotFound(w, r)
+}
+
+func (s *Server) handleBoards(w http.ResponseWriter, r *http.Request) {
+	log.Printf("%s %s?%s", r.Method, r.URL.Path, r.URL.RawQuery)
+
+	// Check for board configuration sub-path: /rest/agile/1.0/board/{id}/configuration
+	path := r.URL.Path
+	if strings.Count(path, "/") > 4 {
+		// Route like /rest/agile/1.0/board/123/configuration
+		parts := strings.Split(strings.TrimPrefix(path, "/rest/agile/1.0/board/"), "/")
+		if len(parts) == 2 && parts[1] == "configuration" {
+			boardID, err := strconv.Atoi(parts[0])
+			if err != nil {
+				http.NotFound(w, r)
+				return
+			}
+			// Find the board and return a config with a filter ID matching the board ID
+			for _, b := range s.Dataset.Boards {
+				if b.ID == boardID {
+					writeJSON(w, map[string]any{
+						"filter": map[string]any{
+							"id": strconv.Itoa(boardID * 10),
+						},
+					})
+					return
+				}
+			}
+			http.NotFound(w, r)
+			return
+		}
+	}
+
+	// Board listing
+	startAt := queryInt(r, "startAt", 0)
+	maxResults := queryInt(r, "maxResults", s.MaxPageSize)
+	if maxResults > s.MaxPageSize {
+		maxResults = s.MaxPageSize
+	}
+
+	boards := s.Dataset.Boards
+	total := len(boards)
+
+	end := startAt + maxResults
+	if end > total {
+		end = total
+	}
+	if startAt > total {
+		startAt = total
+	}
+
+	isLast := end >= total
+	writeJSON(w, map[string]any{
+		"startAt":    startAt,
+		"maxResults": maxResults,
+		"total":      total,
+		"isLast":     isLast,
+		"values":     boards[startAt:end],
+	})
 }
 
 func writeJSON(w http.ResponseWriter, v any) {

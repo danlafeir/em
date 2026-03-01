@@ -3,6 +3,8 @@ package metrics
 import (
 	"testing"
 	"time"
+
+	"devctl-em/internal/workflow"
 )
 
 func TestPercentile(t *testing.T) {
@@ -127,6 +129,150 @@ func TestCalculateStats(t *testing.T) {
 	expectedMedian := 3 * 24 * time.Hour
 	if stats.Median != expectedMedian {
 		t.Errorf("Expected Median=%v, got %v", expectedMedian, stats.Median)
+	}
+}
+
+func TestCalculate_CompletedIssues(t *testing.T) {
+	mapper := workflow.NewMapper(workflow.DefaultConfig())
+	calc := NewCycleTimeCalculator(mapper)
+
+	base := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
+	completed := base.Add(5 * 24 * time.Hour)
+
+	histories := []workflow.IssueHistory{
+		{
+			Key:          "TEST-1",
+			Type:         "Story",
+			Summary:      "Test story",
+			Created:      base,
+			Completed:    &completed,
+			CurrentStage: "Done",
+			Transitions: []workflow.StageTransition{
+				{Timestamp: base.Add(1 * time.Hour), FromStage: "Backlog", ToStage: "In Progress"},
+				{Timestamp: completed, FromStage: "In Progress", ToStage: "Done"},
+			},
+		},
+	}
+
+	results := calc.Calculate(histories)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	r := results[0]
+	if r.IssueKey != "TEST-1" {
+		t.Errorf("expected key TEST-1, got %q", r.IssueKey)
+	}
+
+	// Cycle time: from "In Progress" to "Done" = 5 days - 1 hour
+	expectedCycleTime := completed.Sub(base.Add(1 * time.Hour))
+	if r.CycleTime != expectedCycleTime {
+		t.Errorf("expected cycle time %v, got %v", expectedCycleTime, r.CycleTime)
+	}
+}
+
+func TestCalculate_SkipsIncompleteIssues(t *testing.T) {
+	mapper := workflow.NewMapper(workflow.DefaultConfig())
+	calc := NewCycleTimeCalculator(mapper)
+
+	base := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
+
+	histories := []workflow.IssueHistory{
+		{
+			Key:          "TEST-1",
+			Type:         "Story",
+			Summary:      "WIP story",
+			Created:      base,
+			Completed:    nil, // not completed
+			CurrentStage: "In Progress",
+			Transitions: []workflow.StageTransition{
+				{Timestamp: base.Add(1 * time.Hour), FromStage: "Backlog", ToStage: "In Progress"},
+			},
+		},
+	}
+
+	results := calc.Calculate(histories)
+
+	if len(results) != 0 {
+		t.Errorf("expected 0 results for incomplete issue, got %d", len(results))
+	}
+}
+
+func TestCalculate_FallsBackToCreationTime(t *testing.T) {
+	mapper := workflow.NewMapper(workflow.DefaultConfig())
+	calc := NewCycleTimeCalculator(mapper)
+
+	base := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
+	completed := base.Add(3 * 24 * time.Hour)
+
+	// Issue goes directly to Done without ever entering In Progress
+	histories := []workflow.IssueHistory{
+		{
+			Key:          "TEST-1",
+			Type:         "Story",
+			Summary:      "Direct to done",
+			Created:      base,
+			Completed:    &completed,
+			CurrentStage: "Done",
+			Transitions: []workflow.StageTransition{
+				{Timestamp: completed, FromStage: "Backlog", ToStage: "Done"},
+			},
+		},
+	}
+
+	results := calc.Calculate(histories)
+
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(results))
+	}
+
+	// Should fall back to creation time as start
+	expectedCycleTime := completed.Sub(base)
+	if results[0].CycleTime != expectedCycleTime {
+		t.Errorf("expected cycle time %v (from creation), got %v", expectedCycleTime, results[0].CycleTime)
+	}
+}
+
+func TestCalculate_SortsByEndDate(t *testing.T) {
+	mapper := workflow.NewMapper(workflow.DefaultConfig())
+	calc := NewCycleTimeCalculator(mapper)
+
+	base := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
+	completed1 := base.Add(10 * 24 * time.Hour) // finishes later
+	completed2 := base.Add(3 * 24 * time.Hour)  // finishes earlier
+
+	histories := []workflow.IssueHistory{
+		{
+			Key: "TEST-1", Type: "Story", Summary: "Late finish",
+			Created: base, Completed: &completed1, CurrentStage: "Done",
+			Transitions: []workflow.StageTransition{
+				{Timestamp: base.Add(1 * time.Hour), FromStage: "Backlog", ToStage: "In Progress"},
+				{Timestamp: completed1, FromStage: "In Progress", ToStage: "Done"},
+			},
+		},
+		{
+			Key: "TEST-2", Type: "Story", Summary: "Early finish",
+			Created: base, Completed: &completed2, CurrentStage: "Done",
+			Transitions: []workflow.StageTransition{
+				{Timestamp: base.Add(2 * time.Hour), FromStage: "Backlog", ToStage: "In Progress"},
+				{Timestamp: completed2, FromStage: "In Progress", ToStage: "Done"},
+			},
+		},
+	}
+
+	results := calc.Calculate(histories)
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results, got %d", len(results))
+	}
+
+	// Should be sorted by end date: TEST-2 first
+	if results[0].IssueKey != "TEST-2" {
+		t.Errorf("expected TEST-2 first (earlier end date), got %q", results[0].IssueKey)
+	}
+	if results[1].IssueKey != "TEST-1" {
+		t.Errorf("expected TEST-1 second (later end date), got %q", results[1].IssueKey)
 	}
 }
 
