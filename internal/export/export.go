@@ -26,7 +26,7 @@ func CycleTimeCSV(results []metrics.CycleTimeResult, path string) error {
 	defer writer.Flush()
 
 	// Header
-	header := []string{"Issue Key", "Type", "Summary", "Start Date", "End Date", "Cycle Time (days)", "Story Points"}
+	header := []string{"Issue Key", "Type", "Summary", "Start Date", "End Date", "Cycle Time (days)"}
 	if err := writer.Write(header); err != nil {
 		return err
 	}
@@ -40,7 +40,6 @@ func CycleTimeCSV(results []metrics.CycleTimeResult, path string) error {
 			r.StartDate.Format("2006-01-02"),
 			r.EndDate.Format("2006-01-02"),
 			strconv.FormatFloat(r.CycleTimeDays(), 'f', 1, 64),
-			strconv.FormatFloat(r.StoryPoints, 'f', 1, 64),
 		}
 		if err := writer.Write(row); err != nil {
 			return err
@@ -62,7 +61,7 @@ func ThroughputCSV(result metrics.ThroughputResult, path string) error {
 	defer writer.Flush()
 
 	// Header
-	header := []string{"Period Start", "Period End", "Items Completed", "Story Points"}
+	header := []string{"Period Start", "Period End", "Items Completed"}
 	if err := writer.Write(header); err != nil {
 		return err
 	}
@@ -73,7 +72,6 @@ func ThroughputCSV(result metrics.ThroughputResult, path string) error {
 			p.PeriodStart.Format("2006-01-02"),
 			p.PeriodEnd.Format("2006-01-02"),
 			strconv.Itoa(p.Count),
-			strconv.FormatFloat(p.Points, 'f', 1, 64),
 		}
 		if err := writer.Write(row); err != nil {
 			return err
@@ -93,7 +91,7 @@ func CycleTimeExcel(results []metrics.CycleTimeResult, stats metrics.CycleTimeSt
 	f.SetSheetName("Sheet1", dataSheet)
 
 	// Headers
-	headers := []string{"Issue Key", "Type", "Summary", "Start Date", "End Date", "Cycle Time (days)", "Story Points"}
+	headers := []string{"Issue Key", "Type", "Summary", "Start Date", "End Date", "Cycle Time (days)"}
 	for i, h := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 		f.SetCellValue(dataSheet, cell, h)
@@ -104,7 +102,7 @@ func CycleTimeExcel(results []metrics.CycleTimeResult, stats metrics.CycleTimeSt
 		Font: &excelize.Font{Bold: true},
 		Fill: excelize.Fill{Type: "pattern", Color: []string{"#4285F4"}, Pattern: 1},
 	})
-	f.SetCellStyle(dataSheet, "A1", "G1", headerStyle)
+	f.SetCellStyle(dataSheet, "A1", "F1", headerStyle)
 
 	// Data
 	for i, r := range results {
@@ -115,7 +113,6 @@ func CycleTimeExcel(results []metrics.CycleTimeResult, stats metrics.CycleTimeSt
 		f.SetCellValue(dataSheet, fmt.Sprintf("D%d", row), r.StartDate.Format("2006-01-02"))
 		f.SetCellValue(dataSheet, fmt.Sprintf("E%d", row), r.EndDate.Format("2006-01-02"))
 		f.SetCellValue(dataSheet, fmt.Sprintf("F%d", row), r.CycleTimeDays())
-		f.SetCellValue(dataSheet, fmt.Sprintf("G%d", row), r.StoryPoints)
 	}
 
 	// Stats sheet
@@ -161,7 +158,7 @@ func ThroughputExcel(result metrics.ThroughputResult, path string) error {
 	f.SetSheetName("Sheet1", dataSheet)
 
 	// Headers
-	headers := []string{"Period Start", "Period End", "Items", "Points"}
+	headers := []string{"Period Start", "Period End", "Items"}
 	for i, h := range headers {
 		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
 		f.SetCellValue(dataSheet, cell, h)
@@ -171,7 +168,7 @@ func ThroughputExcel(result metrics.ThroughputResult, path string) error {
 		Font: &excelize.Font{Bold: true},
 		Fill: excelize.Fill{Type: "pattern", Color: []string{"#4285F4"}, Pattern: 1},
 	})
-	f.SetCellStyle(dataSheet, "A1", "D1", headerStyle)
+	f.SetCellStyle(dataSheet, "A1", "C1", headerStyle)
 
 	// Data
 	for i, p := range result.Periods {
@@ -179,7 +176,6 @@ func ThroughputExcel(result metrics.ThroughputResult, path string) error {
 		f.SetCellValue(dataSheet, fmt.Sprintf("A%d", row), p.PeriodStart.Format("2006-01-02"))
 		f.SetCellValue(dataSheet, fmt.Sprintf("B%d", row), p.PeriodEnd.Format("2006-01-02"))
 		f.SetCellValue(dataSheet, fmt.Sprintf("C%d", row), p.Count)
-		f.SetCellValue(dataSheet, fmt.Sprintf("D%d", row), p.Points)
 	}
 
 	// Summary

@@ -18,7 +18,6 @@ type IssueBuilder struct {
 	key         string
 	issueType   string
 	summary     string
-	points      *float64
 	createdAt   time.Time
 	transitions []transition
 }
@@ -46,11 +45,6 @@ func (b *IssueBuilder) WithType(t string) *IssueBuilder {
 
 func (b *IssueBuilder) WithSummary(s string) *IssueBuilder {
 	b.summary = s
-	return b
-}
-
-func (b *IssueBuilder) WithPoints(p float64) *IssueBuilder {
-	b.points = &p
 	return b
 }
 
@@ -104,7 +98,6 @@ func (b *IssueBuilder) Build() (jira.Issue, []jira.ChangelogEntry) {
 				Key:  "PROJ",
 				Name: "Test Project",
 			},
-			StoryPoints: b.points,
 		},
 	}
 

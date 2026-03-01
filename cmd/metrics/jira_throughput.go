@@ -128,22 +128,19 @@ func runThroughput(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Statistics:\n")
 	fmt.Printf("  Total periods:  %d\n", stats.Periods)
 	fmt.Printf("  Total items:    %d\n", stats.TotalItems)
-	fmt.Printf("  Total points:   %.1f\n", stats.TotalPoints)
 	fmt.Printf("  Avg items:      %.1f per %s\n", stats.AvgItems, frequencyFlag[:len(frequencyFlag)-2])
-	fmt.Printf("  Avg points:     %.1f per %s\n", stats.AvgPoints, frequencyFlag[:len(frequencyFlag)-2])
 	fmt.Printf("  Min items:      %d\n", stats.MinItems)
 	fmt.Printf("  Max items:      %d\n", stats.MaxItems)
 	fmt.Printf("  Median items:   %d\n", stats.MedianItems)
 
 	// Print period breakdown
 	fmt.Printf("\nPeriod Breakdown:\n")
-	fmt.Printf("%-12s  %6s  %8s\n", "Period", "Items", "Points")
-	fmt.Printf("%-12s  %6s  %8s\n", "------", "-----", "------")
+	fmt.Printf("%-12s  %6s\n", "Period", "Items")
+	fmt.Printf("%-12s  %6s\n", "------", "-----")
 	for _, p := range result.Periods {
-		fmt.Printf("%-12s  %6d  %8.1f\n",
+		fmt.Printf("%-12s  %6d\n",
 			p.PeriodStart.Format("2006-01-02"),
-			p.Count,
-			p.Points)
+			p.Count)
 	}
 
 	// Export to CSV
@@ -170,7 +167,7 @@ func exportThroughputCSV(result metrics.ThroughputResult, path string) error {
 	defer writer.Flush()
 
 	// Write header
-	header := []string{"Period Start", "Period End", "Items Completed", "Story Points", "Issue Keys"}
+	header := []string{"Period Start", "Period End", "Items Completed", "Issue Keys"}
 	if err := writer.Write(header); err != nil {
 		return err
 	}
@@ -189,7 +186,6 @@ func exportThroughputCSV(result metrics.ThroughputResult, path string) error {
 			p.PeriodStart.Format("2006-01-02"),
 			p.PeriodEnd.Format("2006-01-02"),
 			strconv.Itoa(p.Count),
-			strconv.FormatFloat(p.Points, 'f', 1, 64),
 			issueKeys,
 		}
 		if err := writer.Write(row); err != nil {

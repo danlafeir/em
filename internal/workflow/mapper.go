@@ -110,7 +110,6 @@ type IssueHistory struct {
 	Key          string
 	Type         string
 	Summary      string
-	StoryPoints  float64
 	Created      time.Time
 	Completed    *time.Time
 	CurrentStage string
@@ -125,10 +124,6 @@ func (m *Mapper) MapIssueHistory(issue jira.IssueWithHistory) IssueHistory {
 		Summary:      issue.Fields.Summary,
 		Created:      issue.Fields.Created.Time,
 		CurrentStage: m.GetStage(issue.Fields.Status.Name),
-	}
-
-	if issue.Fields.StoryPoints != nil {
-		history.StoryPoints = *issue.Fields.StoryPoints
 	}
 
 	if issue.Fields.ResolutionDate != nil && !issue.Fields.ResolutionDate.Time.IsZero() {

@@ -115,9 +115,9 @@ func TestCalculateThroughput(t *testing.T) {
 	completed3 := time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC)
 
 	histories := []workflow.IssueHistory{
-		{Key: "TEST-1", Completed: &completed1, StoryPoints: 3},
-		{Key: "TEST-2", Completed: &completed2, StoryPoints: 5},
-		{Key: "TEST-3", Completed: &completed3, StoryPoints: 2},
+		{Key: "TEST-1", Completed: &completed1},
+		{Key: "TEST-2", Completed: &completed2},
+		{Key: "TEST-3", Completed: &completed3},
 		{Key: "TEST-4", Completed: nil}, // Not completed, should be excluded
 	}
 
@@ -129,9 +129,6 @@ func TestCalculateThroughput(t *testing.T) {
 	if result.TotalCount != 3 {
 		t.Errorf("Expected TotalCount=3, got %d", result.TotalCount)
 	}
-	if result.TotalPoints != 10 {
-		t.Errorf("Expected TotalPoints=10, got %v", result.TotalPoints)
-	}
 	if result.Frequency != FrequencyWeekly {
 		t.Errorf("Expected frequency=weekly, got %v", result.Frequency)
 	}
@@ -140,16 +137,14 @@ func TestCalculateThroughput(t *testing.T) {
 func TestCalculateThroughputStats(t *testing.T) {
 	result := ThroughputResult{
 		Periods: []ThroughputPeriod{
-			{Count: 2, Points: 5},
-			{Count: 4, Points: 10},
-			{Count: 3, Points: 8},
-			{Count: 1, Points: 3},
-			{Count: 5, Points: 12},
+			{Count: 2},
+			{Count: 4},
+			{Count: 3},
+			{Count: 1},
+			{Count: 5},
 		},
-		TotalCount:  15,
-		TotalPoints: 38,
-		AvgCount:    3,
-		AvgPoints:   7.6,
+		TotalCount: 15,
+		AvgCount:   3,
 	}
 
 	stats := CalculateThroughputStats(result)

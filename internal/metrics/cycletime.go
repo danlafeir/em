@@ -16,7 +16,6 @@ type CycleTimeResult struct {
 	CycleTime    time.Duration
 	StartDate    time.Time
 	EndDate      time.Time
-	StoryPoints  float64
 	StageDetails map[string]time.Duration // Time spent in each stage
 }
 
@@ -119,7 +118,6 @@ func (c *CycleTimeCalculator) calculateForIssue(history workflow.IssueHistory) *
 		CycleTime:    endTime.Sub(startTime),
 		StartDate:    startTime,
 		EndDate:      endTime,
-		StoryPoints:  history.StoryPoints,
 		StageDetails: stageDetails,
 	}
 }

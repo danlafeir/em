@@ -165,7 +165,7 @@ func exportCycleTimeCSV(results []metrics.CycleTimeResult, path string) error {
 	defer writer.Flush()
 
 	// Write header
-	header := []string{"Issue Key", "Type", "Summary", "Start Date", "End Date", "Cycle Time (days)", "Story Points"}
+	header := []string{"Issue Key", "Type", "Summary", "Start Date", "End Date", "Cycle Time (days)"}
 	if err := writer.Write(header); err != nil {
 		return err
 	}
@@ -179,7 +179,6 @@ func exportCycleTimeCSV(results []metrics.CycleTimeResult, path string) error {
 			r.StartDate.Format("2006-01-02"),
 			r.EndDate.Format("2006-01-02"),
 			strconv.FormatFloat(r.CycleTimeDays(), 'f', 1, 64),
-			strconv.FormatFloat(r.StoryPoints, 'f', 1, 64),
 		}
 		if err := writer.Write(row); err != nil {
 			return err

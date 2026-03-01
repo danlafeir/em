@@ -94,7 +94,6 @@ jira:
   domain: "mycompany"
   email: "user@company.com"
   jql_filter_for_metrics: "project = MYPROJ"
-  story_points_field: "customfield_10026"
 
 workflow:
   stages:

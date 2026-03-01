@@ -11,19 +11,16 @@ import (
 type ThroughputPeriod struct {
 	PeriodStart time.Time // Start of the period
 	PeriodEnd   time.Time // End of the period
-	Count       int       // Number of items completed
-	Points      float64   // Story points completed
-	IssueKeys   []string  // Keys of completed issues
+	Count     int      // Number of items completed
+	IssueKeys []string // Keys of completed issues
 }
 
 // ThroughputResult holds the complete throughput analysis.
 type ThroughputResult struct {
 	Periods     []ThroughputPeriod
-	TotalCount  int
-	TotalPoints float64
-	AvgCount    float64
-	AvgPoints   float64
-	Frequency   ThroughputFrequency
+	TotalCount int
+	AvgCount   float64
+	Frequency  ThroughputFrequency
 }
 
 // ThroughputFrequency defines the aggregation period.
@@ -69,7 +66,6 @@ func (tc *ThroughputCalculator) Calculate(histories []workflow.IssueHistory, fro
 		for _, h := range completed {
 			if !h.Completed.Before(periods[i].PeriodStart) && h.Completed.Before(periods[i].PeriodEnd) {
 				periods[i].Count++
-				periods[i].Points += h.StoryPoints
 				periods[i].IssueKeys = append(periods[i].IssueKeys, h.Key)
 			}
 		}
@@ -83,12 +79,10 @@ func (tc *ThroughputCalculator) Calculate(histories []workflow.IssueHistory, fro
 
 	for _, p := range periods {
 		result.TotalCount += p.Count
-		result.TotalPoints += p.Points
 	}
 
 	if len(periods) > 0 {
 		result.AvgCount = float64(result.TotalCount) / float64(len(periods))
-		result.AvgPoints = result.TotalPoints / float64(len(periods))
 	}
 
 	return result
@@ -176,14 +170,12 @@ func GetWeeklyThroughputValues(result ThroughputResult) []int {
 
 // ThroughputStats calculates statistical summary of throughput.
 type ThroughputStats struct {
-	Periods      int
-	TotalItems   int
-	TotalPoints  float64
-	AvgItems     float64
-	AvgPoints    float64
-	MinItems     int
-	MaxItems     int
-	MedianItems  int
+	Periods     int
+	TotalItems  int
+	AvgItems    float64
+	MinItems    int
+	MaxItems    int
+	MedianItems int
 }
 
 // CalculateThroughputStats computes statistics from throughput result.
@@ -212,9 +204,7 @@ func CalculateThroughputStats(result ThroughputResult) ThroughputStats {
 	return ThroughputStats{
 		Periods:     len(result.Periods),
 		TotalItems:  result.TotalCount,
-		TotalPoints: result.TotalPoints,
 		AvgItems:    result.AvgCount,
-		AvgPoints:   result.AvgPoints,
 		MinItems:    minItems,
 		MaxItems:    maxItems,
 		MedianItems: medianItems,

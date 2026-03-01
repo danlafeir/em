@@ -64,9 +64,8 @@ type Fields struct {
 	Reporter       *User      `json:"reporter,omitempty"`
 	Priority       *Priority  `json:"priority,omitempty"`
 	Labels         []string   `json:"labels,omitempty"`
-	Parent         *Parent    `json:"parent,omitempty"` // For subtasks or stories linked to epics
-	Epic           *Epic      `json:"epic,omitempty"`   // Epic link (older style)
-	StoryPoints    *float64   `json:"customfield_10026,omitempty"` // Configurable field ID
+	Parent *Parent `json:"parent,omitempty"` // For subtasks or stories linked to epics
+	Epic   *Epic   `json:"epic,omitempty"`   // Epic link (older style)
 }
 
 // Status represents issue status.
