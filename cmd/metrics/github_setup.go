@@ -56,7 +56,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("GitHub org not configured. Run: devctl-em config set github.org <org>")
 	}
 
-	team, err := resolveSetupTeam()
+	team, err := resolveSetupTeam(ctx, client, org)
 	if err != nil {
 		return err
 	}
@@ -177,8 +177,8 @@ func runSetup(cmd *cobra.Command, args []string) error {
 
 // resolveSetupTeam determines which team to set up.
 // If --team is set, use that. Otherwise prompt the user to pick from
-// configured teams or enter a new team slug.
-func resolveSetupTeam() (string, error) {
+// configured teams or select from the GitHub org's teams via API.
+func resolveSetupTeam(ctx context.Context, client *github.Client, org string) (string, error) {
 	if ghTeamFlag != "" {
 		return ghTeamFlag, nil
 	}
@@ -209,6 +209,62 @@ func resolveSetupTeam() (string, error) {
 		}
 	}
 
+	// Fetch teams from GitHub API and let the user pick
+	return selectTeamFromAPI(ctx, client, org, existingTeams)
+}
+
+// selectTeamFromAPI fetches org teams via the GitHub API and presents them
+// for selection. Falls back to manual slug entry on error or empty results.
+func selectTeamFromAPI(ctx context.Context, client *github.Client, org string, exclude []string) (string, error) {
+	reader := bufio.NewReader(os.Stdin)
+
+	fmt.Printf("Fetching teams for %s...\n", org)
+	apiTeams, err := client.ListUserTeams(ctx, org)
+	if err != nil {
+		fmt.Printf("Could not fetch teams: %v\n", err)
+		return promptTeamSlug(reader)
+	}
+
+	// Exclude already-configured teams
+	excludeSet := make(map[string]bool, len(exclude))
+	for _, t := range exclude {
+		excludeSet[t] = true
+	}
+	var available []github.Team
+	for _, t := range apiTeams {
+		if !excludeSet[t.Slug] {
+			available = append(available, t)
+		}
+	}
+
+	if len(available) == 0 {
+		fmt.Println("No additional teams found in this org.")
+		return promptTeamSlug(reader)
+	}
+
+	fmt.Println("Available teams:")
+	for i, t := range available {
+		fmt.Printf("  %d) %s (%s)\n", i+1, t.Name, t.Slug)
+	}
+	fmt.Printf("Select team [1]: ")
+
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+
+	if input == "" {
+		input = "1"
+	}
+
+	choice, err := strconv.Atoi(input)
+	if err != nil || choice < 1 || choice > len(available) {
+		return "", fmt.Errorf("invalid selection")
+	}
+
+	return available[choice-1].Slug, nil
+}
+
+// promptTeamSlug asks the user to manually enter a team slug.
+func promptTeamSlug(reader *bufio.Reader) (string, error) {
 	fmt.Print("Enter team slug: ")
 	input, _ := reader.ReadString('\n')
 	input = strings.TrimSpace(input)

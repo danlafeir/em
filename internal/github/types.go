@@ -66,3 +66,16 @@ type WorkflowRunsResponse struct {
 	TotalCount   int           `json:"total_count"`
 	WorkflowRuns []WorkflowRun `json:"workflow_runs"`
 }
+
+// TeamOrg represents the organization a team belongs to.
+type TeamOrg struct {
+	Login string `json:"login"`
+}
+
+// Team represents a GitHub team.
+type Team struct {
+	ID           int64   `json:"id"`
+	Slug         string  `json:"slug"`
+	Name         string  `json:"name"`
+	Organization TeamOrg `json:"organization"`
+}

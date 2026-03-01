@@ -295,6 +295,49 @@ func (c *Client) ListWorkflowRuns(ctx context.Context, owner, repo string, workf
 	return allRuns, nil
 }
 
+// ListUserTeams lists teams for the authenticated user, filtered to a specific org.
+func (c *Client) ListUserTeams(ctx context.Context, org string) ([]Team, error) {
+	query := url.Values{}
+	query.Set("per_page", "100")
+
+	body, headers, err := c.doRequest(ctx, "GET", "/user/teams", query)
+	if err != nil {
+		return nil, fmt.Errorf("listing user teams: %w", err)
+	}
+
+	var allTeams []Team
+	if err := json.Unmarshal(body, &allTeams); err != nil {
+		return nil, fmt.Errorf("parsing user teams: %w", err)
+	}
+
+	// Follow Link pagination
+	nextURL := parseLinkHeader(headers.Get("Link"))
+	for nextURL != "" {
+		body, headers, err = c.doRequestURL(ctx, nextURL)
+		if err != nil {
+			return nil, fmt.Errorf("listing user teams (pagination): %w", err)
+		}
+
+		var page []Team
+		if err := json.Unmarshal(body, &page); err != nil {
+			return nil, fmt.Errorf("parsing user teams page: %w", err)
+		}
+		allTeams = append(allTeams, page...)
+		nextURL = parseLinkHeader(headers.Get("Link"))
+	}
+
+	// Filter to the specified org
+	orgLower := strings.ToLower(org)
+	var filtered []Team
+	for _, t := range allTeams {
+		if strings.ToLower(t.Organization.Login) == orgLower {
+			filtered = append(filtered, t)
+		}
+	}
+
+	return filtered, nil
+}
+
 // TestConnection verifies the GitHub credentials work.
 func (c *Client) TestConnection(ctx context.Context) error {
 	_, _, err := c.doRequest(ctx, "GET", "/user", nil)

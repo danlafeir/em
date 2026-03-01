@@ -6,7 +6,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/danlafeir/devctl/pkg/config"
 	"github.com/danlafeir/devctl/pkg/secrets"
 	"github.com/spf13/cobra"
 
@@ -62,7 +61,6 @@ func init() {
 	GithubCmd.PersistentFlags().StringVar(&ghOrgFlag, "org", "", "GitHub organization (overrides config)")
 	GithubCmd.PersistentFlags().StringVar(&ghTeamFlag, "team", "", "GitHub team slug (filters to one team)")
 
-	migrateGithubConfig()
 	GithubCmd.PersistentFlags().StringVarP(&ghOutputFlag, "output", "o", "", "Output file path")
 	GithubCmd.PersistentFlags().StringVarP(&ghFormatFlag, "format", "f", "", "Output format (csv)")
 }
@@ -220,34 +218,3 @@ func getAllConfiguredWorkflows() ([]teamWorkflows, error) {
 	return result, nil
 }
 
-// migrateGithubConfig migrates old-style github.team + github.workflows
-// to the new github.teams.<team>.workflows format.
-func migrateGithubConfig() {
-	initConfig()
-
-	oldTeam := getConfigString("github.team")
-	if oldTeam == "" {
-		return
-	}
-
-	oldWorkflows := getConfigAny("github.workflows")
-	if oldWorkflows == nil {
-		return
-	}
-
-	rawMap, ok := oldWorkflows.(map[string]any)
-	if !ok || len(rawMap) == 0 {
-		return
-	}
-
-	// Write under new structure
-	teamsKey := fmt.Sprintf("github.teams.%s.workflows", oldTeam)
-	config.SetConfigValue(configNamespace, teamsKey, rawMap)
-
-	// Remove old keys
-	config.DeleteConfigValue(configNamespace, "github.team")
-	config.DeleteConfigValue(configNamespace, "github.workflows")
-
-	config.WriteConfig()
-	fmt.Printf("Migrated GitHub config: team %q workflows moved to github.teams.%s.workflows\n", oldTeam, oldTeam)
-}
