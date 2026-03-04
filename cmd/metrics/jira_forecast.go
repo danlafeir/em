@@ -50,7 +50,7 @@ func init() {
 	forecastCmd.Flags().IntVar(&remainingFlag, "remaining", 0, "Number of remaining items to complete")
 	forecastCmd.Flags().StringVar(&deadlineFlag, "deadline", "", "Target deadline date (YYYY-MM-DD)")
 	forecastCmd.Flags().IntVar(&trialsFlag, "trials", 10000, "Number of Monte Carlo simulations")
-	forecastCmd.Flags().IntVar(&historyDaysFlag, "history-days", 60, "Days of historical throughput to sample from")
+	forecastCmd.Flags().IntVar(&historyDaysFlag, "history-days", 90, "Days of historical throughput to sample from")
 	forecastCmd.Flags().BoolVar(&allEpicsFlag, "all", false, "Forecast all open epics (default when no other flags)")
 }
 
@@ -156,6 +156,7 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 	throughputCalc := metrics.NewThroughputCalculator(metrics.FrequencyWeekly)
 	throughputResult := throughputCalc.Calculate(histories, historyStart, historyEnd)
 	weeklyThroughput := metrics.GetWeeklyThroughputValues(throughputResult)
+	weeklyThroughput = metrics.FilterOutliers(weeklyThroughput, 2.0)
 
 	if len(weeklyThroughput) == 0 {
 		return fmt.Errorf("no throughput data available for simulation")
@@ -407,6 +408,7 @@ func runManualForecast(ctx context.Context, client *jira.Client, remaining int) 
 	throughputCalc := metrics.NewThroughputCalculator(metrics.FrequencyWeekly)
 	throughputResult := throughputCalc.Calculate(histories, historyStart, historyEnd)
 	weeklyThroughput := metrics.GetWeeklyThroughputValues(throughputResult)
+	weeklyThroughput = metrics.FilterOutliers(weeklyThroughput, 2.0)
 
 	if len(weeklyThroughput) == 0 {
 		return fmt.Errorf("no throughput data available for simulation")

@@ -144,13 +144,43 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 		longestCTPlot = charts.LongestCycleTimeTable(ctRows, fmt.Sprintf("Longest Cycle Times — %s to %s", from.Format("Jan 02"), to.Format("Jan 02")), false)
 	}
 
-	// 4. Forecast table
+	// 4. Forecast table — use 90-day throughput window for Monte Carlo
 	var forecastPlot *plot.Plot
-	if len(throughputResult.Periods) > 0 {
-		weeklyThroughput := pkgmetrics.GetWeeklyThroughputValues(throughputResult)
+	{
+		const forecastHistoryDays = 90
+		forecastFrom := time.Now().AddDate(0, 0, -forecastHistoryDays)
 
-		if len(weeklyThroughput) > 0 {
-			rows, forecastErr := discoverAndForecastEpics(ctx, client, mapper, weeklyThroughput, team)
+		var forecastThroughput []int
+		if !from.After(forecastFrom) {
+			// Report range already covers 90+ days; reuse existing data
+			forecastThroughput = pkgmetrics.GetWeeklyThroughputValues(throughputResult)
+		} else {
+			// Fetch a separate 90-day window for the forecast
+			forecastJQL := fmt.Sprintf("(%s) AND resolved >= %s AND resolved <= %s",
+				jql, forecastFrom.Format("2006-01-02"), time.Now().Format("2006-01-02"))
+
+			fmt.Printf("Fetching 90-day throughput history for forecast...\n")
+			forecastIssues, fetchErr := client.FetchIssuesWithHistory(ctx, forecastJQL, func(current, total int) {
+				fmt.Printf("\rProcessing forecast issues: %d/%d...", current, total)
+			})
+			if fetchErr != nil {
+				fmt.Printf("Warning: forecast unavailable: %v\n", fetchErr)
+			} else {
+				fmt.Println()
+				forecastHistories := make([]workflow.IssueHistory, len(forecastIssues))
+				for i, issue := range forecastIssues {
+					forecastHistories[i] = mapper.MapIssueHistory(issue)
+				}
+				fc := pkgmetrics.NewThroughputCalculator(pkgmetrics.FrequencyWeekly)
+				fcResult := fc.Calculate(forecastHistories, forecastFrom, time.Now())
+				forecastThroughput = pkgmetrics.GetWeeklyThroughputValues(fcResult)
+			}
+		}
+
+		forecastThroughput = pkgmetrics.FilterOutliers(forecastThroughput, 2.0)
+
+		if len(forecastThroughput) > 0 {
+			rows, forecastErr := discoverAndForecastEpics(ctx, client, mapper, forecastThroughput, team)
 			if forecastErr != nil {
 				fmt.Printf("Warning: forecast unavailable: %v\n", forecastErr)
 			} else if len(rows) > 0 {
