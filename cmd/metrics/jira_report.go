@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"gonum.org/v1/plot"
 
 	"devctl-em/internal/charts"
 	"devctl-em/internal/jira"
@@ -17,19 +16,19 @@ import (
 
 var reportCmd = &cobra.Command{
 	Use:   "report",
-	Short: "Generate combined metrics report as a single PNG",
-	Long: `Generate a PNG report combining cycle time scatter, throughput trend,
+	Short: "Generate combined metrics report as a single HTML page",
+	Long: `Generate an HTML report combining cycle time scatter, throughput trend,
 and Monte Carlo epic forecast.
 
 When teams are configured, generates one report per team. Use --team to
 generate for a single team, or --jql/--project to bypass team iteration.
 
-Uses the last 6 weeks of data by default. Output is a PNG image.
+Uses the last 6 weeks of data by default. Output is an HTML file.
 
 Example:
   devctl-em metrics jira report
   devctl-em metrics jira report --team platform
-  devctl-em metrics jira report --from 2024-01-01 -o report.png`,
+  devctl-em metrics jira report --from 2024-01-01 -o report.html`,
 	RunE: runReport,
 }
 
@@ -59,10 +58,9 @@ func runReport(cmd *cobra.Command, args []string) error {
 	})
 }
 
-// generateReport generates a single combined PNG report for the given JQL.
-// When team is non-empty, the output file is named jira-report-<team>.png.
+// generateReport generates a single combined HTML report for the given JQL.
 func generateReport(ctx context.Context, client *jira.Client, team, jql string, from, to time.Time) error {
-	outputPath := getOutputPath(teamOutputName("jira-report", team), "png")
+	outputPath := getOutputPath(teamOutputName("jira-report", team), "html")
 
 	fmt.Printf("Generating JIRA Report...\n")
 	fmt.Printf("JQL: %s\n", jql)
@@ -97,35 +95,14 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 	// Filter outliers from scatter chart (still shown in longest CT table)
 	keptResults, outlierResults := pkgmetrics.FilterCycleTimeOutliers(cycleResults, 2.0)
 
-	chartCfg := charts.DefaultConfig()
-	chartCfg.Title = "Cycle Time Distribution"
-
-	var cycleTimePlot *plot.Plot
-	if len(keptResults) > 0 {
-		cycleTimePlot, err = charts.CycleTimeScatter(keptResults, []float64{50, 85, 95}, chartCfg)
-		if err != nil {
-			return fmt.Errorf("failed to create cycle time chart: %w", err)
-		}
-	}
-
 	// 2. Throughput
 	fmt.Printf("Calculating throughput metrics...\n")
 	throughputCalc := pkgmetrics.NewThroughputCalculator(pkgmetrics.FrequencyWeekly)
 	throughputResult := throughputCalc.Calculate(completedHistories, from, to)
 
-	chartCfg.Title = "Weekly Throughput"
-	var throughputPlot *plot.Plot
-	if len(throughputResult.Periods) > 0 {
-		throughputPlot, err = charts.ThroughputLine(throughputResult, chartCfg)
-		if err != nil {
-			return fmt.Errorf("failed to create throughput chart: %w", err)
-		}
-	}
-
 	// 3. Longest Cycle Time table — combine kept + outliers, mark outliers
-	var longestCTPlot *plot.Plot
+	var ctRows []charts.LongestCycleTimeRow
 	if len(cycleResults) > 0 {
-		// Build a set of outlier keys for quick lookup
 		outlierKeys := make(map[string]bool, len(outlierResults))
 		for _, r := range outlierResults {
 			outlierKeys[r.IssueKey] = true
@@ -140,7 +117,6 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 		if n > 10 {
 			n = 10
 		}
-		var ctRows []charts.LongestCycleTimeRow
 		for _, r := range sorted[:n] {
 			ctRows = append(ctRows, charts.LongestCycleTimeRow{
 				Key:       r.IssueKey,
@@ -151,21 +127,18 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 				Outlier:   outlierKeys[r.IssueKey],
 			})
 		}
-		longestCTPlot = charts.LongestCycleTimeTable(ctRows, fmt.Sprintf("Longest Cycle Times — %s to %s", from.Format("Jan 02"), to.Format("Jan 02")), false)
 	}
 
 	// 4. Forecast table — use 90-day throughput window for Monte Carlo
-	var forecastPlot *plot.Plot
+	var forecastRows []charts.ForecastRow
 	{
 		const forecastHistoryDays = 90
 		forecastFrom := time.Now().AddDate(0, 0, -forecastHistoryDays)
 
 		var forecastThroughput []int
 		if !from.After(forecastFrom) {
-			// Report range already covers 90+ days; reuse existing data
 			forecastThroughput = pkgmetrics.GetWeeklyThroughputValues(throughputResult)
 		} else {
-			// Fetch a separate 90-day window for the forecast
 			forecastJQL := fmt.Sprintf("(%s) AND resolved >= %s AND resolved <= %s",
 				jql, forecastFrom.Format("2006-01-02"), time.Now().Format("2006-01-02"))
 
@@ -193,22 +166,22 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 			rows, forecastErr := discoverAndForecastEpics(ctx, client, mapper, forecastThroughput, team)
 			if forecastErr != nil {
 				fmt.Printf("Warning: forecast unavailable: %v\n", forecastErr)
-			} else if len(rows) > 0 {
-				forecastPlot = charts.ForecastTable(rows)
+			} else {
+				forecastRows = rows
 			}
 		}
 	}
 
-	if err := charts.CombinedReport(cycleTimePlot, throughputPlot, longestCTPlot, forecastPlot, outputPath); err != nil {
+	if err := charts.CombinedReport(keptResults, []float64{50, 85, 95}, throughputResult, ctRows, forecastRows, outputPath); err != nil {
 		return fmt.Errorf("failed to generate report: %w", err)
 	}
 
 	fmt.Printf("\nReport generated: %s\n", outputPath)
+	charts.OpenBrowser(outputPath)
 	return nil
 }
 
 // discoverAndForecastEpics finds open epics and runs Monte Carlo forecasts.
-// When team is non-empty, scopes epic discovery to that team's project.
 func discoverAndForecastEpics(ctx context.Context, client *jira.Client, mapper *workflow.Mapper, weeklyThroughput []int, team string) ([]charts.ForecastRow, error) {
 	var projectJQL string
 	var err error

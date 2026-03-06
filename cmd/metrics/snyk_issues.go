@@ -112,19 +112,13 @@ func runSnykIssues(cmd *cobra.Command, args []string) error {
 	// Generate weekly trend chart
 	weeks := bucketByWeek(issues, from, to)
 	if len(weeks) > 0 {
-		cfg := charts.DefaultConfig()
-		cfg.Title = "Snyk Issues — Weekly Trend"
-
-		p, err := charts.SnykIssuesLine(weeks, cfg)
-		if err != nil {
+		cfg := charts.Config{Title: "Snyk Issues — Weekly Trend"}
+		chartPath := getSnykOutputPath("snyk-issues", "html")
+		if err := charts.SnykIssuesLine(weeks, cfg, chartPath); err != nil {
 			return fmt.Errorf("failed to create chart: %w", err)
 		}
-
-		chartPath := getSnykOutputPath("snyk-issues", "png")
-		if err := charts.SaveChart(p, chartPath, cfg); err != nil {
-			return fmt.Errorf("failed to save chart: %w", err)
-		}
 		fmt.Printf("\nChart saved to %s\n", chartPath)
+		charts.OpenBrowser(chartPath)
 	}
 
 	return nil

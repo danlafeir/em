@@ -24,7 +24,7 @@ var cycleTimeCmd = &cobra.Command{
 Generates:
   - Statistical summary (mean, median, percentiles)
   - CSV export with per-issue details
-  - Scatter plot showing cycle time over time (if PNG format)
+  - Scatter plot showing cycle time over time (if HTML format)
 
 Example:
   devctl-em metrics jira cycle-time --jql "project = MYPROJ" --from 2024-01-01
@@ -124,7 +124,7 @@ func generateCycleTime(ctx context.Context, client *jira.Client, team, jql strin
 	fmt.Printf("  Std Dev: %.1f\n", statsDays.StdDev)
 
 	outputName := teamOutputName("cycle-time", team)
-	outputFormat := getOutputFormat("png")
+	outputFormat := getOutputFormat("html")
 	switch outputFormat {
 	case "csv", "xlsx":
 		outputPath := getOutputPath(outputName, "csv")
@@ -132,17 +132,14 @@ func generateCycleTime(ctx context.Context, client *jira.Client, team, jql strin
 			return fmt.Errorf("failed to export CSV: %w", err)
 		}
 		fmt.Printf("\nExported to %s\n", outputPath)
-	case "png":
-		cfg := charts.DefaultConfig()
-		p, err := charts.CycleTimeScatter(results, nil, cfg)
-		if err != nil {
+	case "html":
+		cfg := charts.Config{}
+		outputPath := getOutputPath(outputName, "html")
+		if err := charts.CycleTimeScatter(results, nil, cfg, outputPath); err != nil {
 			return fmt.Errorf("failed to generate chart: %w", err)
 		}
-		outputPath := getOutputPath(outputName, "png")
-		if err := charts.SaveChart(p, outputPath, cfg); err != nil {
-			return fmt.Errorf("failed to save chart: %w", err)
-		}
 		fmt.Printf("\nChart saved to %s\n", outputPath)
+		charts.OpenBrowser(outputPath)
 	}
 
 	return nil

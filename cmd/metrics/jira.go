@@ -96,7 +96,7 @@ func init() {
 	JiraCmd.PersistentFlags().StringVar(&fromFlag, "from", "", "Start date (YYYY-MM-DD)")
 	JiraCmd.PersistentFlags().StringVar(&toFlag, "to", "", "End date (YYYY-MM-DD)")
 	JiraCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "", "Output file path")
-	JiraCmd.PersistentFlags().StringVarP(&formatFlag, "format", "f", "", "Output format (png, csv, xlsx, html)")
+	JiraCmd.PersistentFlags().StringVarP(&formatFlag, "format", "f", "", "Output format (html, csv, xlsx)")
 
 	initConfig()
 	if unrecognized := config.ValidateNamespace(configNamespace, emConfigSchema); len(unrecognized) > 0 {

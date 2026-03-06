@@ -234,7 +234,7 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 	}
 
 	// CSV export
-	if getGithubOutputFormat("png") == "csv" {
+	if getGithubOutputFormat("html") == "csv" {
 		outputPath := getGithubOutputPath("deployment-frequency", "csv")
 		if err := exportDeploymentFrequencyCSV(results, outputPath); err != nil {
 			return fmt.Errorf("failed to export CSV: %w", err)
@@ -243,19 +243,16 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Generate PNG chart with aggregate weekly deployments
+	// Generate HTML chart with aggregate weekly deployments
 	weeklyData := aggregateWeeklyDeployments(allRuns, from, to)
 	if len(weeklyData) > 0 {
-		cfg := charts.DefaultConfig()
-		p, err := charts.DeploymentFrequencyLine(weeklyData, cfg)
-		if err != nil {
+		cfg := charts.Config{}
+		outputPath := getGithubOutputPath("deployment-frequency", "html")
+		if err := charts.DeploymentFrequencyLine(weeklyData, cfg, outputPath); err != nil {
 			return fmt.Errorf("failed to create chart: %w", err)
 		}
-		outputPath := getGithubOutputPath("deployment-frequency", "png")
-		if err := charts.SaveChart(p, outputPath, cfg); err != nil {
-			return fmt.Errorf("failed to save chart: %w", err)
-		}
 		fmt.Printf("\nChart saved to %s\n", outputPath)
+		charts.OpenBrowser(outputPath)
 	}
 
 	return nil

@@ -128,8 +128,8 @@ func generateLongestCycleTime(ctx context.Context, client *jira.Client, team, jq
 	}
 
 	outputName := teamOutputName("longest-cycle-time", team)
-	outputFormat := getOutputFormat("png")
-	if outputFormat == "png" {
+	outputFormat := getOutputFormat("html")
+	if outputFormat == "html" {
 		var rows []charts.LongestCycleTimeRow
 		for _, r := range top {
 			rows = append(rows, charts.LongestCycleTimeRow{
@@ -141,13 +141,12 @@ func generateLongestCycleTime(ctx context.Context, client *jira.Client, team, jq
 			})
 		}
 		title := fmt.Sprintf("Longest Cycle Times — %s to %s", from.Format("Jan 02"), to.Format("Jan 02"))
-		p := charts.LongestCycleTimeTable(rows, title, true)
-		cfg := charts.DefaultConfig()
-		outputPath := getOutputPath(outputName, "png")
-		if err := charts.SaveChart(p, outputPath, cfg); err != nil {
+		outputPath := getOutputPath(outputName, "html")
+		if err := charts.LongestCycleTimeTable(rows, title, outputPath); err != nil {
 			return fmt.Errorf("failed to save chart: %w", err)
 		}
 		fmt.Printf("\nChart saved to %s\n", outputPath)
+		charts.OpenBrowser(outputPath)
 	}
 
 	return nil

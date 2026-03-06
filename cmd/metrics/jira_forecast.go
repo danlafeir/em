@@ -257,7 +257,7 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 		}
 	}
 
-	// Export PNG chart
+	// Export HTML chart
 	var rows []charts.ForecastRow
 	for _, f := range forecasts {
 		if f.Error != "" {
@@ -273,10 +273,10 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 		})
 	}
 	if len(rows) > 0 {
-		p := charts.ForecastTable(rows)
-		pngPath := getOutputPath(teamOutputName("epic-forecasts", team), "png")
-		if err := charts.SaveChart(p, pngPath, charts.DefaultConfig()); err == nil {
-			fmt.Printf("Chart saved to %s\n", pngPath)
+		htmlPath := getOutputPath(teamOutputName("epic-forecasts", team), "html")
+		if err := charts.ForecastTable(rows, htmlPath); err == nil {
+			fmt.Printf("Chart saved to %s\n", htmlPath)
+			charts.OpenBrowser(htmlPath)
 		}
 	}
 

@@ -1,225 +1,21 @@
-// Package charts provides chart generation for metrics visualization.
+// Package charts provides HTML chart generation for metrics visualization.
 package charts
 
 import (
+	"encoding/json"
 	"fmt"
-	"image/color"
+	"html/template"
 	"math"
 	"os"
 	"path/filepath"
 	"time"
-
-	"gonum.org/v1/plot"
-	"gonum.org/v1/plot/font"
-	"gonum.org/v1/plot/plotter"
-	"gonum.org/v1/plot/text"
-	"gonum.org/v1/plot/vg"
-	"gonum.org/v1/plot/vg/draw"
-	"gonum.org/v1/plot/vg/vgimg"
 
 	"devctl-em/internal/metrics"
 )
 
 // Config holds common chart configuration.
 type Config struct {
-	Title  string
-	Width  vg.Length
-	Height vg.Length
-	XLabel string
-	YLabel string
-}
-
-// DefaultConfig returns sensible chart defaults.
-func DefaultConfig() Config {
-	return Config{
-		Width:  30 * vg.Centimeter,
-		Height: 18 * vg.Centimeter,
-	}
-}
-
-// SaveChart saves a plot to the specified file.
-// Format is determined by file extension (.png, .svg, .pdf).
-func SaveChart(p *plot.Plot, filename string, cfg Config) error {
-	if err := os.MkdirAll(filepath.Dir(filename), 0o755); err != nil {
-		return err
-	}
-	return p.Save(cfg.Width, cfg.Height, filename)
-}
-
-// stylePlotTitle makes the plot title 2x bigger and bold.
-func stylePlotTitle(p *plot.Plot) {
-	p.Title.Text = "\n" + p.Title.Text
-	p.Title.TextStyle.Font.Size = p.Title.TextStyle.Font.Size * 2
-	p.Title.TextStyle.Font.Variant = "Mono"
-}
-
-// linearRegression computes slope and intercept for y = slope*x + intercept.
-func linearRegression(pts plotter.XYs) (slope, intercept float64) {
-	n := float64(len(pts))
-	var sumX, sumY, sumXY, sumX2 float64
-	for _, p := range pts {
-		sumX += p.X
-		sumY += p.Y
-		sumXY += p.X * p.Y
-		sumX2 += p.X * p.X
-	}
-	denom := n*sumX2 - sumX*sumX
-	if math.Abs(denom) < 1e-12 {
-		return 0, sumY / n
-	}
-	slope = (n*sumXY - sumX*sumY) / denom
-	intercept = (sumY - slope*sumX) / n
-	return
-}
-
-// CycleTimeScatter creates a scatter plot of cycle times over time.
-func CycleTimeScatter(data []metrics.CycleTimeResult, percentiles []float64, cfg Config) (*plot.Plot, error) {
-	p := plot.New()
-	p.Title.Text = cfg.Title
-	if p.Title.Text == "" {
-		p.Title.Text = "Cycle Time Scatter Plot"
-	}
-	stylePlotTitle(p)
-	p.X.Label.Text = "Completion Date"
-	p.Y.Label.Text = "Cycle Time (days)"
-	p.X.Padding = vg.Points(0)
-	p.Y.Padding = vg.Points(0)
-
-	// Convert data to XY points
-	pts := make(plotter.XYs, len(data))
-	var cycleTimes []float64
-
-	for i, ct := range data {
-		pts[i].X = float64(ct.EndDate.Unix())
-		pts[i].Y = ct.CycleTimeDays()
-		cycleTimes = append(cycleTimes, ct.CycleTimeDays())
-	}
-
-	// Create scatter plot
-	scatter, err := plotter.NewScatter(pts)
-	if err != nil {
-		return nil, err
-	}
-	scatter.GlyphStyle.Shape = draw.CircleGlyph{}
-	scatter.GlyphStyle.Radius = vg.Points(3)
-	scatter.GlyphStyle.Color = color.RGBA{R: 66, G: 133, B: 244, A: 255} // Google Blue
-
-	p.Add(scatter)
-
-	// Add percentile lines
-	if len(cycleTimes) > 0 && len(pts) > 1 {
-		stats := metrics.CalculateStats(data)
-		statsDays := stats.ToDays()
-
-		// Add horizontal lines for percentiles
-		addPercentileLine(p, pts, statsDays.Percentile50, "50th", color.RGBA{R: 76, G: 175, B: 80, A: 255})
-		addPercentileLine(p, pts, statsDays.Percentile85, "85th", color.RGBA{R: 255, G: 152, B: 0, A: 255})
-		addPercentileLine(p, pts, statsDays.Percentile95, "95th", color.RGBA{R: 244, G: 67, B: 54, A: 255})
-	}
-
-	// Format X axis as dates
-	p.X.Tick.Marker = dateTicker{}
-
-	return p, nil
-}
-
-// addPercentileLine adds a horizontal percentile line with an inline label.
-func addPercentileLine(p *plot.Plot, pts plotter.XYs, value float64, label string, c color.Color) {
-	if len(pts) < 2 {
-		return
-	}
-
-	line, err := plotter.NewLine(plotter.XYs{
-		{X: pts[0].X, Y: value},
-		{X: pts[len(pts)-1].X, Y: value},
-	})
-	if err != nil {
-		return
-	}
-
-	line.LineStyle.Color = c
-	line.LineStyle.Width = vg.Points(1.5)
-	line.LineStyle.Dashes = []vg.Length{vg.Points(5), vg.Points(3)}
-
-	p.Add(line)
-
-	// Inline label at the right end of the line
-	labelPt := plotter.XYs{{X: pts[len(pts)-1].X, Y: value}}
-	labels, err := plotter.NewLabels(plotter.XYLabels{
-		XYs:    labelPt,
-		Labels: []string{label + ": " + formatDays(value)},
-	})
-	if err != nil {
-		return
-	}
-	labels.TextStyle[0].Color = c
-	labels.TextStyle[0].Font.Variant = "Sans"
-	labels.Offset.X = vg.Points(4)
-	labels.Offset.Y = vg.Points(-2)
-	p.Add(labels)
-}
-
-// ThroughputLine creates a line chart of throughput over time.
-func ThroughputLine(data metrics.ThroughputResult, cfg Config) (*plot.Plot, error) {
-	p := plot.New()
-	p.Title.Text = cfg.Title
-	if p.Title.Text == "" {
-		p.Title.Text = "Throughput Over Time"
-	}
-	stylePlotTitle(p)
-	p.X.Label.Text = "Period"
-	p.Y.Label.Text = "Items Completed"
-	p.X.Padding = vg.Points(0)
-	p.Y.Padding = vg.Points(0)
-
-	// Convert data to XY points
-	pts := make(plotter.XYs, len(data.Periods))
-	for i, period := range data.Periods {
-		pts[i].X = float64(period.PeriodStart.Unix())
-		pts[i].Y = float64(period.Count)
-	}
-
-	// Create line plot
-	line, err := plotter.NewLine(pts)
-	if err != nil {
-		return nil, err
-	}
-	line.LineStyle.Color = color.RGBA{R: 66, G: 133, B: 244, A: 255}
-	line.LineStyle.Width = vg.Points(2)
-
-	// Add points
-	scatter, err := plotter.NewScatter(pts)
-	if err != nil {
-		return nil, err
-	}
-	scatter.GlyphStyle.Shape = draw.CircleGlyph{}
-	scatter.GlyphStyle.Radius = vg.Points(4)
-	scatter.GlyphStyle.Color = color.RGBA{R: 66, G: 133, B: 244, A: 255}
-
-	// Add trend line (linear regression)
-	if len(pts) >= 2 {
-		slope, intercept := linearRegression(pts)
-		trendLine, err := plotter.NewLine(plotter.XYs{
-			{X: pts[0].X, Y: slope*pts[0].X + intercept},
-			{X: pts[len(pts)-1].X, Y: slope*pts[len(pts)-1].X + intercept},
-		})
-		if err == nil {
-			trendLine.LineStyle.Color = color.RGBA{R: 244, G: 67, B: 54, A: 200}
-			trendLine.LineStyle.Width = vg.Points(1.5)
-			trendLine.LineStyle.Dashes = []vg.Length{vg.Points(5), vg.Points(3)}
-			p.Add(trendLine)
-			p.Legend.Add("Trend", trendLine)
-		}
-	}
-
-	p.Add(line, scatter)
-	p.Legend.Add("Throughput", line)
-	p.Legend.Top = true
-
-	// Format X axis as dates
-	p.X.Tick.Marker = dateTicker{}
-
-	return p, nil
+	Title string
 }
 
 // ForecastRow holds data for one row in the forecast table.
@@ -232,237 +28,6 @@ type ForecastRow struct {
 	Forecast95 string
 }
 
-// genericTablePlotter renders a table as text annotations on a plot canvas.
-type genericTablePlotter struct {
-	headers    []string
-	colFracs   []float64
-	rows       [][]string
-	noTruncate bool
-	wrapCols   map[int]bool // column indices that wrap instead of truncate
-}
-
-func (t genericTablePlotter) Plot(c draw.Canvas, p *plot.Plot) {
-	hdlr := text.Plain{
-		Fonts: font.DefaultCache,
-	}
-
-	headerFont := font.Font{Typeface: "Liberation", Variant: "Sans", Size: vg.Points(11)}
-	bodyFont := font.Font{Typeface: "Liberation", Variant: "Sans", Size: vg.Points(10)}
-
-	headerStyle := draw.TextStyle{
-		Color:   color.RGBA{R: 255, G: 255, B: 255, A: 255},
-		Font:    headerFont,
-		Handler: hdlr,
-	}
-	bodyStyle := draw.TextStyle{
-		Color:   color.RGBA{R: 51, G: 51, B: 51, A: 255},
-		Font:    bodyFont,
-		Handler: hdlr,
-	}
-
-	width := c.Max.X - c.Min.X
-	rowHeight := vg.Points(18)
-	headerHeight := vg.Points(22)
-
-	// Draw header background (with padding below the title)
-	headerY := c.Max.Y - headerHeight
-	headerPath := vg.Path{}
-	headerPath.Move(vg.Point{X: c.Min.X, Y: headerY})
-	headerPath.Line(vg.Point{X: c.Max.X, Y: headerY})
-	headerPath.Line(vg.Point{X: c.Max.X, Y: c.Max.Y})
-	headerPath.Line(vg.Point{X: c.Min.X, Y: c.Max.Y})
-	headerPath.Close()
-	c.SetColor(color.RGBA{R: 102, G: 126, B: 234, A: 255})
-	c.Fill(headerPath)
-
-	// Draw header text
-	for i, h := range t.headers {
-		pt := vg.Point{
-			X: c.Min.X + vg.Length(t.colFracs[i])*width,
-			Y: headerY + vg.Points(5),
-		}
-		c.FillText(headerStyle, pt, h)
-	}
-
-	// Pre-compute row heights (may vary if text wraps)
-	type rowLayout struct {
-		lines []int // number of lines per cell
-		h     vg.Length
-	}
-	layouts := make([]rowLayout, len(t.rows))
-	for r, row := range t.rows {
-		maxLines := 1
-		cellLines := make([]int, len(row))
-		for i := range row {
-			colStart := vg.Length(t.colFracs[i]) * width
-			var colEnd vg.Length
-			if i+1 < len(t.colFracs) {
-				colEnd = vg.Length(t.colFracs[i+1]) * width
-			} else {
-				colEnd = width
-			}
-			avail := colEnd - colStart - vg.Points(4)
-			if t.wrapCols[i] {
-				lines := wrapText(row[i], bodyStyle, avail)
-				cellLines[i] = len(lines)
-				if len(lines) > maxLines {
-					maxLines = len(lines)
-				}
-			} else {
-				cellLines[i] = 1
-			}
-		}
-		layouts[r] = rowLayout{lines: cellLines, h: vg.Length(maxLines) * rowHeight}
-	}
-
-	// Draw data rows
-	yOffset := headerY
-	for r, row := range t.rows {
-		rh := layouts[r].h
-		yOffset -= rh
-
-		// Alternate row background
-		if r%2 == 0 {
-			bgPath := vg.Path{}
-			bgPath.Move(vg.Point{X: c.Min.X, Y: yOffset})
-			bgPath.Line(vg.Point{X: c.Max.X, Y: yOffset})
-			bgPath.Line(vg.Point{X: c.Max.X, Y: yOffset + rh})
-			bgPath.Line(vg.Point{X: c.Min.X, Y: yOffset + rh})
-			bgPath.Close()
-			c.SetColor(color.RGBA{R: 245, G: 245, B: 245, A: 255})
-			c.Fill(bgPath)
-		}
-
-		for i, v := range row {
-			colStart := vg.Length(t.colFracs[i]) * width
-			var colEnd vg.Length
-			if i+1 < len(t.colFracs) {
-				colEnd = vg.Length(t.colFracs[i+1]) * width
-			} else {
-				colEnd = width
-			}
-			avail := colEnd - colStart - vg.Points(4)
-
-			if t.wrapCols[i] {
-				lines := wrapText(v, bodyStyle, avail)
-				for l, line := range lines {
-					pt := vg.Point{
-						X: c.Min.X + colStart,
-						Y: yOffset + rh - vg.Length(l+1)*rowHeight + vg.Points(4),
-					}
-					c.FillText(bodyStyle, pt, line)
-				}
-			} else {
-				if !t.noTruncate {
-					v = truncateToFit(v, bodyStyle, avail)
-				}
-				pt := vg.Point{
-					X: c.Min.X + colStart,
-					Y: yOffset + rh - rowHeight + vg.Points(4),
-				}
-				c.FillText(bodyStyle, pt, v)
-			}
-		}
-	}
-}
-
-// wrapText splits s into lines that each fit within avail width.
-func wrapText(s string, sty draw.TextStyle, avail vg.Length) []string {
-	if sty.Width(s) <= avail {
-		return []string{s}
-	}
-	words := splitWords(s)
-	var lines []string
-	cur := ""
-	for _, w := range words {
-		test := cur
-		if test != "" {
-			test += " "
-		}
-		test += w
-		if cur != "" && sty.Width(test) > avail {
-			lines = append(lines, cur)
-			cur = w
-		} else {
-			cur = test
-		}
-	}
-	if cur != "" {
-		lines = append(lines, cur)
-	}
-	if len(lines) == 0 {
-		return []string{s}
-	}
-	return lines
-}
-
-// splitWords splits a string on spaces.
-func splitWords(s string) []string {
-	var words []string
-	cur := ""
-	for _, ch := range s {
-		if ch == ' ' {
-			if cur != "" {
-				words = append(words, cur)
-				cur = ""
-			}
-		} else {
-			cur += string(ch)
-		}
-	}
-	if cur != "" {
-		words = append(words, cur)
-	}
-	return words
-}
-
-// truncateToFit truncates s with "..." if its rendered width exceeds avail.
-func truncateToFit(s string, sty draw.TextStyle, avail vg.Length) string {
-	if sty.Width(s) <= avail {
-		return s
-	}
-	for i := len(s) - 1; i > 0; i-- {
-		t := s[:i] + "..."
-		if sty.Width(t) <= avail {
-			return t
-		}
-	}
-	return "..."
-}
-
-func (t genericTablePlotter) DataRange() (xmin, xmax, ymin, ymax float64) {
-	return 0, 1, 0, 1
-}
-
-// ForecastTable creates a plot that renders a forecast table.
-func ForecastTable(rows []ForecastRow) *plot.Plot {
-	p := plot.New()
-	p.Title.Text = "Epic Forecast"
-	stylePlotTitle(p)
-	p.HideAxes()
-
-	tableRows := make([][]string, len(rows))
-	for i, row := range rows {
-		tableRows[i] = []string{
-			row.EpicKey,
-			row.Summary,
-			fmt.Sprintf("%d", row.Remaining),
-			row.Forecast50,
-			row.Forecast85,
-			row.Forecast95,
-		}
-	}
-
-	p.Add(genericTablePlotter{
-		headers:  []string{"Epic", "Title", "Remaining", "50%", "85%", "95%"},
-		colFracs: []float64{0.02, 0.16, 0.72, 0.80, 0.87, 0.94},
-		rows:     tableRows,
-		wrapCols: map[int]bool{1: true},
-	})
-
-	return p
-}
-
 // LongestCycleTimeRow holds data for one row in the longest cycle time table.
 type LongestCycleTimeRow struct {
 	Key       string
@@ -473,251 +38,10 @@ type LongestCycleTimeRow struct {
 	Outlier   bool
 }
 
-// LongestCycleTimeTable creates a plot that renders a longest cycle time table.
-func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, noTruncate bool) *plot.Plot {
-	p := plot.New()
-	p.Title.Text = title
-	if p.Title.Text == "" {
-		p.Title.Text = "Longest Cycle Times"
-	}
-	stylePlotTitle(p)
-	p.HideAxes()
-
-	tableRows := make([][]string, len(rows))
-	for i, row := range rows {
-		outlierMark := ""
-		if row.Outlier {
-			outlierMark = "*"
-		}
-		tableRows[i] = []string{outlierMark, row.Key, row.Summary, row.Days, row.Started, row.Completed}
-	}
-
-	p.Add(genericTablePlotter{
-		headers:    []string{"", "Key", "Title", "Days", "Started", "Done"},
-		colFracs:   []float64{0.01, 0.04, 0.18, 0.78, 0.85, 0.93},
-		rows:       tableRows,
-		noTruncate: noTruncate,
-		wrapCols:   map[int]bool{2: true},
-	})
-
-	return p
-}
-
-// CombinedReport renders cycle time, throughput, longest cycle time, and forecast plots into a single PNG.
-func CombinedReport(cycleTimePlot, throughputPlot, longestCTPlot, forecastPlot *plot.Plot, path string) error {
-	const (
-		width  = 55 * vg.Centimeter
-		height = 34 * vg.Centimeter
-	)
-	var (
-		pad  = vg.Points(10)
-		gapX = vg.Points(15)
-		gapY = vg.Points(15)
-	)
-
-	img := vgimg.New(width, height)
-	dc := draw.New(img)
-
-	// Manually divide canvas into 2x2 quadrants to avoid plot.Align
-	// axis-alignment issues with hidden-axis table plots.
-	cellW := (dc.Max.X - dc.Min.X - 2*pad - gapX) / 2
-	cellH := (dc.Max.Y - dc.Min.Y - 2*pad - gapY) / 2
-
-	quadrant := func(row, col int) draw.Canvas {
-		minX := dc.Min.X + pad + vg.Length(col)*(cellW+gapX)
-		minY := dc.Max.Y - pad - vg.Length(row+1)*cellH - vg.Length(row)*gapY
-		return draw.Crop(dc,
-			minX-dc.Min.X,
-			-(dc.Max.X - (minX + cellW)),
-			minY-dc.Min.Y,
-			-(dc.Max.Y - (minY + cellH)),
-		)
-	}
-
-	panels := [2][2]*plot.Plot{
-		{cycleTimePlot, throughputPlot},
-		{longestCTPlot, forecastPlot},
-	}
-
-	for r := 0; r < 2; r++ {
-		for c := 0; c < 2; c++ {
-			if panels[r][c] != nil {
-				panels[r][c].Draw(quadrant(r, c))
-			}
-		}
-	}
-
-	// Draw divider lines between sections
-	dividerColor := color.RGBA{R: 200, G: 200, B: 200, A: 255}
-	dividerWidth := vg.Points(2)
-
-	// Vertical divider
-	midX := dc.Min.X + pad + cellW + gapX/2
-	vLine := vg.Path{}
-	vLine.Move(vg.Point{X: midX, Y: dc.Min.Y + pad})
-	vLine.Line(vg.Point{X: midX, Y: dc.Max.Y - pad})
-	dc.SetLineWidth(dividerWidth)
-	dc.SetColor(dividerColor)
-	dc.Stroke(vLine)
-
-	// Horizontal divider
-	midY := dc.Max.Y - pad - cellH - gapY/2
-	hLine := vg.Path{}
-	hLine.Move(vg.Point{X: dc.Min.X + pad, Y: midY})
-	hLine.Line(vg.Point{X: dc.Max.X - pad, Y: midY})
-	dc.Stroke(hLine)
-
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-
-	pngCanvas := vgimg.PngCanvas{Canvas: img}
-	f, err := os.Create(path)
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-
-	_, err = pngCanvas.WriteTo(f)
-	return err
-}
-
-// dateTicker formats X axis as dates.
-type dateTicker struct{}
-
-func (dateTicker) Ticks(min, max float64) []plot.Tick {
-	var ticks []plot.Tick
-
-	minTime := time.Unix(int64(min), 0)
-	maxTime := time.Unix(int64(max), 0)
-
-	// Determine appropriate tick interval based on range
-	duration := maxTime.Sub(minTime)
-	var interval time.Duration
-
-	switch {
-	case duration > 365*24*time.Hour:
-		interval = 30 * 24 * time.Hour // Monthly
-	case duration > 90*24*time.Hour:
-		interval = 14 * 24 * time.Hour // Bi-weekly
-	case duration > 30*24*time.Hour:
-		interval = 7 * 24 * time.Hour // Weekly
-	default:
-		interval = 24 * time.Hour // Daily
-	}
-
-	current := minTime.Truncate(24 * time.Hour)
-	for !current.After(maxTime) {
-		ticks = append(ticks, plot.Tick{
-			Value: float64(current.Unix()),
-			Label: current.Format("Jan 02"),
-		})
-		current = current.Add(interval)
-	}
-
-	return ticks
-}
-
-func formatDays(d float64) string {
-	if d < 1 {
-		return "<1 day"
-	}
-	return formatFloat(d) + " days"
-}
-
-func formatFloat(f float64) string {
-	if f == float64(int(f)) {
-		return string(rune('0' + int(f)%10))
-	}
-	// Simple formatting without fmt
-	whole := int(f)
-	frac := int((f - float64(whole)) * 10)
-	result := ""
-	if whole > 0 {
-		result = intToString(whole)
-	} else {
-		result = "0"
-	}
-	return result + "." + string(rune('0'+frac))
-}
-
-func intToString(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	result := ""
-	for n > 0 {
-		result = string(rune('0'+n%10)) + result
-		n /= 10
-	}
-	return result
-}
-
 // DeploymentWeek holds deployment count for a single week.
 type DeploymentWeek struct {
 	WeekStart time.Time
 	Count     int
-}
-
-// DeploymentFrequencyLine creates a line chart of deployment frequency over time.
-func DeploymentFrequencyLine(weeks []DeploymentWeek, cfg Config) (*plot.Plot, error) {
-	p := plot.New()
-	p.Title.Text = cfg.Title
-	if p.Title.Text == "" {
-		p.Title.Text = "Deployment Frequency"
-	}
-	stylePlotTitle(p)
-	p.X.Label.Text = "Week"
-	p.Y.Label.Text = "Deployments"
-	p.X.Padding = vg.Points(0)
-	p.Y.Padding = vg.Points(0)
-
-	pts := make(plotter.XYs, len(weeks))
-	for i, w := range weeks {
-		pts[i].X = float64(w.WeekStart.Unix())
-		pts[i].Y = float64(w.Count)
-	}
-
-	// Line
-	line, err := plotter.NewLine(pts)
-	if err != nil {
-		return nil, err
-	}
-	line.LineStyle.Color = color.RGBA{R: 66, G: 133, B: 244, A: 255}
-	line.LineStyle.Width = vg.Points(2)
-
-	// Scatter markers
-	scatter, err := plotter.NewScatter(pts)
-	if err != nil {
-		return nil, err
-	}
-	scatter.GlyphStyle.Shape = draw.CircleGlyph{}
-	scatter.GlyphStyle.Radius = vg.Points(4)
-	scatter.GlyphStyle.Color = color.RGBA{R: 66, G: 133, B: 244, A: 255}
-
-	// Trend line
-	if len(pts) >= 2 {
-		slope, intercept := linearRegression(pts)
-		trendLine, err := plotter.NewLine(plotter.XYs{
-			{X: pts[0].X, Y: slope*pts[0].X + intercept},
-			{X: pts[len(pts)-1].X, Y: slope*pts[len(pts)-1].X + intercept},
-		})
-		if err == nil {
-			trendLine.LineStyle.Color = color.RGBA{R: 244, G: 67, B: 54, A: 200}
-			trendLine.LineStyle.Width = vg.Points(1.5)
-			trendLine.LineStyle.Dashes = []vg.Length{vg.Points(5), vg.Points(3)}
-			p.Add(trendLine)
-			p.Legend.Add("Trend", trendLine)
-		}
-	}
-
-	p.Add(line, scatter)
-	p.Legend.Add("Deployments", line)
-	p.Legend.Top = true
-
-	p.X.Tick.Marker = dateTicker{}
-
-	return p, nil
 }
 
 // SnykIssueWeek holds vulnerability counts by severity for a single week.
@@ -726,61 +50,685 @@ type SnykIssueWeek struct {
 	Critical, High, Medium, Low int
 }
 
-// SnykIssuesLine creates a multi-line chart of Snyk issues by severity over time.
-func SnykIssuesLine(weeks []SnykIssueWeek, cfg Config) (*plot.Plot, error) {
-	p := plot.New()
-	p.Title.Text = cfg.Title
-	if p.Title.Text == "" {
-		p.Title.Text = "Snyk Issues — Weekly Trend"
+// tableRow is used by table templates.
+type tableRow struct {
+	Cells   []string
+	Outlier bool
+}
+
+func writeHTML(path string, tmplName string, data any) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
 	}
-	stylePlotTitle(p)
-	p.X.Label.Text = "Week"
-	p.Y.Label.Text = "Issues"
-	p.X.Padding = vg.Points(0)
-	p.Y.Padding = vg.Points(0)
+
+	tmpl, err := template.ParseFS(templateFS, "templates/"+tmplName)
+	if err != nil {
+		return fmt.Errorf("parse template %s: %w", tmplName, err)
+	}
+
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	return tmpl.Execute(f, data)
+}
+
+func mustJSON(v any) template.JS {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return template.JS("{}")
+	}
+	return template.JS(b)
+}
+
+func jsStrings() (template.JS, template.JS) {
+	return template.JS(chartJS), template.JS(dateAdapterJS)
+}
+
+// linearRegression computes slope and intercept for y = slope*x + intercept.
+func linearRegression(xs, ys []float64) (slope, intercept float64) {
+	n := float64(len(xs))
+	var sumX, sumY, sumXY, sumX2 float64
+	for i := range xs {
+		sumX += xs[i]
+		sumY += ys[i]
+		sumXY += xs[i] * ys[i]
+		sumX2 += xs[i] * xs[i]
+	}
+	denom := n*sumX2 - sumX*sumX
+	if math.Abs(denom) < 1e-12 {
+		return 0, sumY / n
+	}
+	slope = (n*sumXY - sumX*sumY) / denom
+	intercept = (sumY - slope*sumX) / n
+	return
+}
+
+// CycleTimeScatter creates an HTML scatter plot of cycle times.
+func CycleTimeScatter(data []metrics.CycleTimeResult, percentiles []float64, cfg Config, path string) error {
+	title := cfg.Title
+	if title == "" {
+		title = "Cycle Time Scatter Plot"
+	}
+
+	// Build scatter data points
+	type point struct {
+		X string  `json:"x"`
+		Y float64 `json:"y"`
+	}
+	points := make([]point, len(data))
+	for i, ct := range data {
+		points[i] = point{
+			X: ct.EndDate.Format("2006-01-02"),
+			Y: math.Round(ct.CycleTimeDays()*10) / 10,
+		}
+	}
+
+	datasets := []map[string]any{
+		{
+			"label":           "Cycle Time",
+			"data":            points,
+			"backgroundColor": "rgba(66, 133, 244, 0.7)",
+			"borderColor":     "rgba(66, 133, 244, 1)",
+			"pointRadius":     4,
+			"showLine":        false,
+		},
+	}
+
+	// Add percentile lines
+	if len(data) > 1 {
+		stats := metrics.CalculateStats(data)
+		statsDays := stats.ToDays()
+
+		type pctLine struct {
+			label string
+			value float64
+			color string
+		}
+		lines := []pctLine{
+			{"50th: " + formatDays(statsDays.Percentile50), statsDays.Percentile50, "rgba(76, 175, 80, 0.8)"},
+			{"85th: " + formatDays(statsDays.Percentile85), statsDays.Percentile85, "rgba(255, 152, 0, 0.8)"},
+			{"95th: " + formatDays(statsDays.Percentile95), statsDays.Percentile95, "rgba(244, 67, 54, 0.8)"},
+		}
+
+		xMin := data[0].EndDate.Format("2006-01-02")
+		xMax := data[len(data)-1].EndDate.Format("2006-01-02")
+
+		for _, l := range lines {
+			datasets = append(datasets, map[string]any{
+				"label":       l.label,
+				"data":        []point{{X: xMin, Y: l.value}, {X: xMax, Y: l.value}},
+				"type":        "line",
+				"showLine":    true,
+				"pointRadius": 0,
+				"borderColor": l.color,
+				"borderWidth": 2,
+				"borderDash":  []int{6, 3},
+			})
+		}
+	}
+
+	chartConfig := map[string]any{
+		"type": "scatter",
+		"data": map[string]any{
+			"datasets": datasets,
+		},
+		"options": map[string]any{
+			"responsive": true,
+			"plugins": map[string]any{
+				"title": map[string]any{
+					"display": true,
+					"text":    title,
+					"font":    map[string]any{"size": 18},
+				},
+			},
+			"scales": map[string]any{
+				"x": map[string]any{
+					"type": "time",
+					"time": map[string]any{"unit": "day"},
+					"title": map[string]any{
+						"display": true,
+						"text":    "Completion Date",
+					},
+				},
+				"y": map[string]any{
+					"title": map[string]any{
+						"display": true,
+						"text":    "Cycle Time (days)",
+					},
+					"beginAtZero": true,
+				},
+			},
+		},
+	}
+
+	cjs, dajs := jsStrings()
+	return writeHTML(path, "chart.html.tmpl", map[string]any{
+		"Title":        title,
+		"ChartJS":      cjs,
+		"DateAdapterJS": dajs,
+		"ConfigJSON":   mustJSON(chartConfig),
+	})
+}
+
+// ThroughputLine creates an HTML line chart of throughput over time.
+func ThroughputLine(data metrics.ThroughputResult, cfg Config, path string) error {
+	title := cfg.Title
+	if title == "" {
+		title = "Throughput Over Time"
+	}
+
+	type point struct {
+		X string `json:"x"`
+		Y int    `json:"y"`
+	}
+	points := make([]point, len(data.Periods))
+	xs := make([]float64, len(data.Periods))
+	ys := make([]float64, len(data.Periods))
+	for i, p := range data.Periods {
+		points[i] = point{X: p.PeriodStart.Format("2006-01-02"), Y: p.Count}
+		xs[i] = float64(p.PeriodStart.Unix())
+		ys[i] = float64(p.Count)
+	}
+
+	datasets := []map[string]any{
+		{
+			"label":           "Throughput",
+			"data":            points,
+			"borderColor":     "rgba(66, 133, 244, 1)",
+			"backgroundColor": "rgba(66, 133, 244, 0.1)",
+			"borderWidth":     2,
+			"pointRadius":     4,
+			"fill":            true,
+		},
+	}
+
+	// Add trend line
+	if len(points) >= 2 {
+		slope, intercept := linearRegression(xs, ys)
+		trendPoints := []point{
+			{X: points[0].X, Y: int(math.Round(slope*xs[0] + intercept))},
+			{X: points[len(points)-1].X, Y: int(math.Round(slope*xs[len(xs)-1] + intercept))},
+		}
+		datasets = append(datasets, map[string]any{
+			"label":       "Trend",
+			"data":        trendPoints,
+			"borderColor": "rgba(244, 67, 54, 0.8)",
+			"borderWidth": 1.5,
+			"borderDash":  []int{6, 3},
+			"pointRadius": 0,
+			"fill":        false,
+		})
+	}
+
+	chartConfig := map[string]any{
+		"type": "line",
+		"data": map[string]any{
+			"datasets": datasets,
+		},
+		"options": map[string]any{
+			"responsive": true,
+			"plugins": map[string]any{
+				"title": map[string]any{
+					"display": true,
+					"text":    title,
+					"font":    map[string]any{"size": 18},
+				},
+			},
+			"scales": map[string]any{
+				"x": map[string]any{
+					"type": "time",
+					"time": map[string]any{"unit": "week"},
+					"title": map[string]any{
+						"display": true,
+						"text":    "Period",
+					},
+				},
+				"y": map[string]any{
+					"title": map[string]any{
+						"display": true,
+						"text":    "Items Completed",
+					},
+					"beginAtZero": true,
+				},
+			},
+		},
+	}
+
+	cjs, dajs := jsStrings()
+	return writeHTML(path, "chart.html.tmpl", map[string]any{
+		"Title":        title,
+		"ChartJS":      cjs,
+		"DateAdapterJS": dajs,
+		"ConfigJSON":   mustJSON(chartConfig),
+	})
+}
+
+// LongestCycleTimeTable creates an HTML table of longest cycle times.
+func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, path string) error {
+	if title == "" {
+		title = "Longest Cycle Times"
+	}
+
+	tRows := make([]tableRow, len(rows))
+	for i, r := range rows {
+		outlierMark := ""
+		if r.Outlier {
+			outlierMark = "*"
+		}
+		tRows[i] = tableRow{
+			Cells:   []string{outlierMark, r.Key, r.Summary, r.Days, r.Started, r.Completed},
+			Outlier: r.Outlier,
+		}
+	}
+
+	return writeHTML(path, "table.html.tmpl", map[string]any{
+		"Title":   title,
+		"Headers": []string{"", "Key", "Title", "Days", "Started", "Done"},
+		"Rows":    tRows,
+	})
+}
+
+// ForecastTable creates an HTML table of epic forecasts.
+func ForecastTable(rows []ForecastRow, path string) error {
+	tRows := make([]tableRow, len(rows))
+	for i, r := range rows {
+		tRows[i] = tableRow{
+			Cells: []string{r.EpicKey, r.Summary, fmt.Sprintf("%d", r.Remaining), r.Forecast50, r.Forecast85, r.Forecast95},
+		}
+	}
+
+	return writeHTML(path, "table.html.tmpl", map[string]any{
+		"Title":   "Epic Forecast",
+		"Headers": []string{"Epic", "Title", "Remaining", "50%", "85%", "95%"},
+		"Rows":    tRows,
+	})
+}
+
+// DeploymentFrequencyLine creates an HTML line chart of deployment frequency.
+func DeploymentFrequencyLine(weeks []DeploymentWeek, cfg Config, path string) error {
+	title := cfg.Title
+	if title == "" {
+		title = "Deployment Frequency"
+	}
+
+	type point struct {
+		X string `json:"x"`
+		Y int    `json:"y"`
+	}
+	points := make([]point, len(weeks))
+	xs := make([]float64, len(weeks))
+	ys := make([]float64, len(weeks))
+	for i, w := range weeks {
+		points[i] = point{X: w.WeekStart.Format("2006-01-02"), Y: w.Count}
+		xs[i] = float64(w.WeekStart.Unix())
+		ys[i] = float64(w.Count)
+	}
+
+	datasets := []map[string]any{
+		{
+			"label":           "Deployments",
+			"data":            points,
+			"borderColor":     "rgba(66, 133, 244, 1)",
+			"backgroundColor": "rgba(66, 133, 244, 0.1)",
+			"borderWidth":     2,
+			"pointRadius":     4,
+			"fill":            true,
+		},
+	}
+
+	if len(points) >= 2 {
+		slope, intercept := linearRegression(xs, ys)
+		trendPoints := []point{
+			{X: points[0].X, Y: int(math.Round(slope*xs[0] + intercept))},
+			{X: points[len(points)-1].X, Y: int(math.Round(slope*xs[len(xs)-1] + intercept))},
+		}
+		datasets = append(datasets, map[string]any{
+			"label":       "Trend",
+			"data":        trendPoints,
+			"borderColor": "rgba(244, 67, 54, 0.8)",
+			"borderWidth": 1.5,
+			"borderDash":  []int{6, 3},
+			"pointRadius": 0,
+			"fill":        false,
+		})
+	}
+
+	chartConfig := map[string]any{
+		"type": "line",
+		"data": map[string]any{
+			"datasets": datasets,
+		},
+		"options": map[string]any{
+			"responsive": true,
+			"plugins": map[string]any{
+				"title": map[string]any{
+					"display": true,
+					"text":    title,
+					"font":    map[string]any{"size": 18},
+				},
+			},
+			"scales": map[string]any{
+				"x": map[string]any{
+					"type": "time",
+					"time": map[string]any{"unit": "week"},
+					"title": map[string]any{
+						"display": true,
+						"text":    "Week",
+					},
+				},
+				"y": map[string]any{
+					"title": map[string]any{
+						"display": true,
+						"text":    "Deployments",
+					},
+					"beginAtZero": true,
+				},
+			},
+		},
+	}
+
+	cjs, dajs := jsStrings()
+	return writeHTML(path, "chart.html.tmpl", map[string]any{
+		"Title":        title,
+		"ChartJS":      cjs,
+		"DateAdapterJS": dajs,
+		"ConfigJSON":   mustJSON(chartConfig),
+	})
+}
+
+// SnykIssuesLine creates a multi-line HTML chart of Snyk issues by severity.
+func SnykIssuesLine(weeks []SnykIssueWeek, cfg Config, path string) error {
+	title := cfg.Title
+	if title == "" {
+		title = "Snyk Issues — Weekly Trend"
+	}
+
+	type point struct {
+		X string `json:"x"`
+		Y int    `json:"y"`
+	}
 
 	type seriesDef struct {
 		name  string
-		color color.RGBA
+		color string
 		val   func(SnykIssueWeek) int
 	}
 
 	series := []seriesDef{
-		{"Critical", color.RGBA{R: 220, G: 38, B: 38, A: 255}, func(w SnykIssueWeek) int { return w.Critical }},
-		{"High", color.RGBA{R: 234, G: 88, B: 12, A: 255}, func(w SnykIssueWeek) int { return w.High }},
-		{"Medium", color.RGBA{R: 202, G: 138, B: 4, A: 255}, func(w SnykIssueWeek) int { return w.Medium }},
-		{"Low", color.RGBA{R: 37, G: 99, B: 235, A: 255}, func(w SnykIssueWeek) int { return w.Low }},
+		{"Critical", "rgba(220, 38, 38, 1)", func(w SnykIssueWeek) int { return w.Critical }},
+		{"High", "rgba(234, 88, 12, 1)", func(w SnykIssueWeek) int { return w.High }},
+		{"Medium", "rgba(202, 138, 4, 1)", func(w SnykIssueWeek) int { return w.Medium }},
+		{"Low", "rgba(37, 99, 235, 1)", func(w SnykIssueWeek) int { return w.Low }},
 	}
 
+	var datasets []map[string]any
 	for _, s := range series {
-		pts := make(plotter.XYs, len(weeks))
+		pts := make([]point, len(weeks))
 		for i, w := range weeks {
-			pts[i].X = float64(w.WeekStart.Unix())
-			pts[i].Y = float64(s.val(w))
+			pts[i] = point{X: w.WeekStart.Format("2006-01-02"), Y: s.val(w)}
 		}
-
-		line, err := plotter.NewLine(pts)
-		if err != nil {
-			return nil, err
-		}
-		line.LineStyle.Color = s.color
-		line.LineStyle.Width = vg.Points(2)
-
-		scatter, err := plotter.NewScatter(pts)
-		if err != nil {
-			return nil, err
-		}
-		scatter.GlyphStyle.Shape = draw.CircleGlyph{}
-		scatter.GlyphStyle.Radius = vg.Points(3)
-		scatter.GlyphStyle.Color = s.color
-
-		p.Add(line, scatter)
-		p.Legend.Add(s.name, line)
+		datasets = append(datasets, map[string]any{
+			"label":       s.name,
+			"data":        pts,
+			"borderColor": s.color,
+			"borderWidth": 2,
+			"pointRadius": 3,
+			"fill":        false,
+		})
 	}
 
-	p.Legend.Top = true
-	p.X.Tick.Marker = dateTicker{}
+	chartConfig := map[string]any{
+		"type": "line",
+		"data": map[string]any{
+			"datasets": datasets,
+		},
+		"options": map[string]any{
+			"responsive": true,
+			"plugins": map[string]any{
+				"title": map[string]any{
+					"display": true,
+					"text":    title,
+					"font":    map[string]any{"size": 18},
+				},
+			},
+			"scales": map[string]any{
+				"x": map[string]any{
+					"type": "time",
+					"time": map[string]any{"unit": "week"},
+					"title": map[string]any{
+						"display": true,
+						"text":    "Week",
+					},
+				},
+				"y": map[string]any{
+					"title": map[string]any{
+						"display": true,
+						"text":    "Issues",
+					},
+					"beginAtZero": true,
+				},
+			},
+		},
+	}
 
-	return p, nil
+	cjs, dajs := jsStrings()
+	return writeHTML(path, "chart.html.tmpl", map[string]any{
+		"Title":        title,
+		"ChartJS":      cjs,
+		"DateAdapterJS": dajs,
+		"ConfigJSON":   mustJSON(chartConfig),
+	})
 }
 
+// CombinedReport renders a 2x2 HTML report with cycle time, throughput, longest CT, and forecast.
+func CombinedReport(
+	cycleTimeData []metrics.CycleTimeResult,
+	cycleTimePercentiles []float64,
+	throughputData metrics.ThroughputResult,
+	longestCTRows []LongestCycleTimeRow,
+	forecastRows []ForecastRow,
+	path string,
+) error {
+	// Build cycle time chart config
+	cycleTimeConfig := buildCycleTimeConfig(cycleTimeData, "Cycle Time Distribution")
+	throughputConfig := buildThroughputConfig(throughputData, "Weekly Throughput")
+
+	// Build longest CT table rows
+	ctTableRows := make([]tableRow, len(longestCTRows))
+	for i, r := range longestCTRows {
+		outlierMark := ""
+		if r.Outlier {
+			outlierMark = "*"
+		}
+		ctTableRows[i] = tableRow{
+			Cells:   []string{outlierMark, r.Key, r.Summary, r.Days, r.Started, r.Completed},
+			Outlier: r.Outlier,
+		}
+	}
+
+	// Build forecast table rows
+	fcTableRows := make([]tableRow, len(forecastRows))
+	for i, r := range forecastRows {
+		fcTableRows[i] = tableRow{
+			Cells: []string{r.EpicKey, r.Summary, fmt.Sprintf("%d", r.Remaining), r.Forecast50, r.Forecast85, r.Forecast95},
+		}
+	}
+
+	cjs, dajs := jsStrings()
+	return writeHTML(path, "report.html.tmpl", map[string]any{
+		"ChartJS":             cjs,
+		"DateAdapterJS":       dajs,
+		"CycleTimeConfigJSON": mustJSON(cycleTimeConfig),
+		"ThroughputConfigJSON": mustJSON(throughputConfig),
+		"LongestCTTitle":      "Longest Cycle Times",
+		"LongestCTHeaders":    []string{"", "Key", "Title", "Days", "Started", "Done"},
+		"LongestCTRows":       ctTableRows,
+		"ForecastHeaders":     []string{"Epic", "Title", "Remaining", "50%", "85%", "95%"},
+		"ForecastRows":        fcTableRows,
+	})
+}
+
+func buildCycleTimeConfig(data []metrics.CycleTimeResult, title string) map[string]any {
+	type point struct {
+		X string  `json:"x"`
+		Y float64 `json:"y"`
+	}
+
+	points := make([]point, len(data))
+	for i, ct := range data {
+		points[i] = point{
+			X: ct.EndDate.Format("2006-01-02"),
+			Y: math.Round(ct.CycleTimeDays()*10) / 10,
+		}
+	}
+
+	datasets := []map[string]any{
+		{
+			"label":           "Cycle Time",
+			"data":            points,
+			"backgroundColor": "rgba(66, 133, 244, 0.7)",
+			"borderColor":     "rgba(66, 133, 244, 1)",
+			"pointRadius":     4,
+			"showLine":        false,
+		},
+	}
+
+	if len(data) > 1 {
+		stats := metrics.CalculateStats(data)
+		statsDays := stats.ToDays()
+
+		type pctLine struct {
+			label string
+			value float64
+			color string
+		}
+		lines := []pctLine{
+			{"50th: " + formatDays(statsDays.Percentile50), statsDays.Percentile50, "rgba(76, 175, 80, 0.8)"},
+			{"85th: " + formatDays(statsDays.Percentile85), statsDays.Percentile85, "rgba(255, 152, 0, 0.8)"},
+			{"95th: " + formatDays(statsDays.Percentile95), statsDays.Percentile95, "rgba(244, 67, 54, 0.8)"},
+		}
+
+		xMin := data[0].EndDate.Format("2006-01-02")
+		xMax := data[len(data)-1].EndDate.Format("2006-01-02")
+
+		for _, l := range lines {
+			datasets = append(datasets, map[string]any{
+				"label":       l.label,
+				"data":        []point{{X: xMin, Y: l.value}, {X: xMax, Y: l.value}},
+				"type":        "line",
+				"showLine":    true,
+				"pointRadius": 0,
+				"borderColor": l.color,
+				"borderWidth": 2,
+				"borderDash":  []int{6, 3},
+			})
+		}
+	}
+
+	return map[string]any{
+		"type": "scatter",
+		"data": map[string]any{"datasets": datasets},
+		"options": map[string]any{
+			"responsive": true,
+			"plugins": map[string]any{
+				"title": map[string]any{
+					"display": true,
+					"text":    title,
+					"font":    map[string]any{"size": 16},
+				},
+			},
+			"scales": map[string]any{
+				"x": map[string]any{
+					"type": "time",
+					"time": map[string]any{"unit": "day"},
+					"title": map[string]any{"display": true, "text": "Completion Date"},
+				},
+				"y": map[string]any{
+					"title":       map[string]any{"display": true, "text": "Cycle Time (days)"},
+					"beginAtZero": true,
+				},
+			},
+		},
+	}
+}
+
+func buildThroughputConfig(data metrics.ThroughputResult, title string) map[string]any {
+	type point struct {
+		X string `json:"x"`
+		Y int    `json:"y"`
+	}
+
+	points := make([]point, len(data.Periods))
+	xs := make([]float64, len(data.Periods))
+	ys := make([]float64, len(data.Periods))
+	for i, p := range data.Periods {
+		points[i] = point{X: p.PeriodStart.Format("2006-01-02"), Y: p.Count}
+		xs[i] = float64(p.PeriodStart.Unix())
+		ys[i] = float64(p.Count)
+	}
+
+	datasets := []map[string]any{
+		{
+			"label":           "Throughput",
+			"data":            points,
+			"borderColor":     "rgba(66, 133, 244, 1)",
+			"backgroundColor": "rgba(66, 133, 244, 0.1)",
+			"borderWidth":     2,
+			"pointRadius":     4,
+			"fill":            true,
+		},
+	}
+
+	if len(points) >= 2 {
+		slope, intercept := linearRegression(xs, ys)
+		trendPoints := []point{
+			{X: points[0].X, Y: int(math.Round(slope*xs[0] + intercept))},
+			{X: points[len(points)-1].X, Y: int(math.Round(slope*xs[len(xs)-1] + intercept))},
+		}
+		datasets = append(datasets, map[string]any{
+			"label":       "Trend",
+			"data":        trendPoints,
+			"borderColor": "rgba(244, 67, 54, 0.8)",
+			"borderWidth": 1.5,
+			"borderDash":  []int{6, 3},
+			"pointRadius": 0,
+			"fill":        false,
+		})
+	}
+
+	return map[string]any{
+		"type": "line",
+		"data": map[string]any{"datasets": datasets},
+		"options": map[string]any{
+			"responsive": true,
+			"plugins": map[string]any{
+				"title": map[string]any{
+					"display": true,
+					"text":    title,
+					"font":    map[string]any{"size": 16},
+				},
+			},
+			"scales": map[string]any{
+				"x": map[string]any{
+					"type": "time",
+					"time": map[string]any{"unit": "week"},
+					"title": map[string]any{"display": true, "text": "Period"},
+				},
+				"y": map[string]any{
+					"title":       map[string]any{"display": true, "text": "Items Completed"},
+					"beginAtZero": true,
+				},
+			},
+		},
+	}
+}
+
+func formatDays(d float64) string {
+	if d < 1 {
+		return "<1 day"
+	}
+	return fmt.Sprintf("%.1f days", d)
+}
