@@ -470,6 +470,7 @@ type LongestCycleTimeRow struct {
 	Days      string
 	Started   string
 	Completed string
+	Outlier   bool
 }
 
 // LongestCycleTimeTable creates a plot that renders a longest cycle time table.
@@ -484,15 +485,19 @@ func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, noTruncate 
 
 	tableRows := make([][]string, len(rows))
 	for i, row := range rows {
-		tableRows[i] = []string{row.Key, row.Summary, row.Days, row.Started, row.Completed}
+		outlierMark := ""
+		if row.Outlier {
+			outlierMark = "*"
+		}
+		tableRows[i] = []string{outlierMark, row.Key, row.Summary, row.Days, row.Started, row.Completed}
 	}
 
 	p.Add(genericTablePlotter{
-		headers:    []string{"Epic", "Title", "Days", "Started", "Done"},
-		colFracs:   []float64{0.02, 0.16, 0.78, 0.85, 0.93},
+		headers:    []string{"", "Key", "Title", "Days", "Started", "Done"},
+		colFracs:   []float64{0.01, 0.04, 0.18, 0.78, 0.85, 0.93},
 		rows:       tableRows,
 		noTruncate: noTruncate,
-		wrapCols:   map[int]bool{1: true},
+		wrapCols:   map[int]bool{2: true},
 	})
 
 	return p

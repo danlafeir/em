@@ -30,6 +30,59 @@ func FilterOutliers(values []int, stddevs float64) []int {
 	return filtered
 }
 
+// FilterCycleTimeOutliers splits cycle time results into kept and outlier slices
+// based on CycleTimeDays() using mean ± stddevs*σ filtering.
+// If len < 2, stddev is 0, or all would be filtered, returns everything in kept.
+func FilterCycleTimeOutliers(results []CycleTimeResult, stddevs float64) (kept, outliers []CycleTimeResult) {
+	if len(results) < 2 {
+		return results, nil
+	}
+
+	days := make([]float64, len(results))
+	for i, r := range results {
+		days[i] = r.CycleTimeDays()
+	}
+
+	mean, stddev := meanStddevFloat(days)
+	if stddev == 0 {
+		return results, nil
+	}
+
+	lo := mean - stddevs*stddev
+	hi := mean + stddevs*stddev
+
+	for _, r := range results {
+		if d := r.CycleTimeDays(); d >= lo && d <= hi {
+			kept = append(kept, r)
+		} else {
+			outliers = append(outliers, r)
+		}
+	}
+
+	if len(kept) == 0 {
+		return results, nil
+	}
+	return kept, outliers
+}
+
+func meanStddevFloat(values []float64) (float64, float64) {
+	n := float64(len(values))
+	var sum float64
+	for _, v := range values {
+		sum += v
+	}
+	mean := sum / n
+
+	var variance float64
+	for _, v := range values {
+		d := v - mean
+		variance += d * d
+	}
+	variance /= n
+
+	return mean, math.Sqrt(variance)
+}
+
 func meanStddev(values []int) (float64, float64) {
 	n := float64(len(values))
 	var sum float64

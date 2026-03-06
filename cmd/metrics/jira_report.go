@@ -94,12 +94,15 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 	cycleCalc := pkgmetrics.NewCycleTimeCalculator(mapper)
 	cycleResults := cycleCalc.Calculate(completedHistories)
 
+	// Filter outliers from scatter chart (still shown in longest CT table)
+	keptResults, outlierResults := pkgmetrics.FilterCycleTimeOutliers(cycleResults, 2.0)
+
 	chartCfg := charts.DefaultConfig()
 	chartCfg.Title = "Cycle Time Distribution"
 
 	var cycleTimePlot *plot.Plot
-	if len(cycleResults) > 0 {
-		cycleTimePlot, err = charts.CycleTimeScatter(cycleResults, []float64{50, 85, 95}, chartCfg)
+	if len(keptResults) > 0 {
+		cycleTimePlot, err = charts.CycleTimeScatter(keptResults, []float64{50, 85, 95}, chartCfg)
 		if err != nil {
 			return fmt.Errorf("failed to create cycle time chart: %w", err)
 		}
@@ -119,9 +122,15 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 		}
 	}
 
-	// 3. Longest Cycle Time table
+	// 3. Longest Cycle Time table — combine kept + outliers, mark outliers
 	var longestCTPlot *plot.Plot
 	if len(cycleResults) > 0 {
+		// Build a set of outlier keys for quick lookup
+		outlierKeys := make(map[string]bool, len(outlierResults))
+		for _, r := range outlierResults {
+			outlierKeys[r.IssueKey] = true
+		}
+
 		sorted := make([]pkgmetrics.CycleTimeResult, len(cycleResults))
 		copy(sorted, cycleResults)
 		sort.Slice(sorted, func(i, j int) bool {
@@ -139,6 +148,7 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 				Days:      fmt.Sprintf("%.1f", r.CycleTimeDays()),
 				Started:   r.StartDate.Format("Jan 02"),
 				Completed: r.EndDate.Format("Jan 02"),
+				Outlier:   outlierKeys[r.IssueKey],
 			})
 		}
 		longestCTPlot = charts.LongestCycleTimeTable(ctRows, fmt.Sprintf("Longest Cycle Times — %s to %s", from.Format("Jan 02"), to.Format("Jan 02")), false)
