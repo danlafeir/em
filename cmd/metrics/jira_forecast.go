@@ -81,16 +81,13 @@ func runForecast(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to connect to JIRA: %w", err)
 	}
 
-	// --epic and --remaining bypass team iteration
-	if epicFlag != "" {
-		return runSingleEpicForecast(ctx, client, epicFlag)
-	}
-	if remainingFlag > 0 {
-		return runManualForecast(ctx, client, remainingFlag)
-	}
-
-	// Default: forecast all open epics, iterating per team
 	return withTeamIteration(ctx, client, func(team, jql string) error {
+		if epicFlag != "" {
+			return runSingleEpicForecast(ctx, client, jql, epicFlag)
+		}
+		if remainingFlag > 0 {
+			return runManualForecast(ctx, client, jql, remainingFlag)
+		}
 		return runAllEpicsForecast(ctx, client, team, jql)
 	})
 }
@@ -130,7 +127,7 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 	historyEnd := time.Now()
 	historyStart := historyEnd.AddDate(0, 0, -historyDaysFlag)
 
-	throughputJQL := fmt.Sprintf("(%s) AND resolved >= %s AND resolved <= %s",
+	throughputJQL := fmt.Sprintf("%s AND resolved >= %s AND resolved <= %s",
 		throughputJQLBase, historyStart.Format("2006-01-02"), historyEnd.Format("2006-01-02"))
 
 	fmt.Println("Fetching historical throughput data...")
@@ -340,7 +337,7 @@ func forecastEpic(ctx context.Context, client *jira.Client, mapper *workflow.Map
 	return forecast
 }
 
-func runSingleEpicForecast(ctx context.Context, client *jira.Client, epicKey string) error {
+func runSingleEpicForecast(ctx context.Context, client *jira.Client, throughputJQL, epicKey string) error {
 	fmt.Printf("Fetching Epic %s...\n", epicKey)
 
 	// Get issues in this epic
@@ -366,21 +363,15 @@ func runSingleEpicForecast(ctx context.Context, client *jira.Client, epicKey str
 		return nil
 	}
 
-	return runManualForecast(ctx, client, remaining)
+	return runManualForecast(ctx, client, throughputJQL, remaining)
 }
 
-func runManualForecast(ctx context.Context, client *jira.Client, remaining int) error {
-	// Get historical throughput data
-	jql, err := resolveJQL(ctx, client)
-	if err != nil {
-		return err
-	}
-
+func runManualForecast(ctx context.Context, client *jira.Client, throughputJQL string, remaining int) error {
 	historyEnd := time.Now()
 	historyStart := historyEnd.AddDate(0, 0, -historyDaysFlag)
 
-	jqlWithDates := fmt.Sprintf("(%s) AND resolved >= %s AND resolved <= %s",
-		jql, historyStart.Format("2006-01-02"), historyEnd.Format("2006-01-02"))
+	jqlWithDates := fmt.Sprintf("%s AND resolved >= %s AND resolved <= %s",
+		throughputJQL, historyStart.Format("2006-01-02"), historyEnd.Format("2006-01-02"))
 
 	fmt.Printf("\nFetching historical throughput data...\n")
 	fmt.Printf("JQL: %s\n", jqlWithDates)

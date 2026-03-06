@@ -187,50 +187,6 @@ func getTeamConfigString(team, key string) string {
 	return getConfigString(fmt.Sprintf("jira.teams.%s.%s", team, key))
 }
 
-// resolveJQL returns the JQL query to use, with fallback to team project configs.
-// When a team's project is set, it queries JIRA for active epics and builds a
-// children JQL to scope metrics to child issues of those epics.
-func resolveJQL(ctx context.Context, client *jira.Client) (string, error) {
-	// 1. --jql flag takes priority
-	if jqlFlag != "" {
-		return jqlFlag, nil
-	}
-
-	// 2. --project flag — single project override
-	if projectFlag != "" {
-		return resolveProjectEpics(ctx, client, projectFlag)
-	}
-
-	// 3. Team-based resolution
-	teams := getJiraTeams()
-	if len(teams) == 0 {
-		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure jira.teams in config")
-	}
-
-	var parts []string
-	for _, team := range teams {
-		// Team jql_filter_for_metrics takes priority over team project
-		if jql := getTeamConfigString(team, "jql_filter_for_metrics"); jql != "" {
-			parts = append(parts, "("+jql+")")
-			continue
-		}
-		project := getTeamConfigString(team, "project")
-		if project == "" {
-			continue
-		}
-		teamJQL, err := resolveProjectEpics(ctx, client, project)
-		if err != nil {
-			return "", fmt.Errorf("team %s: %w", team, err)
-		}
-		parts = append(parts, "("+teamJQL+")")
-	}
-
-	if len(parts) == 0 {
-		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure teams with project or jql_filter_for_metrics")
-	}
-	return strings.Join(parts, " OR "), nil
-}
-
 // resolveProjectEpics queries JIRA for active epics in a project and returns
 // a JQL that scopes to child issues of those epics.
 func resolveProjectEpics(ctx context.Context, client *jira.Client, project string) (string, error) {
@@ -391,8 +347,11 @@ func resolveTeamJQL(ctx context.Context, client *jira.Client, team string) (stri
 // JQL when --jql/--project is set. The callback receives the team slug (empty
 // for non-team mode) and the resolved JQL.
 func withTeamIteration(ctx context.Context, client *jira.Client, fn func(team, jql string) error) error {
-	if jqlFlag != "" || projectFlag != "" {
-		jql, err := resolveJQL(ctx, client)
+	if jqlFlag != "" {
+		return fn("", jqlFlag)
+	}
+	if projectFlag != "" {
+		jql, err := resolveProjectEpics(ctx, client, projectFlag)
 		if err != nil {
 			return err
 		}
