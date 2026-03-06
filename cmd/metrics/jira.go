@@ -187,30 +187,6 @@ func getTeamConfigString(team, key string) string {
 	return getConfigString(fmt.Sprintf("jira.teams.%s.%s", team, key))
 }
 
-// getJQL returns the JQL query from the flag or config default (no API calls).
-func getJQL() (string, error) {
-	if jqlFlag != "" {
-		return jqlFlag, nil
-	}
-
-	teams := getJiraTeams()
-	if len(teams) == 0 {
-		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or configure jira.teams in config")
-	}
-
-	var parts []string
-	for _, team := range teams {
-		if jql := getTeamConfigString(team, "jql_filter_for_metrics"); jql != "" {
-			parts = append(parts, "("+jql+")")
-		}
-	}
-
-	if len(parts) == 0 {
-		return "", fmt.Errorf("no JQL query provided. Use --jql flag, --project flag, or set jql_filter_for_metrics for teams in config")
-	}
-	return strings.Join(parts, " OR "), nil
-}
-
 // resolveJQL returns the JQL query to use, with fallback to team project configs.
 // When a team's project is set, it queries JIRA for active epics and builds a
 // children JQL to scope metrics to child issues of those epics.

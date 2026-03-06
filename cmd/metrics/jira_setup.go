@@ -207,12 +207,12 @@ func resolveJiraSetupTeam(reader *bufio.Reader) (string, error) {
 		}
 	}
 
-	fmt.Print("Enter team slug: ")
+	fmt.Print("Enter team name: ")
 	input, _ := reader.ReadString('\n')
 	input = strings.TrimSpace(input)
 
 	if input == "" {
-		return "", fmt.Errorf("team slug is required")
+		return "", fmt.Errorf("team name is required")
 	}
 
 	return input, nil
