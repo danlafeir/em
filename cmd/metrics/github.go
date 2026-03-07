@@ -26,8 +26,8 @@ Setup:
   devctl-em config set github.org myorg
   devctl-em config set github.api_token
 
-Then run setup to pick deploy workflows per team:
-  devctl-em metrics github setup --team my-team
+Then run config to pick deploy workflows per team:
+  devctl-em metrics github config --team my-team
 
 Config structure:
   github.teams.<team>.workflows:
@@ -169,7 +169,7 @@ func getConfiguredWorkflowsByTeam(team string) (map[string]string, error) {
 	key := fmt.Sprintf("github.teams.%s.workflows", team)
 	raw := getConfigAny(key)
 	if raw == nil {
-		return nil, fmt.Errorf("no workflows configured for team %q. Run: devctl-em metrics github setup --team %s", team, team)
+		return nil, fmt.Errorf("no workflows configured for team %q. Run: devctl-em metrics github config --team %s", team, team)
 	}
 
 	rawMap, ok := raw.(map[string]any)
@@ -187,7 +187,7 @@ func getConfiguredWorkflowsByTeam(team string) (map[string]string, error) {
 	}
 
 	if len(workflows) == 0 {
-		return nil, fmt.Errorf("no workflows configured for team %q. Run: devctl-em metrics github setup --team %s", team, team)
+		return nil, fmt.Errorf("no workflows configured for team %q. Run: devctl-em metrics github config --team %s", team, team)
 	}
 
 	return workflows, nil
@@ -203,7 +203,7 @@ type teamWorkflows struct {
 func getAllConfiguredWorkflows() ([]teamWorkflows, error) {
 	teams := getGithubTeams()
 	if len(teams) == 0 {
-		return nil, fmt.Errorf("no teams configured. Run: devctl-em metrics github setup --team <team>")
+		return nil, fmt.Errorf("no teams configured. Run: devctl-em metrics github config --team <team>")
 	}
 
 	var result []teamWorkflows

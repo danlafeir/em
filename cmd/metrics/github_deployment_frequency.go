@@ -22,7 +22,7 @@ var deploymentFrequencyCmd = &cobra.Command{
 	Short: "Measure deployment frequency",
 	Long: `Count successful runs of configured deploy workflows.
 
-Run "devctl-em metrics github setup" first to configure deploy workflows.
+Run "devctl-em metrics github config" first to configure deploy workflows.
 
 Examples:
   devctl-em metrics github deployment-frequency
