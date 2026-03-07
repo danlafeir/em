@@ -279,8 +279,9 @@ func ThroughputLine(data metrics.ThroughputResult, cfg Config, path string) erro
 			},
 			"scales": map[string]any{
 				"x": map[string]any{
-					"type": "time",
-					"time": map[string]any{"unit": "week"},
+					"type":  "time",
+					"time":  map[string]any{"unit": "week"},
+					"ticks": map[string]any{"source": "data"},
 					"title": map[string]any{
 						"display": true,
 						"text":    "Period",
@@ -713,8 +714,9 @@ func buildThroughputConfig(data metrics.ThroughputResult, title string) map[stri
 			},
 			"scales": map[string]any{
 				"x": map[string]any{
-					"type": "time",
-					"time": map[string]any{"unit": "week"},
+					"type":  "time",
+					"time":  map[string]any{"unit": "week"},
+					"ticks": map[string]any{"source": "data"},
 					"title": map[string]any{"display": true, "text": "Period"},
 				},
 				"y": map[string]any{
