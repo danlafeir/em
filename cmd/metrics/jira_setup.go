@@ -273,16 +273,7 @@ func fetchAndStoreBoardJQL(ctx context.Context, client *jira.Client, team string
 	}
 
 	key := fmt.Sprintf("jira.teams.%s.jql_filter_for_metrics", team)
-	jql := stripOrderBy(filter.JQL)
-	config.SetConfigValue(configNamespace, key, jql)
-	fmt.Printf("Set %s = %s\n", key, jql)
+	config.SetConfigValue(configNamespace, key, filter.JQL)
+	fmt.Printf("Set %s = %s\n", key, filter.JQL)
 	return nil
-}
-
-func stripOrderBy(jql string) string {
-	idx := strings.Index(strings.ToUpper(jql), "ORDER ")
-	if idx < 0 {
-		return jql
-	}
-	return strings.TrimSpace(jql[:idx])
 }

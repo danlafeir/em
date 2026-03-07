@@ -53,8 +53,8 @@ func runLongestCycleTime(cmd *cobra.Command, args []string) error {
 }
 
 func generateLongestCycleTime(ctx context.Context, client *jira.Client, team, jql string, from, to time.Time) error {
-	jqlWithDates := fmt.Sprintf("(%s) AND resolved >= %s AND resolved <= %s",
-		jql, from.Format("2006-01-02"), to.Format("2006-01-02"))
+	jqlWithDates := fmt.Sprintf("resolved >= %s AND resolved <= %s AND (%s)",
+		from.Format("2006-01-02"), to.Format("2006-01-02"), jql)
 
 	fmt.Printf("Fetching issues from JIRA...\n")
 	fmt.Printf("JQL: %s\n", jqlWithDates)
