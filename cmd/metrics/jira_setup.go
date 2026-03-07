@@ -273,7 +273,8 @@ func fetchAndStoreBoardJQL(ctx context.Context, client *jira.Client, team string
 	}
 
 	key := fmt.Sprintf("jira.teams.%s.jql_filter_for_metrics", team)
-	config.SetConfigValue(configNamespace, key, filter.JQL)
-	fmt.Printf("Set %s = %s\n", key, filter.JQL)
+	jql, _ := splitOrderBy(filter.JQL)
+	config.SetConfigValue(configNamespace, key, jql)
+	fmt.Printf("Set %s = %s\n", key, jql)
 	return nil
 }

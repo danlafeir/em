@@ -127,8 +127,7 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 	historyEnd := time.Now()
 	historyStart := historyEnd.AddDate(0, 0, -historyDaysFlag)
 
-	throughputJQL := fmt.Sprintf("resolved >= %s AND resolved <= %s AND (%s)",
-		historyStart.Format("2006-01-02"), historyEnd.Format("2006-01-02"), throughputJQLBase)
+	throughputJQL := jqlWithDateRange(throughputJQLBase, historyStart.Format("2006-01-02"), historyEnd.Format("2006-01-02"))
 
 	fmt.Println("Fetching historical throughput data...")
 	completedIssues, err := client.FetchIssuesWithHistory(ctx, throughputJQL, func(current, total int) {
@@ -370,8 +369,7 @@ func runManualForecast(ctx context.Context, client *jira.Client, throughputJQL s
 	historyEnd := time.Now()
 	historyStart := historyEnd.AddDate(0, 0, -historyDaysFlag)
 
-	jqlWithDates := fmt.Sprintf("resolved >= %s AND resolved <= %s AND (%s)",
-		historyStart.Format("2006-01-02"), historyEnd.Format("2006-01-02"), throughputJQL)
+	jqlWithDates := jqlWithDateRange(throughputJQL, historyStart.Format("2006-01-02"), historyEnd.Format("2006-01-02"))
 
 	fmt.Printf("\nFetching historical throughput data...\n")
 	fmt.Printf("JQL: %s\n", jqlWithDates)

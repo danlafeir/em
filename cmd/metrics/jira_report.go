@@ -68,8 +68,7 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 
 	// Fetch completed issues
 	fmt.Printf("Fetching issues from JIRA...\n")
-	jqlCompleted := fmt.Sprintf("resolved >= %s AND resolved <= %s AND (%s)",
-		from.Format("2006-01-02"), to.Format("2006-01-02"), jql)
+	jqlCompleted := jqlWithDateRange(jql, from.Format("2006-01-02"), to.Format("2006-01-02"))
 
 	completedIssues, err := client.FetchIssuesWithHistory(ctx, jqlCompleted, func(current, total int) {
 		fmt.Printf("\rProcessing completed issues: %d/%d...", current, total)
@@ -139,8 +138,7 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 		if !from.After(forecastFrom) {
 			forecastThroughput = pkgmetrics.GetWeeklyThroughputValues(throughputResult)
 		} else {
-			forecastJQL := fmt.Sprintf("resolved >= %s AND resolved <= %s AND (%s)",
-				forecastFrom.Format("2006-01-02"), time.Now().Format("2006-01-02"), jql)
+			forecastJQL := jqlWithDateRange(jql, forecastFrom.Format("2006-01-02"), time.Now().Format("2006-01-02"))
 
 			fmt.Printf("Fetching 90-day throughput history for forecast...\n")
 			forecastIssues, fetchErr := client.FetchIssuesWithHistory(ctx, forecastJQL, func(current, total int) {

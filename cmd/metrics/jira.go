@@ -417,6 +417,29 @@ func getOutputFormat(defaultFormat string) string {
 	return defaultFormat
 }
 
+// jqlWithDateRange prepends resolved date filters to a JQL string. If the JQL
+// contains an ORDER BY clause it is moved to the end of the combined query so
+// that it remains syntactically valid.
+func jqlWithDateRange(jql, from, to string) string {
+	query, orderBy := splitOrderBy(jql)
+	result := fmt.Sprintf("resolved >= %s AND resolved <= %s AND (%s)", from, to, query)
+	if orderBy != "" {
+		result += " " + orderBy
+	}
+	return result
+}
+
+// splitOrderBy splits a JQL string into the filter portion and the trailing
+// ORDER BY clause (if any). The returned orderBy includes the "ORDER BY" prefix.
+func splitOrderBy(jql string) (filter, orderBy string) {
+	upper := strings.ToUpper(jql)
+	idx := strings.LastIndex(upper, "ORDER BY")
+	if idx < 0 {
+		return jql, ""
+	}
+	return strings.TrimSpace(jql[:idx]), strings.TrimSpace(jql[idx:])
+}
+
 // wrapString wraps s into lines of at most maxWidth characters, breaking on spaces.
 func wrapString(s string, maxWidth int) []string {
 	if len(s) <= maxWidth {
