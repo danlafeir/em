@@ -8,29 +8,31 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/danlafeir/devctl/pkg/config"
+	"github.com/danlafeir/devctl/pkg/secrets"
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"devctl-em/internal/github"
 )
 
 var ghConfigCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Configure deploy workflows for a team's repositories",
-	Long: `Interactively select which GitHub Actions workflow represents a deployment
-for each repository owned by a team.
+	Short: "Interactive GitHub configuration",
+	Long: `Interactively configure GitHub connection and team deploy workflows.
 
-Selections are stored under github.teams.<team>.workflows in config,
-used by deployment-frequency.
+Prompts for:
+  - GitHub organization
+  - API token (stored in system keychain)
+  - Deploy workflow per repository for each team
 
-Prerequisites:
-  devctl-em config set github.org myorg
-  devctl-em config set github.api_token
+Existing values are shown and can be kept by pressing Enter.
 
 Examples:
-  devctl-em metrics github config --team my-team
-  devctl-em metrics github config`,
+  devctl-em metrics github config
+  devctl-em metrics github config --team my-team`,
 	RunE: runGhConfig,
 }
 
@@ -39,29 +41,79 @@ func init() {
 }
 
 func runGhConfig(cmd *cobra.Command, args []string) error {
+	initConfig()
+	reader := bufio.NewReader(os.Stdin)
 	ctx := context.Background()
 
+	// 1. Org
+	currentOrg := getConfigString("github.org")
+	org, err := promptValue(reader, "GitHub organization", currentOrg)
+	if err != nil {
+		return err
+	}
+	if org != currentOrg {
+		config.SetConfigValue(configNamespace, "github.org", org)
+	}
+
+	// 2. API token (keychain)
+	existingToken, _ := secrets.Read("github", "api_token")
+	if existingToken != "" {
+		fmt.Println("API token: configured")
+		fmt.Print("Re-enter API token? [y/N]: ")
+		input, _ := reader.ReadString('\n')
+		if strings.TrimSpace(strings.ToLower(input)) == "y" {
+			if err := promptAndStoreGhToken(); err != nil {
+				return err
+			}
+		}
+	} else {
+		fmt.Print("Enter GitHub API token: ")
+		if err := promptAndStoreGhToken(); err != nil {
+			return err
+		}
+	}
+
+	// Save org before testing connection
+	if err := config.WriteConfig(); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	// 3. Test connection
 	client, err := getGithubClient()
 	if err != nil {
 		return err
 	}
-
 	fmt.Println("Testing GitHub connection...")
 	if err := client.TestConnection(ctx); err != nil {
 		return fmt.Errorf("failed to connect to GitHub: %w", err)
 	}
+	fmt.Println("Connected successfully.")
 
-	org := getGithubOrg()
-	if org == "" {
-		return fmt.Errorf("GitHub org not configured. Run: devctl-em config set github.org <org>")
+	// 4. Team workflow loop
+	for {
+		if err := runGhTeamConfig(ctx, reader, client, org); err != nil {
+			return err
+		}
+
+		fmt.Print("\nConfigure another team? [y/N]: ")
+		input, _ := reader.ReadString('\n')
+		if strings.TrimSpace(strings.ToLower(input)) != "y" {
+			break
+		}
 	}
 
+	fmt.Println("GitHub configuration saved.")
+	return nil
+}
+
+// runGhTeamConfig handles workflow selection for a single team.
+func runGhTeamConfig(ctx context.Context, reader *bufio.Reader, client *github.Client, org string) error {
 	team, err := resolveGhConfigTeam(ctx, client, org)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Fetching repositories for %s/%s...\n", org, team)
+	fmt.Printf("\nFetching repositories for %s/%s...\n", org, team)
 	repos, err := client.ListTeamRepos(ctx, org, team)
 	if err != nil {
 		return fmt.Errorf("failed to list team repos: %w", err)
@@ -74,10 +126,12 @@ func runGhConfig(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Found %d repositories\n\n", len(repos))
 
-	reader := bufio.NewReader(os.Stdin)
-	selections := make(map[string]string)
-
+	selections := make(map[string][]string)
 	notAccessible := 0
+
+	// Load current config once for the team
+	currentWorkflows, _ := getConfiguredWorkflowsByTeam(team)
+
 	for _, repo := range repos {
 		if repo.Archived {
 			continue
@@ -105,26 +159,43 @@ func runGhConfig(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		fmt.Printf("  Workflows:\n")
+		current := currentWorkflows[repo.Name] // []string, nil if not set
+
+		// Build a set of current filenames for quick lookup
+		currentSet := make(map[string]bool, len(current))
+		for _, f := range current {
+			currentSet[f] = true
+		}
+
+		fmt.Printf("  Workflows (use comma-separated numbers to select multiple):\n")
 		suggested := suggestDeployWorkflow(workflows)
 		for i, wf := range workflows {
 			filename := filepath.Base(wf.Path)
-			fmt.Printf("    %d) %s (%s)\n", i+1, wf.Name, filename)
+			marker := ""
+			if currentSet[filename] {
+				marker = " (current)"
+			}
+			fmt.Printf("    %d) %s (%s)%s\n", i+1, wf.Name, filename, marker)
 		}
 		fmt.Printf("    0) Skip this repo\n")
 
-		if suggested > 0 {
-			suggestedWf := workflows[suggested-1]
-			fmt.Printf("  Select deploy workflow [%d - %s]: ", suggested, suggestedWf.Name)
+		if len(current) > 0 {
+			fmt.Printf("  Select deploy workflow(s) [current: %s]: ", strings.Join(current, ", "))
+		} else if suggested > 0 {
+			fmt.Printf("  Select deploy workflow(s) [%d - %s]: ", suggested, workflows[suggested-1].Name)
 		} else {
-			fmt.Printf("  Select deploy workflow [0]: ")
+			fmt.Printf("  Select deploy workflow(s) [0]: ")
 		}
 
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(input)
 
 		if input == "" {
-			if suggested > 0 {
+			if len(current) > 0 {
+				selections[repo.Name] = current
+				fmt.Printf("  Kept: %s\n\n", strings.Join(current, ", "))
+				continue
+			} else if suggested > 0 {
 				input = strconv.Itoa(suggested)
 			} else {
 				fmt.Println()
@@ -136,16 +207,25 @@ func runGhConfig(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		choice, err := strconv.Atoi(input)
-		if err != nil || choice < 1 || choice > len(workflows) {
-			fmt.Printf("  Invalid choice, skipping.\n\n")
+		// Parse comma-separated indices
+		var chosen []string
+		for _, part := range strings.Split(input, ",") {
+			part = strings.TrimSpace(part)
+			choice, err := strconv.Atoi(part)
+			if err != nil || choice < 1 || choice > len(workflows) {
+				fmt.Printf("  Invalid choice %q, skipping.\n\n", part)
+				chosen = nil
+				break
+			}
+			chosen = append(chosen, filepath.Base(workflows[choice-1].Path))
+		}
+
+		if len(chosen) == 0 {
 			continue
 		}
 
-		wf := workflows[choice-1]
-		filename := filepath.Base(wf.Path)
-		selections[repo.Name] = filename
-		fmt.Printf("  Selected: %s\n\n", filename)
+		selections[repo.Name] = chosen
+		fmt.Printf("  Selected: %s\n\n", strings.Join(chosen, ", "))
 	}
 
 	if notAccessible > 0 && notAccessible == len(repos) {
@@ -158,13 +238,15 @@ func runGhConfig(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	// Convert to interface map for config storage
 	configMap := make(map[string]any, len(selections))
 	for k, v := range selections {
-		configMap[k] = v
+		if len(v) == 1 {
+			configMap[k] = v[0] // store single value as string for readability
+		} else {
+			configMap[k] = v
+		}
 	}
 
-	initConfig()
 	configKey := fmt.Sprintf("github.teams.%s.workflows", team)
 	config.SetConfigValue(configNamespace, configKey, configMap)
 	if err := config.WriteConfig(); err != nil {
@@ -175,17 +257,43 @@ func runGhConfig(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// promptAndStoreGhToken reads a GitHub token from the terminal and stores it in the keychain.
+func promptAndStoreGhToken() error {
+	var token string
+	if term.IsTerminal(int(syscall.Stdin)) {
+		byteValue, err := term.ReadPassword(int(syscall.Stdin))
+		fmt.Println()
+		if err != nil {
+			return fmt.Errorf("failed to read token: %w", err)
+		}
+		token = string(byteValue)
+	} else {
+		reader := bufio.NewReader(os.Stdin)
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			return fmt.Errorf("failed to read token: %w", err)
+		}
+		token = strings.TrimSpace(input)
+	}
+
+	if token == "" {
+		return fmt.Errorf("API token is required")
+	}
+
+	if err := secrets.Write("github", "api_token", token); err != nil {
+		return fmt.Errorf("failed to store API token: %w", err)
+	}
+	fmt.Println("API token stored in keychain.")
+	return nil
+}
+
 // resolveGhConfigTeam determines which team to configure.
-// If --team is set, use that. Otherwise prompt the user to pick from
-// configured teams or select from the GitHub org's teams via API.
 func resolveGhConfigTeam(ctx context.Context, client *github.Client, org string) (string, error) {
 	if ghTeamFlag != "" {
 		return ghTeamFlag, nil
 	}
 
 	reader := bufio.NewReader(os.Stdin)
-
-	// Check for existing teams
 	existingTeams := getGithubTeams()
 
 	if len(existingTeams) > 0 {
@@ -209,12 +317,10 @@ func resolveGhConfigTeam(ctx context.Context, client *github.Client, org string)
 		}
 	}
 
-	// Fetch teams from GitHub API and let the user pick
 	return selectTeamFromAPI(ctx, client, org, existingTeams)
 }
 
-// selectTeamFromAPI fetches org teams via the GitHub API and presents them
-// for selection. Falls back to manual slug entry on error or empty results.
+// selectTeamFromAPI fetches org teams via the GitHub API and presents them for selection.
 func selectTeamFromAPI(ctx context.Context, client *github.Client, org string, exclude []string) (string, error) {
 	reader := bufio.NewReader(os.Stdin)
 
@@ -225,7 +331,6 @@ func selectTeamFromAPI(ctx context.Context, client *github.Client, org string, e
 		return promptTeamSlug(reader)
 	}
 
-	// Exclude already-configured teams
 	excludeSet := make(map[string]bool, len(exclude))
 	for _, t := range exclude {
 		excludeSet[t] = true
@@ -250,7 +355,6 @@ func selectTeamFromAPI(ctx context.Context, client *github.Client, org string, e
 
 	input, _ := reader.ReadString('\n')
 	input = strings.TrimSpace(input)
-
 	if input == "" {
 		input = "1"
 	}

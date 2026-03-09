@@ -5,17 +5,8 @@ import "time"
 
 // Credentials holds GitHub authentication details.
 type Credentials struct {
-	Token           string // Personal access token or GitHub App token
-	Org             string // GitHub organization name
-	BaseURLOverride string // If set, use instead of https://api.github.com
-}
-
-// BaseURL returns the GitHub API base URL.
-func (c *Credentials) BaseURL() string {
-	if c.BaseURLOverride != "" {
-		return c.BaseURLOverride
-	}
-	return "https://api.github.com"
+	Token string // Personal access token or GitHub App token
+	Org   string // GitHub organization name
 }
 
 // RepositoryOwner represents the owner of a GitHub repository.

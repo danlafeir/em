@@ -104,69 +104,68 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 		sort.Strings(repos)
 
 		for _, repo := range repos {
-			wfFilename := tw.Workflows[repo]
-			fmt.Printf("  %s (%s)...", repo, wfFilename)
+			wfFilenames := tw.Workflows[repo]
+			label := strings.Join(wfFilenames, ", ")
+			fmt.Printf("  %s (%s)...", repo, label)
 
-			// Find workflow ID by matching filename
 			allWfs, err := client.ListWorkflows(ctx, org, repo)
 			if err != nil {
 				results = append(results, repoDeploymentResult{
 					Team:     tw.Team,
 					Repo:     repo,
-					Workflow: wfFilename,
+					Workflow: label,
 					Error:    fmt.Sprintf("list workflows: %v", err),
 				})
 				fmt.Println(" error")
 				continue
 			}
 
-			var workflowID int64
+			// Build filename → ID index
+			wfIndex := make(map[string]int64, len(allWfs))
 			for _, wf := range allWfs {
-				if filepath.Base(wf.Path) == wfFilename {
-					workflowID = wf.ID
-					break
-				}
-			}
-			if workflowID == 0 {
-				results = append(results, repoDeploymentResult{
-					Team:     tw.Team,
-					Repo:     repo,
-					Workflow: wfFilename,
-					Error:    "workflow not found",
-				})
-				fmt.Println(" not found")
-				continue
+				wfIndex[filepath.Base(wf.Path)] = wf.ID
 			}
 
-			runs, err := client.ListWorkflowRuns(ctx, org, repo, workflowID, "", from, to)
-			if err != nil {
+			successCount := 0
+			var firstErr string
+			for _, wfFilename := range wfFilenames {
+				workflowID := wfIndex[wfFilename]
+				if workflowID == 0 {
+					firstErr = fmt.Sprintf("%s not found", wfFilename)
+					continue
+				}
+
+				runs, err := client.ListWorkflowRuns(ctx, org, repo, workflowID, "", from, to)
+				if err != nil {
+					firstErr = fmt.Sprintf("list runs for %s: %v", wfFilename, err)
+					continue
+				}
+
+				for _, run := range runs {
+					if run.Conclusion == "success" {
+						successCount++
+						allRuns = append(allRuns, run)
+					}
+				}
+			}
+
+			if successCount == 0 && firstErr != "" {
 				results = append(results, repoDeploymentResult{
 					Team:     tw.Team,
 					Repo:     repo,
-					Workflow: wfFilename,
-					Error:    fmt.Sprintf("list runs: %v", err),
+					Workflow: label,
+					Error:    firstErr,
 				})
 				fmt.Println(" error")
 				continue
 			}
 
-			// Count only successful runs
-			successCount := 0
-			for _, run := range runs {
-				if run.Conclusion == "success" {
-					successCount++
-					allRuns = append(allRuns, run)
-				}
-			}
-
-			deploysPerWeek := float64(successCount) / weeks
-
 			results = append(results, repoDeploymentResult{
 				Team:        tw.Team,
 				Repo:        repo,
-				Workflow:    wfFilename,
+				Workflow:    label,
 				Deployments: successCount,
-				DeploysWeek: deploysPerWeek,
+				DeploysWeek: float64(successCount) / weeks,
 			})
 			fmt.Printf(" %d deployments\n", successCount)
 		}

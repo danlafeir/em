@@ -5,123 +5,31 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
-	"math/rand"
-	"net/http"
 	"net/url"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
+
+	ghapi "github.com/cli/go-gh/v2/pkg/api"
 )
 
-// Client is the main GitHub API client.
+// Client is the GitHub API client backed by go-gh.
 type Client struct {
-	httpClient  *http.Client
-	credentials Credentials
-	rateLimiter *RateLimiter
+	rest *ghapi.RESTClient
 }
 
-// RateLimiter implements exponential backoff with jitter.
-type RateLimiter struct {
-	BaseDelay  time.Duration
-	MaxDelay   time.Duration
-	MaxRetries int
-}
-
-// NewClient creates a new GitHub API client.
-func NewClient(creds Credentials) *Client {
-	return &Client{
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
-		credentials: creds,
-		rateLimiter: &RateLimiter{
-			BaseDelay:  2 * time.Second,
-			MaxDelay:   30 * time.Second,
-			MaxRetries: 5,
-		},
-	}
-}
-
-// doRequest executes a request with authentication and rate limit handling.
-// Returns the response body and headers (needed for Link pagination).
-func (c *Client) doRequest(ctx context.Context, method, path string, query url.Values) ([]byte, http.Header, error) {
-	fullURL := c.credentials.BaseURL() + path
-	if len(query) > 0 {
-		fullURL += "?" + query.Encode()
+// NewClient creates a new GitHub API client using go-gh.
+func NewClient(creds Credentials) (*Client, error) {
+	opts := ghapi.ClientOptions{
+		AuthToken: creds.Token,
 	}
 
-	var lastErr error
-	for attempt := 0; attempt <= c.rateLimiter.MaxRetries; attempt++ {
-		req, err := http.NewRequestWithContext(ctx, method, fullURL, nil)
-		if err != nil {
-			return nil, nil, fmt.Errorf("creating request: %w", err)
-		}
-
-		req.Header.Set("Authorization", "Bearer "+c.credentials.Token)
-		req.Header.Set("Accept", "application/vnd.github+json")
-		req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			return nil, nil, fmt.Errorf("executing request: %w", err)
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			return nil, nil, fmt.Errorf("reading response: %w", err)
-		}
-
-		// Handle rate limiting (429 or 403 with Retry-After)
-		if resp.StatusCode == 429 || (resp.StatusCode == 403 && resp.Header.Get("Retry-After") != "") {
-			lastErr = fmt.Errorf("rate limited (HTTP %d)", resp.StatusCode)
-			delay := c.calculateBackoff(attempt, resp.Header.Get("Retry-After"))
-			select {
-			case <-ctx.Done():
-				return nil, nil, ctx.Err()
-			case <-time.After(delay):
-				continue
-			}
-		}
-
-		// Handle errors
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return nil, nil, fmt.Errorf("GitHub API error %d: %s", resp.StatusCode, string(body))
-		}
-
-		return body, resp.Header, nil
+	rest, err := ghapi.NewRESTClient(opts)
+	if err != nil {
+		return nil, err
 	}
 
-	if lastErr != nil {
-		return nil, nil, fmt.Errorf("max retries exceeded: %w", lastErr)
-	}
-	return nil, nil, fmt.Errorf("max retries exceeded")
-}
-
-// calculateBackoff computes delay with exponential backoff and jitter.
-func (c *Client) calculateBackoff(attempt int, retryAfter string) time.Duration {
-	// Use Retry-After header if provided
-	if retryAfter != "" {
-		if seconds, err := strconv.Atoi(retryAfter); err == nil {
-			return time.Duration(seconds) * time.Second
-		}
-	}
-
-	// Exponential backoff: base * 2^attempt
-	delay := float64(c.rateLimiter.BaseDelay) * math.Pow(2, float64(attempt))
-
-	// Add jitter (0.7 to 1.3 multiplier)
-	jitter := 0.7 + rand.Float64()*0.6
-	delay *= jitter
-
-	// Cap at maximum
-	if delay > float64(c.rateLimiter.MaxDelay) {
-		delay = float64(c.rateLimiter.MaxDelay)
-	}
-
-	return time.Duration(delay)
+	return &Client{rest: rest}, nil
 }
 
 // linkNextRe matches rel="next" in Link headers.
@@ -139,61 +47,41 @@ func parseLinkHeader(header string) string {
 	return matches[1]
 }
 
-// doRequestURL executes a request against an absolute URL (for pagination).
-func (c *Client) doRequestURL(ctx context.Context, rawURL string) ([]byte, http.Header, error) {
-	var lastErr error
-	for attempt := 0; attempt <= c.rateLimiter.MaxRetries; attempt++ {
-		req, err := http.NewRequestWithContext(ctx, "GET", rawURL, nil)
-		if err != nil {
-			return nil, nil, fmt.Errorf("creating request: %w", err)
-		}
+// doGet executes a GET request and returns the raw body and Link header value.
+func (c *Client) doGet(ctx context.Context, path string) ([]byte, string, error) {
+	resp, err := c.rest.RequestWithContext(ctx, "GET", path, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	defer resp.Body.Close()
 
-		req.Header.Set("Authorization", "Bearer "+c.credentials.Token)
-		req.Header.Set("Accept", "application/vnd.github+json")
-		req.Header.Set("X-GitHub-Api-Version", "2022-11-28")
-
-		resp, err := c.httpClient.Do(req)
-		if err != nil {
-			return nil, nil, fmt.Errorf("executing request: %w", err)
-		}
-
-		body, err := io.ReadAll(resp.Body)
-		resp.Body.Close()
-		if err != nil {
-			return nil, nil, fmt.Errorf("reading response: %w", err)
-		}
-
-		if resp.StatusCode == 429 || (resp.StatusCode == 403 && resp.Header.Get("Retry-After") != "") {
-			lastErr = fmt.Errorf("rate limited (HTTP %d)", resp.StatusCode)
-			delay := c.calculateBackoff(attempt, resp.Header.Get("Retry-After"))
-			select {
-			case <-ctx.Done():
-				return nil, nil, ctx.Err()
-			case <-time.After(delay):
-				continue
-			}
-		}
-
-		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-			return nil, nil, fmt.Errorf("GitHub API error %d: %s", resp.StatusCode, string(body))
-		}
-
-		return body, resp.Header, nil
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, "", fmt.Errorf("reading response: %w", err)
 	}
 
-	if lastErr != nil {
-		return nil, nil, fmt.Errorf("max retries exceeded: %w", lastErr)
+	return body, resp.Header.Get("Link"), nil
+}
+
+// doGetURL executes a GET against an absolute pagination URL by extracting the path.
+func (c *Client) doGetURL(ctx context.Context, rawURL string) ([]byte, string, error) {
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, "", fmt.Errorf("parsing pagination URL: %w", err)
 	}
-	return nil, nil, fmt.Errorf("max retries exceeded")
+	path := u.Path
+	if u.RawQuery != "" {
+		path += "?" + u.RawQuery
+	}
+	return c.doGet(ctx, path)
 }
 
 // ListTeamRepos lists repositories for a team, handling Link-header pagination.
 func (c *Client) ListTeamRepos(ctx context.Context, org, teamSlug string) ([]Repository, error) {
-	path := fmt.Sprintf("/orgs/%s/teams/%s/repos", url.PathEscape(org), url.PathEscape(teamSlug))
-	query := url.Values{}
-	query.Set("per_page", "100")
+	path := fmt.Sprintf("orgs/%s/teams/%s/repos?per_page=100",
+		url.PathEscape(org), url.PathEscape(teamSlug))
 
-	body, headers, err := c.doRequest(ctx, "GET", path, query)
+	body, link, err := c.doGet(ctx, path)
 	if err != nil {
 		return nil, fmt.Errorf("listing team repos: %w", err)
 	}
@@ -203,20 +91,18 @@ func (c *Client) ListTeamRepos(ctx context.Context, org, teamSlug string) ([]Rep
 		return nil, fmt.Errorf("parsing team repos: %w", err)
 	}
 
-	// Follow Link pagination
-	nextURL := parseLinkHeader(headers.Get("Link"))
+	nextURL := parseLinkHeader(link)
 	for nextURL != "" {
-		body, headers, err = c.doRequestURL(ctx, nextURL)
+		body, link, err = c.doGetURL(ctx, nextURL)
 		if err != nil {
 			return nil, fmt.Errorf("listing team repos (pagination): %w", err)
 		}
-
 		var page []Repository
 		if err := json.Unmarshal(body, &page); err != nil {
 			return nil, fmt.Errorf("parsing team repos page: %w", err)
 		}
 		repos = append(repos, page...)
-		nextURL = parseLinkHeader(headers.Get("Link"))
+		nextURL = parseLinkHeader(link)
 	}
 
 	return repos, nil
@@ -224,9 +110,10 @@ func (c *Client) ListTeamRepos(ctx context.Context, org, teamSlug string) ([]Rep
 
 // ListWorkflows lists GitHub Actions workflows for a repository.
 func (c *Client) ListWorkflows(ctx context.Context, owner, repo string) ([]Workflow, error) {
-	path := fmt.Sprintf("/repos/%s/%s/actions/workflows", url.PathEscape(owner), url.PathEscape(repo))
+	path := fmt.Sprintf("repos/%s/%s/actions/workflows",
+		url.PathEscape(owner), url.PathEscape(repo))
 
-	body, _, err := c.doRequest(ctx, "GET", path, nil)
+	body, _, err := c.doGet(ctx, path)
 	if err != nil {
 		return nil, fmt.Errorf("listing workflows: %w", err)
 	}
@@ -241,16 +128,12 @@ func (c *Client) ListWorkflows(ctx context.Context, owner, repo string) ([]Workf
 
 // ListWorkflowRuns lists runs for a specific workflow, filtered by date range.
 func (c *Client) ListWorkflowRuns(ctx context.Context, owner, repo string, workflowID int64, branch string, from, to time.Time) ([]WorkflowRun, error) {
-	path := fmt.Sprintf("/repos/%s/%s/actions/workflows/%d/runs",
-		url.PathEscape(owner), url.PathEscape(repo), workflowID)
-
 	query := url.Values{}
 	query.Set("status", "completed")
 	query.Set("per_page", "100")
 	if branch != "" {
 		query.Set("branch", branch)
 	}
-	// GitHub API uses ISO 8601: created=YYYY-MM-DD..YYYY-MM-DD
 	if !from.IsZero() || !to.IsZero() {
 		var parts []string
 		if !from.IsZero() {
@@ -263,9 +146,12 @@ func (c *Client) ListWorkflowRuns(ctx context.Context, owner, repo string, workf
 		query.Set("created", strings.Join(parts, ""))
 	}
 
+	path := fmt.Sprintf("repos/%s/%s/actions/workflows/%d/runs?%s",
+		url.PathEscape(owner), url.PathEscape(repo), workflowID, query.Encode())
+
 	var allRuns []WorkflowRun
 
-	body, headers, err := c.doRequest(ctx, "GET", path, query)
+	body, link, err := c.doGet(ctx, path)
 	if err != nil {
 		return nil, fmt.Errorf("listing workflow runs: %w", err)
 	}
@@ -276,20 +162,18 @@ func (c *Client) ListWorkflowRuns(ctx context.Context, owner, repo string, workf
 	}
 	allRuns = append(allRuns, resp.WorkflowRuns...)
 
-	// Follow Link pagination
-	nextURL := parseLinkHeader(headers.Get("Link"))
+	nextURL := parseLinkHeader(link)
 	for nextURL != "" {
-		body, headers, err = c.doRequestURL(ctx, nextURL)
+		body, link, err = c.doGetURL(ctx, nextURL)
 		if err != nil {
 			return nil, fmt.Errorf("listing workflow runs (pagination): %w", err)
 		}
-
 		var page WorkflowRunsResponse
 		if err := json.Unmarshal(body, &page); err != nil {
 			return nil, fmt.Errorf("parsing workflow runs page: %w", err)
 		}
 		allRuns = append(allRuns, page.WorkflowRuns...)
-		nextURL = parseLinkHeader(headers.Get("Link"))
+		nextURL = parseLinkHeader(link)
 	}
 
 	return allRuns, nil
@@ -297,10 +181,7 @@ func (c *Client) ListWorkflowRuns(ctx context.Context, owner, repo string, workf
 
 // ListUserTeams lists teams for the authenticated user, filtered to a specific org.
 func (c *Client) ListUserTeams(ctx context.Context, org string) ([]Team, error) {
-	query := url.Values{}
-	query.Set("per_page", "100")
-
-	body, headers, err := c.doRequest(ctx, "GET", "/user/teams", query)
+	body, link, err := c.doGet(ctx, "user/teams?per_page=100")
 	if err != nil {
 		return nil, fmt.Errorf("listing user teams: %w", err)
 	}
@@ -310,23 +191,20 @@ func (c *Client) ListUserTeams(ctx context.Context, org string) ([]Team, error) 
 		return nil, fmt.Errorf("parsing user teams: %w", err)
 	}
 
-	// Follow Link pagination
-	nextURL := parseLinkHeader(headers.Get("Link"))
+	nextURL := parseLinkHeader(link)
 	for nextURL != "" {
-		body, headers, err = c.doRequestURL(ctx, nextURL)
+		body, link, err = c.doGetURL(ctx, nextURL)
 		if err != nil {
 			return nil, fmt.Errorf("listing user teams (pagination): %w", err)
 		}
-
 		var page []Team
 		if err := json.Unmarshal(body, &page); err != nil {
 			return nil, fmt.Errorf("parsing user teams page: %w", err)
 		}
 		allTeams = append(allTeams, page...)
-		nextURL = parseLinkHeader(headers.Get("Link"))
+		nextURL = parseLinkHeader(link)
 	}
 
-	// Filter to the specified org
 	orgLower := strings.ToLower(org)
 	var filtered []Team
 	for _, t := range allTeams {
@@ -340,6 +218,6 @@ func (c *Client) ListUserTeams(ctx context.Context, org string) ([]Team, error) 
 
 // TestConnection verifies the GitHub credentials work.
 func (c *Client) TestConnection(ctx context.Context) error {
-	_, _, err := c.doRequest(ctx, "GET", "/user", nil)
+	_, _, err := c.doGet(ctx, "user")
 	return err
 }

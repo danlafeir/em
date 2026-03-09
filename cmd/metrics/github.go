@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"fmt"
-	"os"
 	"sort"
 	"time"
 
@@ -69,10 +68,6 @@ func init() {
 func getGithubClient() (*github.Client, error) {
 	token, err := secrets.Read("github", "api_token")
 	if err != nil || token == "" {
-		token = os.Getenv("GH_TOKEN")
-	}
-
-	if token == "" {
 		return nil, fmt.Errorf("GitHub API token not configured. Run: devctl-em config set github.api_token")
 	}
 
@@ -81,11 +76,7 @@ func getGithubClient() (*github.Client, error) {
 		Org:   getGithubOrg(),
 	}
 
-	if override := os.Getenv("GITHUB_API_URL"); override != "" {
-		creds.BaseURLOverride = override
-	}
-
-	return github.NewClient(creds), nil
+	return github.NewClient(creds)
 }
 
 // getGithubOrg returns the GitHub org from flag or config.
@@ -164,8 +155,8 @@ func getGithubOutputFormat(defaultFormat string) string {
 }
 
 // getConfiguredWorkflowsByTeam reads workflows for a specific team from config.
-// Returns a map of repo name → workflow filename.
-func getConfiguredWorkflowsByTeam(team string) (map[string]string, error) {
+// Returns a map of repo name → workflow filenames (supports multiple per repo).
+func getConfiguredWorkflowsByTeam(team string) (map[string][]string, error) {
 	key := fmt.Sprintf("github.teams.%s.workflows", team)
 	raw := getConfigAny(key)
 	if raw == nil {
@@ -177,13 +168,24 @@ func getConfiguredWorkflowsByTeam(team string) (map[string]string, error) {
 		return nil, fmt.Errorf("invalid config format for %s", key)
 	}
 
-	workflows := make(map[string]string, len(rawMap))
+	workflows := make(map[string][]string, len(rawMap))
 	for repo, wf := range rawMap {
-		wfStr, ok := wf.(string)
-		if !ok {
-			continue
+		switch v := wf.(type) {
+		case string:
+			if v != "" {
+				workflows[repo] = []string{v}
+			}
+		case []any:
+			var files []string
+			for _, item := range v {
+				if s, ok := item.(string); ok && s != "" {
+					files = append(files, s)
+				}
+			}
+			if len(files) > 0 {
+				workflows[repo] = files
+			}
 		}
-		workflows[repo] = wfStr
 	}
 
 	if len(workflows) == 0 {
@@ -196,7 +198,7 @@ func getConfiguredWorkflowsByTeam(team string) (map[string]string, error) {
 // teamWorkflows holds workflows for a specific team.
 type teamWorkflows struct {
 	Team      string
-	Workflows map[string]string
+	Workflows map[string][]string
 }
 
 // getAllConfiguredWorkflows returns workflows for all teams (or just --team if set).
