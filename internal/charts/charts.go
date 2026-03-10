@@ -22,10 +22,24 @@ type Config struct {
 type ForecastRow struct {
 	EpicKey    string
 	Summary    string
+	Completed  int
+	Total      int
 	Remaining  int
 	Forecast50 string
 	Forecast85 string
 	Forecast95 string
+}
+
+// forecastTableRow is the HTML template view of a ForecastRow.
+type forecastTableRow struct {
+	EpicKey       string
+	Summary       string
+	ProgressVal   int
+	ProgressMax   int
+	ProgressLabel string
+	Forecast50    string
+	Forecast85    string
+	Forecast95    string
 }
 
 // LongestCycleTimeRow holds data for one row in the longest cycle time table.
@@ -334,17 +348,23 @@ func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, path string
 
 // ForecastTable creates an HTML table of epic forecasts.
 func ForecastTable(rows []ForecastRow, path string) error {
-	tRows := make([]tableRow, len(rows))
+	tRows := make([]forecastTableRow, len(rows))
 	for i, r := range rows {
-		tRows[i] = tableRow{
-			Cells: []string{r.EpicKey, r.Summary, fmt.Sprintf("%d", r.Remaining), r.Forecast50, r.Forecast85, r.Forecast95},
+		tRows[i] = forecastTableRow{
+			EpicKey:       r.EpicKey,
+			Summary:       r.Summary,
+			ProgressVal:   r.Completed,
+			ProgressMax:   r.Total,
+			ProgressLabel: fmt.Sprintf("%d/%d", r.Completed, r.Total),
+			Forecast50:    r.Forecast50,
+			Forecast85:    r.Forecast85,
+			Forecast95:    r.Forecast95,
 		}
 	}
 
-	return writeHTML(path, "table.html.tmpl", map[string]any{
-		"Title":   "Epic Forecast",
-		"Headers": []string{"Epic", "Title", "Remaining", "50%", "85%", "95%"},
-		"Rows":    tRows,
+	return writeHTML(path, "forecast.html.tmpl", map[string]any{
+		"Title": "Epic Forecast",
+		"Rows":  tRows,
 	})
 }
 
@@ -551,10 +571,17 @@ func CombinedReport(
 	}
 
 	// Build forecast table rows
-	fcTableRows := make([]tableRow, len(forecastRows))
+	fcTableRows := make([]forecastTableRow, len(forecastRows))
 	for i, r := range forecastRows {
-		fcTableRows[i] = tableRow{
-			Cells: []string{r.EpicKey, r.Summary, fmt.Sprintf("%d", r.Remaining), r.Forecast50, r.Forecast85, r.Forecast95},
+		fcTableRows[i] = forecastTableRow{
+			EpicKey:       r.EpicKey,
+			Summary:       r.Summary,
+			ProgressVal:   r.Completed,
+			ProgressMax:   r.Total,
+			ProgressLabel: fmt.Sprintf("%d/%d", r.Completed, r.Total),
+			Forecast50:    r.Forecast50,
+			Forecast85:    r.Forecast85,
+			Forecast95:    r.Forecast95,
 		}
 	}
 
@@ -567,8 +594,7 @@ func CombinedReport(
 		"LongestCTTitle":      "Longest Cycle Times",
 		"LongestCTHeaders":    []string{"", "Key", "Title", "Days", "Started", "Done"},
 		"LongestCTRows":       ctTableRows,
-		"ForecastHeaders":     []string{"Epic", "Title", "Remaining", "50%", "85%", "95%"},
-		"ForecastRows":        fcTableRows,
+		"ForecastRows": fcTableRows,
 	})
 }
 

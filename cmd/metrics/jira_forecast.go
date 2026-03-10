@@ -188,47 +188,34 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 		return forecasts[i].Forecast85.Before(forecasts[j].Forecast85)
 	})
 
-	// Print summary table
-	fmt.Printf("\n")
-	fmt.Printf("Epic Forecast Summary\n")
+	// Print summary
+	fmt.Printf("\nEpic Forecast Summary\n")
 	fmt.Printf("=====================\n\n")
 
-	summaryWidth := 40
-	// Header
-	fmt.Printf("| %-14s | %-*s | %-6s | %-6s | %-6s | %-10s | %-10s | %-10s |\n",
-		"Epic", summaryWidth, "Summary", "Done", "Left", "Prog%", "50%", "85%", "95%")
-	fmt.Printf("|%s|%s|%s|%s|%s|%s|%s|%s|\n",
-		strings.Repeat("_", 16),
-		strings.Repeat("_", summaryWidth+2),
-		strings.Repeat("_", 8),
-		strings.Repeat("_", 8),
-		strings.Repeat("_", 8),
-		strings.Repeat("_", 12),
-		strings.Repeat("_", 12),
-		strings.Repeat("_", 12))
+	const barWidth = 20
+	const keyWidth = 14
 
 	for _, f := range forecasts {
 		if f.Error != "" {
-			fmt.Printf("| %-14s | %-*s | %-6s | %-6s | %-6s | %-10s | %-10s | %-10s |\n",
-				f.EpicKey, summaryWidth, truncate(f.EpicSummary, summaryWidth),
-				"-", "-", "-", f.Error, "", "")
+			fmt.Printf("%-*s  %s\n             (error: %s)\n\n",
+				keyWidth, f.EpicKey, f.EpicSummary, f.Error)
 			continue
 		}
 
-		lines := wrapString(f.EpicSummary, summaryWidth)
-		for l, line := range lines {
-			if l == 0 {
-				fmt.Printf("| %-14s | %-*s | %6d | %6d | %5.0f%% | %-10s | %-10s | %-10s |\n",
-					f.EpicKey, summaryWidth, line,
-					f.CompletedItems, f.RemainingItems, f.Progress,
-					f.Forecast50.Format("Jan 02"),
-					f.Forecast85.Format("Jan 02"),
-					f.Forecast95.Format("Jan 02"))
-			} else {
-				fmt.Printf("| %-14s | %-*s | %6s | %6s | %6s | %-10s | %-10s | %-10s |\n",
-					"", summaryWidth, line, "", "", "", "", "", "")
-			}
+		filled := 0
+		if f.TotalItems > 0 {
+			filled = int(float64(f.CompletedItems) / float64(f.TotalItems) * barWidth)
 		}
+		bar := "[" + strings.Repeat("█", filled) + strings.Repeat("░", barWidth-filled) + "]"
+		progress := fmt.Sprintf("%d/%d", f.CompletedItems, f.TotalItems)
+		indent := strings.Repeat(" ", keyWidth+2)
+
+		fmt.Printf("%-*s  %s\n", keyWidth, f.EpicKey, f.EpicSummary)
+		fmt.Printf("%s%s %s  ·  50%%: %s  85%%: %s  95%%: %s\n\n",
+			indent, bar, progress,
+			f.Forecast50.Format("Jan 02"),
+			f.Forecast85.Format("Jan 02"),
+			f.Forecast95.Format("Jan 02"))
 	}
 
 	// Check deadline if provided
@@ -265,6 +252,8 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 		rows = append(rows, charts.ForecastRow{
 			EpicKey:    f.EpicKey,
 			Summary:    f.EpicSummary,
+			Completed:  f.CompletedItems,
+			Total:      f.TotalItems,
 			Remaining:  f.RemainingItems,
 			Forecast50: f.Forecast50.Format("Jan 02"),
 			Forecast85: f.Forecast85.Format("Jan 02"),

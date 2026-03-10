@@ -223,12 +223,14 @@ func forecastEpicRow(ctx context.Context, client *jira.Client, mapper *workflow.
 		return nil
 	}
 
+	total := len(issues)
 	var remaining int
 	for _, issue := range issues {
 		if !mapper.IsCompleted(issue.Fields.Status.Name) {
 			remaining++
 		}
 	}
+	completed := total - remaining
 
 	if remaining == 0 {
 		return nil
@@ -248,6 +250,8 @@ func forecastEpicRow(ctx context.Context, client *jira.Client, mapper *workflow.
 	return &charts.ForecastRow{
 		EpicKey:    epic.Key,
 		Summary:    epic.Fields.Summary,
+		Completed:  completed,
+		Total:      total,
 		Remaining:  remaining,
 		Forecast50: result.Percentiles[50].Format("Jan 02"),
 		Forecast85: result.Percentiles[85].Format("Jan 02"),
