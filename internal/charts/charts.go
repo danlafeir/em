@@ -357,13 +357,13 @@ func LongestCycleTimeTableHTML(rows []LongestCycleTimeRow, title string) (templa
 			outlierMark = "*"
 		}
 		tRows[i] = tableRow{
-			Cells:   []string{outlierMark, r.Key, r.Summary, r.Days, r.Started, r.Completed},
+			Cells:   []string{outlierMark, fmt.Sprintf("%s: %s", r.Key, r.Summary), r.Days, r.Started, r.Completed},
 			Outlier: r.Outlier,
 		}
 	}
 	return renderHTML("fragment_ct_table.html.tmpl", map[string]any{
 		"Title":   title,
-		"Headers": []string{"", "Key", "Title", "Days", "Started", "Done"},
+		"Headers": []string{"", "Epic", "Days", "Started", "Done"},
 		"Rows":    tRows,
 	})
 }
