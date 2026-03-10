@@ -1,17 +1,16 @@
 <div class="em-ct-panel"><style>
 .em-ct-panel{border:1px solid #e0e0e0;border-radius:8px;padding:16px;overflow:hidden;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
 .em-ct-panel h2{font-size:1.1rem;margin:0 0 12px 0}
-.em-ct-panel table{width:100%;border-collapse:collapse;font-size:13px}
-.em-ct-panel thead th{background:#667ee2;color:#fff;padding:8px 10px;text-align:left;font-weight:600;white-space:nowrap}
-.em-ct-panel thead th:nth-child(2){width:auto}
-.em-ct-panel tbody td{padding:6px 10px;border-bottom:1px solid #eee;white-space:nowrap}
-.em-ct-panel tbody td:nth-child(2){white-space:normal;width:auto}
+.em-ct-panel table{width:100%;border-collapse:collapse;font-size:13px;table-layout:fixed}
+.em-ct-panel thead th{background:#667ee2;color:#fff;padding:8px 10px;text-align:left;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.em-ct-panel tbody td{padding:6px 10px;border-bottom:1px solid #eee;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.em-ct-panel tbody td:nth-child(2){white-space:normal}
 .em-ct-panel tbody tr:nth-child(even){background:#f5f5f5}
 .em-ct-panel .outlier{color:#e53e3e}
 </style>
 <h2>{{.Title}}</h2>
 <table>
-  <colgroup><col style="width:1%"><col><col style="width:1%"><col style="width:1%"><col style="width:1%"></colgroup>
+  <colgroup><col style="width:4%"><col style="width:55%"><col style="width:13%"><col style="width:14%"><col style="width:14%"></colgroup>
   <thead><tr>{{range .Headers}}<th>{{.}}</th>{{end}}</tr></thead>
   <tbody>{{range .Rows}}<tr{{if .Outlier}} class="outlier"{{end}}>{{range .Cells}}<td>{{.}}</td>{{end}}</tr>{{end}}</tbody>
 </table>
