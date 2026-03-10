@@ -87,13 +87,17 @@ func getGithubOrg() string {
 	return getConfigString("github.org")
 }
 
-// getGithubTeams returns all configured team slugs, or just the --team flag if set.
+// getGithubTeams returns all configured team names that have github config, or just the --team flag if set.
+// Falls back to the selected team (from select-team) before listing all teams.
 func getGithubTeams() []string {
 	if ghTeamFlag != "" {
 		return []string{ghTeamFlag}
 	}
+	if selected := getSelectedTeam(); selected != "" {
+		return []string{selected}
+	}
 
-	raw := getConfigAny("github.teams")
+	raw := getConfigAny("teams")
 	if raw == nil {
 		return nil
 	}
@@ -103,9 +107,15 @@ func getGithubTeams() []string {
 		return nil
 	}
 
-	teams := make([]string, 0, len(rawMap))
-	for slug := range rawMap {
-		teams = append(teams, slug)
+	var teams []string
+	for name, v := range rawMap {
+		sub, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		if _, hasGithub := sub["github"]; hasGithub {
+			teams = append(teams, name)
+		}
 	}
 	sort.Strings(teams)
 	return teams
@@ -157,7 +167,7 @@ func getGithubOutputFormat(defaultFormat string) string {
 // getConfiguredWorkflowsByTeam reads workflows for a specific team from config.
 // Returns a map of repo name → workflow filenames (supports multiple per repo).
 func getConfiguredWorkflowsByTeam(team string) (map[string][]string, error) {
-	key := fmt.Sprintf("github.teams.%s.workflows", team)
+	key := fmt.Sprintf("teams.%s.github.workflows", team)
 	raw := getConfigAny(key)
 	if raw == nil {
 		return nil, fmt.Errorf("no workflows configured for team %q. Run: devctl-em metrics github config --team %s", team, team)

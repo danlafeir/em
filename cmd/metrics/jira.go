@@ -140,17 +140,18 @@ func getJiraClient() (*jira.Client, error) {
 
 // emConfigSchema lists all valid config keys under the "em" namespace.
 var emConfigSchema = config.ConfigSchema{
+	"selected_team",
 	"jira.domain",
 	"jira.email",
-	"jira.teams.*.project",
-	"jira.teams.*.jql_filter_for_metrics",
+	"teams.*.jira.project",
+	"teams.*.jira.jql_filter_for_metrics",
+	"teams.*.github.workflows",
+	"teams.*.github.workflows.*",
 	"workflow.stages",
 	"workflow.cycle_time.started",
 	"workflow.cycle_time.completed",
 	"montecarlo.deadline",
 	"github.org",
-	"github.teams.*.workflows",
-	"github.teams.*.workflows.*",
 	"snyk.org_id",
 	"snyk.site",
 	"snyk.team",
@@ -158,13 +159,17 @@ var emConfigSchema = config.ConfigSchema{
 	"datadog.team",
 }
 
-// getJiraTeams returns all configured team slugs, or just the --team flag if set.
+// getJiraTeams returns all configured team names that have jira config, or just the --team flag if set.
+// Falls back to the selected team (from select-team) before listing all teams.
 func getJiraTeams() []string {
 	if jiraTeamFlag != "" {
 		return []string{jiraTeamFlag}
 	}
+	if selected := getSelectedTeam(); selected != "" {
+		return []string{selected}
+	}
 
-	raw := getConfigAny("jira.teams")
+	raw := getConfigAny("teams")
 	if raw == nil {
 		return nil
 	}
@@ -174,17 +179,28 @@ func getJiraTeams() []string {
 		return nil
 	}
 
-	teams := make([]string, 0, len(rawMap))
-	for slug := range rawMap {
-		teams = append(teams, slug)
+	var teams []string
+	for name, v := range rawMap {
+		sub, ok := v.(map[string]any)
+		if !ok {
+			continue
+		}
+		if _, hasJira := sub["jira"]; hasJira {
+			teams = append(teams, name)
+		}
 	}
 	sort.Strings(teams)
 	return teams
 }
 
-// getTeamConfigString reads jira.teams.<team>.<key> from config.
+// getTeamConfigString reads teams.<team>.jira.<key> from config.
 func getTeamConfigString(team, key string) string {
-	return getConfigString(fmt.Sprintf("jira.teams.%s.%s", team, key))
+	return getConfigString(fmt.Sprintf("teams.%s.jira.%s", team, key))
+}
+
+// getSelectedTeam returns the team set by select-team, or "" if none.
+func getSelectedTeam() string {
+	return getConfigString("selected_team")
 }
 
 // resolveProjectEpics queries JIRA for active epics in a project and returns

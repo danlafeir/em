@@ -115,7 +115,7 @@ func runGhTeamConfig(ctx context.Context, reader *bufio.Reader, client *github.C
 
 	if githubSlug == "" {
 		fmt.Printf("\nTeam %q saved. No GitHub team slug available — run config again and select a team from the list to configure its repositories.\n", teamName)
-		configKey := fmt.Sprintf("github.teams.%s.workflows", teamName)
+		configKey := fmt.Sprintf("teams.%s.github.workflows", teamName)
 		config.SetConfigValue(configNamespace, configKey, map[string]any{})
 		return config.WriteConfig()
 	}
@@ -175,7 +175,6 @@ func runGhTeamConfig(ctx context.Context, reader *bufio.Reader, client *github.C
 		}
 
 		fmt.Printf("  Workflows (use comma-separated numbers to select multiple):\n")
-		suggested := suggestDeployWorkflow(workflows)
 		for i, wf := range workflows {
 			filename := filepath.Base(wf.Path)
 			marker := ""
@@ -188,8 +187,6 @@ func runGhTeamConfig(ctx context.Context, reader *bufio.Reader, client *github.C
 
 		if len(current) > 0 {
 			fmt.Printf("  Select deploy workflow(s) [current: %s]: ", strings.Join(current, ", "))
-		} else if suggested > 0 {
-			fmt.Printf("  Select deploy workflow(s) [%d - %s]: ", suggested, workflows[suggested-1].Name)
 		} else {
 			fmt.Printf("  Select deploy workflow(s) [0]: ")
 		}
@@ -201,12 +198,9 @@ func runGhTeamConfig(ctx context.Context, reader *bufio.Reader, client *github.C
 			if len(current) > 0 {
 				fmt.Printf("  Kept: %s\n\n", strings.Join(current, ", "))
 				continue
-			} else if suggested > 0 {
-				input = strconv.Itoa(suggested)
-			} else {
-				fmt.Println()
-				continue
 			}
+			fmt.Println()
+			continue
 		}
 		if input == "0" {
 			fmt.Println()
@@ -231,7 +225,7 @@ func runGhTeamConfig(ctx context.Context, reader *bufio.Reader, client *github.C
 		}
 
 		// Save this repo's selection immediately
-		repoKey := fmt.Sprintf("github.teams.%s.workflows.%s", teamName, repo.Name)
+		repoKey := fmt.Sprintf("teams.%s.github.workflows.%s", teamName, repo.Name)
 		var repoValue any = chosen
 		if len(chosen) == 1 {
 			repoValue = chosen[0]
@@ -385,19 +379,4 @@ func promptTeamName(reader *bufio.Reader) (string, string, error) {
 	}
 
 	return input, "", nil
-}
-
-// suggestDeployWorkflow returns the 1-based index of a workflow whose name or
-// filename contains "prod", "deploy", or "release". Returns 0 if no match.
-func suggestDeployWorkflow(workflows []github.Workflow) int {
-	for i, wf := range workflows {
-		name := strings.ToLower(wf.Name)
-		filename := strings.ToLower(filepath.Base(wf.Path))
-		for _, keyword := range []string{"prod", "deploy", "release"} {
-			if strings.Contains(name, keyword) || strings.Contains(filename, keyword) {
-				return i + 1
-			}
-		}
-	}
-	return 0
 }

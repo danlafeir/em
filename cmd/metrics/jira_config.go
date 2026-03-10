@@ -94,8 +94,8 @@ func runJiraConfig(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		config.SetConfigValue(configNamespace, fmt.Sprintf("jira.teams.%s.project", team), project)
-		fmt.Printf("Set jira.teams.%s.project = %s\n", team, project)
+		config.SetConfigValue(configNamespace, fmt.Sprintf("teams.%s.jira.project", team), project)
+		fmt.Printf("Set teams.%s.jira.project = %s\n", team, project)
 
 		// Offer board-based JQL selection
 		if err := promptBoardJQL(reader, team, project); err != nil {
@@ -272,7 +272,7 @@ func fetchAndStoreBoardJQL(ctx context.Context, client *jira.Client, team string
 		return fmt.Errorf("getting filter: %w", err)
 	}
 
-	key := fmt.Sprintf("jira.teams.%s.jql_filter_for_metrics", team)
+	key := fmt.Sprintf("teams.%s.jira.jql_filter_for_metrics", team)
 	jql, _ := splitOrderBy(filter.JQL)
 	config.SetConfigValue(configNamespace, key, jql)
 	fmt.Printf("Set %s = %s\n", key, jql)
