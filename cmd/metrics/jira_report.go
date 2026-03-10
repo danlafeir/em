@@ -34,6 +34,7 @@ Example:
 
 func init() {
 	JiraCmd.AddCommand(reportCmd)
+	reportCmd.Flags().BoolVar(&selectEpicsFlag, "select", false, "Interactively select which epics to include in the forecast")
 }
 
 func runReport(cmd *cobra.Command, args []string) error {
@@ -161,11 +162,34 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 		forecastThroughput = pkgmetrics.FilterOutliers(forecastThroughput, 2.0)
 
 		if len(forecastThroughput) > 0 {
-			rows, forecastErr := discoverAndForecastEpics(ctx, client, mapper, forecastThroughput, team)
-			if forecastErr != nil {
-				fmt.Printf("Warning: forecast unavailable: %v\n", forecastErr)
-			} else {
-				forecastRows = rows
+			epics, epicErr := fetchOpenEpics(ctx, client, team)
+			if epicErr != nil {
+				fmt.Printf("Warning: forecast unavailable: %v\n", epicErr)
+			} else if len(epics) > 0 {
+				if selectEpicsFlag {
+					if selected, selErr := promptEpicSelection(epics); selErr != nil {
+						fmt.Printf("Warning: epic selection skipped: %v\n", selErr)
+					} else {
+						epics = selected
+					}
+				}
+				fmt.Printf("Found %d open epics, forecasting...\n", len(epics))
+				for _, epic := range epics {
+					f := forecastEpic(ctx, client, mapper, epic, forecastThroughput)
+					if f.RemainingItems == 0 || f.Error != "" {
+						continue
+					}
+					forecastRows = append(forecastRows, charts.ForecastRow{
+						EpicKey:    f.EpicKey,
+						Summary:    f.EpicSummary,
+						Completed:  f.CompletedItems,
+						Total:      f.TotalItems,
+						Remaining:  f.RemainingItems,
+						Forecast50: f.Forecast50.Format("Jan 02"),
+						Forecast85: f.Forecast85.Format("Jan 02"),
+						Forecast95: f.Forecast95.Format("Jan 02"),
+					})
+				}
 			}
 		}
 	}
@@ -179,82 +203,3 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 	return nil
 }
 
-// discoverAndForecastEpics finds open epics and runs Monte Carlo forecasts.
-func discoverAndForecastEpics(ctx context.Context, client *jira.Client, mapper *workflow.Mapper, weeklyThroughput []int, team string) ([]charts.ForecastRow, error) {
-	var projectJQL string
-	var err error
-
-	if team != "" {
-		projectJQL, err = getTeamProjectJQL(team)
-	} else {
-		projectJQL, err = getProjectJQL()
-	}
-	if err != nil {
-		return nil, err
-	}
-
-	epicJQL := fmt.Sprintf("(%s) AND issuetype = Epic AND resolution IS EMPTY ORDER BY key", projectJQL)
-	epics, err := client.SearchAllIssues(ctx, epicJQL, "summary,status", "")
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch epics: %w", err)
-	}
-
-	if len(epics) == 0 {
-		return nil, nil
-	}
-
-	fmt.Printf("Found %d open epics, forecasting...\n", len(epics))
-
-	var rows []charts.ForecastRow
-	for _, epic := range epics {
-		row := forecastEpicRow(ctx, client, mapper, epic, weeklyThroughput)
-		if row != nil {
-			rows = append(rows, *row)
-		}
-	}
-
-	return rows, nil
-}
-
-func forecastEpicRow(ctx context.Context, client *jira.Client, mapper *workflow.Mapper, epic jira.Issue, weeklyThroughput []int) *charts.ForecastRow {
-	jql := fmt.Sprintf("\"Epic Link\" = %s OR parent = %s", epic.Key, epic.Key)
-	issues, err := client.SearchAllIssues(ctx, jql, "status,summary,issuetype", "")
-	if err != nil {
-		return nil
-	}
-
-	total := len(issues)
-	var remaining int
-	for _, issue := range issues {
-		if !mapper.IsCompleted(issue.Fields.Status.Name) {
-			remaining++
-		}
-	}
-	completed := total - remaining
-
-	if remaining == 0 {
-		return nil
-	}
-
-	config := pkgmetrics.MonteCarloConfig{
-		Trials:          10000,
-		SimulationStart: time.Now(),
-	}
-
-	simulator := pkgmetrics.NewMonteCarloSimulator(config, weeklyThroughput)
-	result, err := simulator.Run(remaining)
-	if err != nil {
-		return nil
-	}
-
-	return &charts.ForecastRow{
-		EpicKey:    epic.Key,
-		Summary:    epic.Fields.Summary,
-		Completed:  completed,
-		Total:      total,
-		Remaining:  remaining,
-		Forecast50: result.Percentiles[50].Format("Jan 02"),
-		Forecast85: result.Percentiles[85].Format("Jan 02"),
-		Forecast95: result.Percentiles[95].Format("Jan 02"),
-	}
-}

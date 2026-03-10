@@ -18,6 +18,8 @@
   .progress-wrap { display: flex; align-items: center; gap: 6px; }
   .progress-wrap progress { width: 70px; height: 7px; accent-color: #667ee2; }
   .progress-label { color: #888; font-size: 11px; white-space: nowrap; }
+  .key { white-space: nowrap; }
+  .ct-table td:nth-child(2), .ct-table th:nth-child(2) { white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -30,7 +32,7 @@
   </div>
   <div class="panel">
     <h2>{{.LongestCTTitle}}</h2>
-    <table>
+    <table class="ct-table">
       <thead>
         <tr>{{range .LongestCTHeaders}}<th>{{.}}</th>{{end}}</tr>
       </thead>
@@ -45,11 +47,11 @@
     <h2>Epic Forecast</h2>
     <table>
       <thead>
-        <tr><th>Epic</th><th>Summary</th><th>Progress</th><th>50%</th><th>85%</th><th>95%</th></tr>
+        <tr><th class="key">Epic</th><th>Summary</th><th>Progress</th><th>50%</th><th>85%</th><th>95%</th></tr>
       </thead>
       <tbody>
         {{range .ForecastRows}}<tr>
-          <td>{{.EpicKey}}</td>
+          <td class="key">{{.EpicKey}}</td>
           <td>{{.Summary}}</td>
           <td>
             <div class="progress-wrap">

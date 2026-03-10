@@ -15,6 +15,7 @@
   .progress-wrap { display: flex; align-items: center; gap: 8px; }
   .progress-wrap progress { width: 80px; height: 8px; accent-color: #667ee2; }
   .progress-label { color: #666; font-size: 12px; white-space: nowrap; }
+  .key { white-space: nowrap; }
 </style>
 </head>
 <body>
@@ -22,11 +23,11 @@
   <h1>{{.Title}}</h1>
   <table>
     <thead>
-      <tr><th>Epic</th><th>Summary</th><th>Progress</th><th>50%</th><th>85%</th><th>95%</th></tr>
+      <tr><th class="key">Epic</th><th>Summary</th><th>Progress</th><th>50%</th><th>85%</th><th>95%</th></tr>
     </thead>
     <tbody>
       {{range .Rows}}<tr>
-        <td>{{.EpicKey}}</td>
+        <td class="key">{{.EpicKey}}</td>
         <td>{{.Summary}}</td>
         <td>
           <div class="progress-wrap">

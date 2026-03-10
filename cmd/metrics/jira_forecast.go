@@ -298,6 +298,39 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 	return runEpicForecasts(ctx, client, epics, weeklyThroughput, team, false)
 }
 
+// promptEpicSelection shows a numbered list of epics and returns the user's selection.
+func promptEpicSelection(epics []jira.Issue) ([]jira.Issue, error) {
+	fmt.Printf("Found %d open epics:\n\n", len(epics))
+	for i, epic := range epics {
+		fmt.Printf("  %2d. %-14s  %s\n", i+1, epic.Key, truncate(epic.Fields.Summary, 60))
+	}
+
+	fmt.Printf("\nEnter epic numbers to forecast (comma-separated, e.g. 1,3,5): ")
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	input := strings.TrimSpace(scanner.Text())
+
+	if input == "" {
+		return nil, fmt.Errorf("no epics selected")
+	}
+
+	var selected []jira.Issue
+	seen := make(map[int]bool)
+	for _, part := range strings.Split(input, ",") {
+		n, err := strconv.Atoi(strings.TrimSpace(part))
+		if err != nil || n < 1 || n > len(epics) {
+			return nil, fmt.Errorf("invalid selection: %q (must be 1-%d)", strings.TrimSpace(part), len(epics))
+		}
+		if !seen[n] {
+			seen[n] = true
+			selected = append(selected, epics[n-1])
+		}
+	}
+
+	fmt.Printf("\nSelected %d epic(s)\n\n", len(selected))
+	return selected, nil
+}
+
 func runSelectEpicsForecast(ctx context.Context, client *jira.Client, team, throughputJQLBase string) error {
 	fmt.Println("Discovering open epics...")
 
@@ -311,35 +344,10 @@ func runSelectEpicsForecast(ctx context.Context, client *jira.Client, team, thro
 		return nil
 	}
 
-	// Show numbered list
-	fmt.Printf("Found %d open epics:\n\n", len(epics))
-	for i, epic := range epics {
-		fmt.Printf("  %2d. %-14s  %s\n", i+1, epic.Key, truncate(epic.Fields.Summary, 60))
+	selected, err := promptEpicSelection(epics)
+	if err != nil {
+		return err
 	}
-
-	fmt.Printf("\nEnter epic numbers to forecast (comma-separated, e.g. 1,3,5): ")
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-	input := strings.TrimSpace(scanner.Text())
-
-	if input == "" {
-		return fmt.Errorf("no epics selected")
-	}
-
-	var selected []jira.Issue
-	seen := make(map[int]bool)
-	for _, part := range strings.Split(input, ",") {
-		n, err := strconv.Atoi(strings.TrimSpace(part))
-		if err != nil || n < 1 || n > len(epics) {
-			return fmt.Errorf("invalid selection: %q (must be 1-%d)", strings.TrimSpace(part), len(epics))
-		}
-		if !seen[n] {
-			seen[n] = true
-			selected = append(selected, epics[n-1])
-		}
-	}
-
-	fmt.Printf("\nSelected %d epic(s)\n\n", len(selected))
 
 	weeklyThroughput, err := loadWeeklyThroughput(ctx, client, throughputJQLBase)
 	if err != nil {
