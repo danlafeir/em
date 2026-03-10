@@ -74,7 +74,7 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 	// Fetch completed issues
 	fmt.Printf("Fetching issues from JIRA...\n")
 	jqlCompleted := jqlWithDateRange(
-		fmt.Sprintf("(%s) AND issuetype = Story", jql),
+		fmt.Sprintf("(%s) AND issuetype in (Story, Spike, Bug, Defect)", jql),
 		fromWeek.Format("2006-01-02"), to.Format("2006-01-02"),
 	)
 
