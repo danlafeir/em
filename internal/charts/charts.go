@@ -737,6 +737,13 @@ func buildThroughputConfig(data metrics.ThroughputResult, title string) map[stri
 					"text":    title,
 					"font":    map[string]any{"size": 16},
 				},
+				"subtitle": map[string]any{
+					"display": true,
+					"text":    fmt.Sprintf("Avg: %.1f items/week", data.AvgCount),
+					"color":   "rgba(0,0,0,0.5)",
+					"font":    map[string]any{"size": 12},
+					"padding": map[string]any{"bottom": 8},
+				},
 			},
 			"scales": map[string]any{
 				"x": map[string]any{
