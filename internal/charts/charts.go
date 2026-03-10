@@ -659,7 +659,8 @@ func buildCycleTimeConfig(data []metrics.CycleTimeResult, title string) map[stri
 		"type": "scatter",
 		"data": map[string]any{"datasets": datasets},
 		"options": map[string]any{
-			"responsive": true,
+			"responsive":          true,
+			"maintainAspectRatio": false,
 			"plugins": map[string]any{
 				"title": map[string]any{
 					"display": true,
@@ -730,7 +731,8 @@ func buildThroughputConfig(data metrics.ThroughputResult, title string) map[stri
 		"type": "line",
 		"data": map[string]any{"datasets": datasets},
 		"options": map[string]any{
-			"responsive": true,
+			"responsive":          true,
+			"maintainAspectRatio": false,
 			"plugins": map[string]any{
 				"title": map[string]any{
 					"display": true,
