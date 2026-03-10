@@ -159,6 +159,17 @@ func (tc *ThroughputCalculator) addPeriod(t time.Time) time.Time {
 	}
 }
 
+// WeekStart returns the Monday of the ISO week containing t (at midnight).
+// Use this to normalize a date range start before building JQL and calling
+// Calculate, so the first bucket is always a full week.
+func WeekStart(t time.Time) time.Time {
+	weekday := int(t.Weekday())
+	if weekday == 0 {
+		weekday = 7
+	}
+	return time.Date(t.Year(), t.Month(), t.Day()-weekday+1, 0, 0, 0, 0, t.Location())
+}
+
 // GetWeeklyThroughputValues returns just the count values for Monte Carlo.
 func GetWeeklyThroughputValues(result ThroughputResult) []int {
 	values := make([]int, len(result.Periods))

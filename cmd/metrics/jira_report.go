@@ -67,9 +67,13 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 	fmt.Printf("JQL: %s\n", jql)
 	fmt.Printf("Date range: %s to %s\n\n", from.Format("2006-01-02"), to.Format("2006-01-02"))
 
+	// Normalize from to the start of its ISO week so the first throughput
+	// bucket is always a full 7-day period and its JQL fetch is consistent.
+	fromWeek := pkgmetrics.WeekStart(from)
+
 	// Fetch completed issues
 	fmt.Printf("Fetching issues from JIRA...\n")
-	jqlCompleted := jqlWithDateRange(jql, from.Format("2006-01-02"), to.Format("2006-01-02"))
+	jqlCompleted := jqlWithDateRange(jql, fromWeek.Format("2006-01-02"), to.Format("2006-01-02"))
 
 	completedIssues, err := client.FetchIssuesWithHistory(ctx, jqlCompleted, func(current, total int) {
 		fmt.Printf("\rProcessing completed issues: %d/%d...", current, total)
@@ -98,7 +102,7 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 	// 2. Throughput
 	fmt.Printf("Calculating throughput metrics...\n")
 	throughputCalc := pkgmetrics.NewThroughputCalculator(pkgmetrics.FrequencyWeekly)
-	throughputResult := throughputCalc.Calculate(completedHistories, from, to)
+	throughputResult := throughputCalc.Calculate(completedHistories, fromWeek, to)
 
 	// 3. Longest Cycle Time table — combine kept + outliers, mark outliers
 	var ctRows []charts.LongestCycleTimeRow
@@ -133,10 +137,10 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 	var forecastRows []charts.ForecastRow
 	{
 		const forecastHistoryDays = 90
-		forecastFrom := time.Now().AddDate(0, 0, -forecastHistoryDays)
+		forecastFrom := pkgmetrics.WeekStart(time.Now().AddDate(0, 0, -forecastHistoryDays))
 
 		var forecastThroughput []int
-		if !from.After(forecastFrom) {
+		if !fromWeek.After(forecastFrom) {
 			forecastThroughput = pkgmetrics.GetWeeklyThroughputValues(throughputResult)
 		} else {
 			forecastJQL := jqlWithDateRange(jql, forecastFrom.Format("2006-01-02"), time.Now().Format("2006-01-02"))

@@ -124,7 +124,7 @@ func fetchOpenEpics(ctx context.Context, client *jira.Client, team string) ([]ji
 
 func loadWeeklyThroughput(ctx context.Context, client *jira.Client, throughputJQLBase string) ([]int, error) {
 	historyEnd := time.Now()
-	historyStart := historyEnd.AddDate(0, 0, -historyDaysFlag)
+	historyStart := metrics.WeekStart(historyEnd.AddDate(0, 0, -historyDaysFlag))
 
 	throughputJQL := jqlWithDateRange(throughputJQLBase, historyStart.Format("2006-01-02"), historyEnd.Format("2006-01-02"))
 
@@ -470,7 +470,7 @@ func runSingleEpicForecast(ctx context.Context, client *jira.Client, throughputJ
 
 func runManualForecast(ctx context.Context, client *jira.Client, throughputJQL string, remaining int) error {
 	historyEnd := time.Now()
-	historyStart := historyEnd.AddDate(0, 0, -historyDaysFlag)
+	historyStart := metrics.WeekStart(historyEnd.AddDate(0, 0, -historyDaysFlag))
 
 	jqlWithDates := jqlWithDateRange(throughputJQL, historyStart.Format("2006-01-02"), historyEnd.Format("2006-01-02"))
 
