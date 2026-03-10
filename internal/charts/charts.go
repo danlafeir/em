@@ -2,6 +2,7 @@
 package charts
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"html/template"
@@ -89,6 +90,25 @@ func writeHTML(path string, tmplName string, data any) error {
 	return tmpl.Execute(f, data)
 }
 
+func renderHTML(tmplName string, data any) (template.HTML, error) {
+	tmpl, err := template.ParseFS(templateFS, "templates/"+tmplName)
+	if err != nil {
+		return "", fmt.Errorf("parse template %s: %w", tmplName, err)
+	}
+	var buf bytes.Buffer
+	if err := tmpl.Execute(&buf, data); err != nil {
+		return "", err
+	}
+	return template.HTML(buf.String()), nil
+}
+
+func writePageHTML(path, title string, content template.HTML) error {
+	return writeHTML(path, "page.html.tmpl", map[string]any{
+		"Title":   title,
+		"Content": content,
+	})
+}
+
 func mustJSON(v any) template.JS {
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -120,14 +140,12 @@ func linearRegression(xs, ys []float64) (slope, intercept float64) {
 	return
 }
 
-// CycleTimeScatter creates an HTML scatter plot of cycle times.
-func CycleTimeScatter(data []metrics.CycleTimeResult, percentiles []float64, cfg Config, path string) error {
-	title := cfg.Title
+// CycleTimeScatterHTML returns a self-contained HTML fragment for the cycle time scatter chart.
+func CycleTimeScatterHTML(data []metrics.CycleTimeResult, percentiles []float64, title string) (template.HTML, error) {
 	if title == "" {
 		title = "Cycle Time Scatter Plot"
 	}
 
-	// Build scatter data points
 	type point struct {
 		X string  `json:"x"`
 		Y float64 `json:"y"`
@@ -151,7 +169,6 @@ func CycleTimeScatter(data []metrics.CycleTimeResult, percentiles []float64, cfg
 		},
 	}
 
-	// Add percentile lines
 	if len(data) > 1 {
 		stats := metrics.CalculateStats(data)
 		statsDays := stats.ToDays()
@@ -190,12 +207,13 @@ func CycleTimeScatter(data []metrics.CycleTimeResult, percentiles []float64, cfg
 			"datasets": datasets,
 		},
 		"options": map[string]any{
-			"responsive": true,
+			"responsive":          true,
+			"maintainAspectRatio": false,
 			"plugins": map[string]any{
 				"title": map[string]any{
 					"display": true,
 					"text":    title,
-					"font":    map[string]any{"size": 18},
+					"font":    map[string]any{"size": 16},
 				},
 			},
 			"scales": map[string]any{
@@ -219,17 +237,16 @@ func CycleTimeScatter(data []metrics.CycleTimeResult, percentiles []float64, cfg
 	}
 
 	cjs, dajs := jsStrings()
-	return writeHTML(path, "chart.html.tmpl", map[string]any{
-		"Title":        title,
-		"ChartJS":      cjs,
+	return renderHTML("fragment_chart.html.tmpl", map[string]any{
+		"CanvasID":      "ct-chart",
+		"ChartJS":       cjs,
 		"DateAdapterJS": dajs,
-		"ConfigJSON":   mustJSON(chartConfig),
+		"ConfigJSON":    mustJSON(chartConfig),
 	})
 }
 
-// ThroughputLine creates an HTML line chart of throughput over time.
-func ThroughputLine(data metrics.ThroughputResult, cfg Config, path string) error {
-	title := cfg.Title
+// ThroughputLineHTML returns a self-contained HTML fragment for the throughput line chart.
+func ThroughputLineHTML(data metrics.ThroughputResult, title string) (template.HTML, error) {
 	if title == "" {
 		title = "Throughput Over Time"
 	}
@@ -259,7 +276,6 @@ func ThroughputLine(data metrics.ThroughputResult, cfg Config, path string) erro
 		},
 	}
 
-	// Add trend line
 	if len(points) >= 2 {
 		slope, intercept := linearRegression(xs, ys)
 		trendPoints := []point{
@@ -283,12 +299,20 @@ func ThroughputLine(data metrics.ThroughputResult, cfg Config, path string) erro
 			"datasets": datasets,
 		},
 		"options": map[string]any{
-			"responsive": true,
+			"responsive":          true,
+			"maintainAspectRatio": false,
 			"plugins": map[string]any{
 				"title": map[string]any{
 					"display": true,
 					"text":    title,
-					"font":    map[string]any{"size": 18},
+					"font":    map[string]any{"size": 16},
+				},
+				"subtitle": map[string]any{
+					"display": true,
+					"text":    fmt.Sprintf("Avg: %.1f items/week", data.AvgCount),
+					"color":   "rgba(0,0,0,0.5)",
+					"font":    map[string]any{"size": 12},
+					"padding": map[string]any{"bottom": 8},
 				},
 			},
 			"scales": map[string]any{
@@ -313,20 +337,19 @@ func ThroughputLine(data metrics.ThroughputResult, cfg Config, path string) erro
 	}
 
 	cjs, dajs := jsStrings()
-	return writeHTML(path, "chart.html.tmpl", map[string]any{
-		"Title":        title,
-		"ChartJS":      cjs,
+	return renderHTML("fragment_chart.html.tmpl", map[string]any{
+		"CanvasID":      "tp-chart",
+		"ChartJS":       cjs,
 		"DateAdapterJS": dajs,
-		"ConfigJSON":   mustJSON(chartConfig),
+		"ConfigJSON":    mustJSON(chartConfig),
 	})
 }
 
-// LongestCycleTimeTable creates an HTML table of longest cycle times.
-func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, path string) error {
+// LongestCycleTimeTableHTML returns a self-contained HTML fragment for the CT table.
+func LongestCycleTimeTableHTML(rows []LongestCycleTimeRow, title string) (template.HTML, error) {
 	if title == "" {
 		title = "Longest Cycle Times"
 	}
-
 	tRows := make([]tableRow, len(rows))
 	for i, r := range rows {
 		outlierMark := ""
@@ -338,16 +361,18 @@ func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, path string
 			Outlier: r.Outlier,
 		}
 	}
-
-	return writeHTML(path, "table.html.tmpl", map[string]any{
+	return renderHTML("fragment_ct_table.html.tmpl", map[string]any{
 		"Title":   title,
 		"Headers": []string{"", "Key", "Title", "Days", "Started", "Done"},
 		"Rows":    tRows,
 	})
 }
 
-// ForecastTable creates an HTML table of epic forecasts.
-func ForecastTable(rows []ForecastRow, path string) error {
+// ForecastTableHTML returns a self-contained HTML fragment for the forecast table.
+func ForecastTableHTML(rows []ForecastRow, title string) (template.HTML, error) {
+	if title == "" {
+		title = "Epic Forecast"
+	}
 	tRows := make([]forecastTableRow, len(rows))
 	for i, r := range rows {
 		tRows[i] = forecastTableRow{
@@ -361,11 +386,57 @@ func ForecastTable(rows []ForecastRow, path string) error {
 			Forecast95:    r.Forecast95,
 		}
 	}
-
-	return writeHTML(path, "forecast.html.tmpl", map[string]any{
-		"Title": "Epic Forecast",
+	return renderHTML("forecast.html.tmpl", map[string]any{
+		"Title": title,
 		"Rows":  tRows,
 	})
+}
+
+// CycleTimeScatter creates an HTML scatter plot of cycle times.
+func CycleTimeScatter(data []metrics.CycleTimeResult, percentiles []float64, cfg Config, path string) error {
+	title := cfg.Title
+	if title == "" {
+		title = "Cycle Time Scatter Plot"
+	}
+	content, err := CycleTimeScatterHTML(data, percentiles, title)
+	if err != nil {
+		return err
+	}
+	return writePageHTML(path, title, content)
+}
+
+// ThroughputLine creates an HTML line chart of throughput over time.
+func ThroughputLine(data metrics.ThroughputResult, cfg Config, path string) error {
+	title := cfg.Title
+	if title == "" {
+		title = "Throughput Over Time"
+	}
+	content, err := ThroughputLineHTML(data, title)
+	if err != nil {
+		return err
+	}
+	return writePageHTML(path, title, content)
+}
+
+// LongestCycleTimeTable creates an HTML table of longest cycle times.
+func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, path string) error {
+	content, err := LongestCycleTimeTableHTML(rows, title)
+	if err != nil {
+		return err
+	}
+	if title == "" {
+		title = "Longest Cycle Times"
+	}
+	return writePageHTML(path, title, content)
+}
+
+// ForecastTable creates an HTML table of epic forecasts.
+func ForecastTable(rows []ForecastRow, path string) error {
+	content, err := ForecastTableHTML(rows, "Epic Forecast")
+	if err != nil {
+		return err
+	}
+	return writePageHTML(path, "Epic Forecast", content)
 }
 
 // DeploymentFrequencyLine creates an HTML line chart of deployment frequency.
@@ -453,10 +524,10 @@ func DeploymentFrequencyLine(weeks []DeploymentWeek, cfg Config, path string) er
 
 	cjs, dajs := jsStrings()
 	return writeHTML(path, "chart.html.tmpl", map[string]any{
-		"Title":        title,
-		"ChartJS":      cjs,
+		"Title":         title,
+		"ChartJS":       cjs,
 		"DateAdapterJS": dajs,
-		"ConfigJSON":   mustJSON(chartConfig),
+		"ConfigJSON":    mustJSON(chartConfig),
 	})
 }
 
@@ -537,10 +608,10 @@ func SnykIssuesLine(weeks []SnykIssueWeek, cfg Config, path string) error {
 
 	cjs, dajs := jsStrings()
 	return writeHTML(path, "chart.html.tmpl", map[string]any{
-		"Title":        title,
-		"ChartJS":      cjs,
+		"Title":         title,
+		"ChartJS":       cjs,
 		"DateAdapterJS": dajs,
-		"ConfigJSON":   mustJSON(chartConfig),
+		"ConfigJSON":    mustJSON(chartConfig),
 	})
 }
 
@@ -553,214 +624,28 @@ func CombinedReport(
 	forecastRows []ForecastRow,
 	path string,
 ) error {
-	// Build cycle time chart config
-	cycleTimeConfig := buildCycleTimeConfig(cycleTimeData, "Cycle Time Distribution")
-	throughputConfig := buildThroughputConfig(throughputData, "Weekly Throughput")
-
-	// Build longest CT table rows
-	ctTableRows := make([]tableRow, len(longestCTRows))
-	for i, r := range longestCTRows {
-		outlierMark := ""
-		if r.Outlier {
-			outlierMark = "*"
-		}
-		ctTableRows[i] = tableRow{
-			Cells:   []string{outlierMark, r.Key, r.Summary, r.Days, r.Started, r.Completed},
-			Outlier: r.Outlier,
-		}
+	ctHTML, err := CycleTimeScatterHTML(cycleTimeData, cycleTimePercentiles, "Cycle Time Distribution")
+	if err != nil {
+		return err
 	}
-
-	// Build forecast table rows
-	fcTableRows := make([]forecastTableRow, len(forecastRows))
-	for i, r := range forecastRows {
-		fcTableRows[i] = forecastTableRow{
-			EpicKey:       r.EpicKey,
-			Summary:       r.Summary,
-			ProgressVal:   r.Completed,
-			ProgressMax:   r.Total,
-			ProgressLabel: fmt.Sprintf("%d/%d", r.Completed, r.Total),
-			Forecast50:    r.Forecast50,
-			Forecast85:    r.Forecast85,
-			Forecast95:    r.Forecast95,
-		}
+	tpHTML, err := ThroughputLineHTML(throughputData, "Weekly Throughput")
+	if err != nil {
+		return err
 	}
-
-	cjs, dajs := jsStrings()
+	longestHTML, err := LongestCycleTimeTableHTML(longestCTRows, "Longest Cycle Times")
+	if err != nil {
+		return err
+	}
+	forecastHTML, err := ForecastTableHTML(forecastRows, "Epic Forecast")
+	if err != nil {
+		return err
+	}
 	return writeHTML(path, "report.html.tmpl", map[string]any{
-		"ChartJS":             cjs,
-		"DateAdapterJS":       dajs,
-		"CycleTimeConfigJSON": mustJSON(cycleTimeConfig),
-		"ThroughputConfigJSON": mustJSON(throughputConfig),
-		"LongestCTTitle":      "Longest Cycle Times",
-		"LongestCTHeaders":    []string{"", "Key", "Title", "Days", "Started", "Done"},
-		"LongestCTRows":       ctTableRows,
-		"ForecastRows": fcTableRows,
+		"CycleTimeHTML":  ctHTML,
+		"ThroughputHTML": tpHTML,
+		"LongestCTHTML":  longestHTML,
+		"ForecastHTML":   forecastHTML,
 	})
-}
-
-func buildCycleTimeConfig(data []metrics.CycleTimeResult, title string) map[string]any {
-	type point struct {
-		X string  `json:"x"`
-		Y float64 `json:"y"`
-	}
-
-	points := make([]point, len(data))
-	for i, ct := range data {
-		points[i] = point{
-			X: ct.EndDate.Format("2006-01-02"),
-			Y: math.Round(ct.CycleTimeDays()*10) / 10,
-		}
-	}
-
-	datasets := []map[string]any{
-		{
-			"label":           "Cycle Time",
-			"data":            points,
-			"backgroundColor": "rgba(66, 133, 244, 0.7)",
-			"borderColor":     "rgba(66, 133, 244, 1)",
-			"pointRadius":     4,
-			"showLine":        false,
-		},
-	}
-
-	if len(data) > 1 {
-		stats := metrics.CalculateStats(data)
-		statsDays := stats.ToDays()
-
-		type pctLine struct {
-			label string
-			value float64
-			color string
-		}
-		lines := []pctLine{
-			{"50th: " + formatDays(statsDays.Percentile50), statsDays.Percentile50, "rgba(76, 175, 80, 0.8)"},
-			{"85th: " + formatDays(statsDays.Percentile85), statsDays.Percentile85, "rgba(255, 152, 0, 0.8)"},
-			{"95th: " + formatDays(statsDays.Percentile95), statsDays.Percentile95, "rgba(244, 67, 54, 0.8)"},
-		}
-
-		xMin := data[0].EndDate.Format("2006-01-02")
-		xMax := data[len(data)-1].EndDate.Format("2006-01-02")
-
-		for _, l := range lines {
-			datasets = append(datasets, map[string]any{
-				"label":       l.label,
-				"data":        []point{{X: xMin, Y: l.value}, {X: xMax, Y: l.value}},
-				"type":        "line",
-				"showLine":    true,
-				"pointRadius": 0,
-				"borderColor": l.color,
-				"borderWidth": 2,
-				"borderDash":  []int{6, 3},
-			})
-		}
-	}
-
-	return map[string]any{
-		"type": "scatter",
-		"data": map[string]any{"datasets": datasets},
-		"options": map[string]any{
-			"responsive":          true,
-			"maintainAspectRatio": false,
-			"plugins": map[string]any{
-				"title": map[string]any{
-					"display": true,
-					"text":    title,
-					"font":    map[string]any{"size": 16},
-				},
-			},
-			"scales": map[string]any{
-				"x": map[string]any{
-					"type": "time",
-					"time": map[string]any{"unit": "day"},
-					"title": map[string]any{"display": true, "text": "Completion Date"},
-				},
-				"y": map[string]any{
-					"title":       map[string]any{"display": true, "text": "Cycle Time (days)"},
-					"beginAtZero": true,
-				},
-			},
-		},
-	}
-}
-
-func buildThroughputConfig(data metrics.ThroughputResult, title string) map[string]any {
-	type point struct {
-		X string `json:"x"`
-		Y int    `json:"y"`
-	}
-
-	points := make([]point, len(data.Periods))
-	xs := make([]float64, len(data.Periods))
-	ys := make([]float64, len(data.Periods))
-	for i, p := range data.Periods {
-		points[i] = point{X: p.PeriodStart.Format("2006-01-02"), Y: p.Count}
-		xs[i] = float64(p.PeriodStart.Unix())
-		ys[i] = float64(p.Count)
-	}
-
-	datasets := []map[string]any{
-		{
-			"label":           "Throughput",
-			"data":            points,
-			"borderColor":     "rgba(66, 133, 244, 1)",
-			"backgroundColor": "rgba(66, 133, 244, 0.1)",
-			"borderWidth":     2,
-			"pointRadius":     4,
-			"fill":            true,
-		},
-	}
-
-	if len(points) >= 2 {
-		slope, intercept := linearRegression(xs, ys)
-		trendPoints := []point{
-			{X: points[0].X, Y: int(math.Round(slope*xs[0] + intercept))},
-			{X: points[len(points)-1].X, Y: int(math.Round(slope*xs[len(xs)-1] + intercept))},
-		}
-		datasets = append(datasets, map[string]any{
-			"label":       "Trend",
-			"data":        trendPoints,
-			"borderColor": "rgba(244, 67, 54, 0.8)",
-			"borderWidth": 1.5,
-			"borderDash":  []int{6, 3},
-			"pointRadius": 0,
-			"fill":        false,
-		})
-	}
-
-	return map[string]any{
-		"type": "line",
-		"data": map[string]any{"datasets": datasets},
-		"options": map[string]any{
-			"responsive":          true,
-			"maintainAspectRatio": false,
-			"plugins": map[string]any{
-				"title": map[string]any{
-					"display": true,
-					"text":    title,
-					"font":    map[string]any{"size": 16},
-				},
-				"subtitle": map[string]any{
-					"display": true,
-					"text":    fmt.Sprintf("Avg: %.1f items/week", data.AvgCount),
-					"color":   "rgba(0,0,0,0.5)",
-					"font":    map[string]any{"size": 12},
-					"padding": map[string]any{"bottom": 8},
-				},
-			},
-			"scales": map[string]any{
-				"x": map[string]any{
-					"type":  "time",
-					"time":  map[string]any{"unit": "week"},
-					"ticks": map[string]any{"source": "data"},
-					"title": map[string]any{"display": true, "text": "Period"},
-				},
-				"y": map[string]any{
-					"title":       map[string]any{"display": true, "text": "Items Completed"},
-					"beginAtZero": true,
-				},
-			},
-		},
-	}
 }
 
 func formatDays(d float64) string {

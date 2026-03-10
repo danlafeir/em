@@ -5,88 +5,16 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>JIRA Metrics Report</title>
 <style>
-  body { margin: 0; padding: 20px; background: #fff; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-  .grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 30px; max-width: 1400px; margin: 0 auto; }
-  .panel { border: 1px solid #e0e0e0; border-radius: 8px; padding: 16px; overflow: hidden; }
-  .panel h2 { font-size: 1.1rem; margin: 0 0 12px 0; }
-  canvas { width: 100% !important; height: 300px !important; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
-  thead th { background: #667ee2; color: #fff; padding: 8px 10px; text-align: left; font-weight: 600; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  tbody td { padding: 6px 10px; border-bottom: 1px solid #eee; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
-  tbody tr:nth-child(even) { background: #f5f5f5; }
-  .outlier { color: #e53e3e; }
-  .progress-wrap { display: flex; align-items: center; gap: 6px; }
-  .progress-wrap progress { width: 70px; height: 7px; accent-color: #667ee2; }
-  .progress-label { color: #888; font-size: 11px; white-space: nowrap; }
-  .chart-panel { display: flex; flex-direction: column; justify-content: center; }
+body{margin:0;padding:20px;background:#fff;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+.report-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;max-width:1400px;margin:0 auto}
 </style>
 </head>
 <body>
-<div class="grid">
-  <div class="panel chart-panel">
-    <canvas id="cycleTimeChart"></canvas>
-  </div>
-  <div class="panel chart-panel">
-    <canvas id="throughputChart"></canvas>
-  </div>
-  <div class="panel">
-    <h2>{{.LongestCTTitle}}</h2>
-    <table class="ct-table">
-      <colgroup>
-        <col style="width:4%">
-        <col style="width:15%">
-        <col style="width:43%">
-        <col style="width:12%">
-        <col style="width:13%">
-        <col style="width:13%">
-      </colgroup>
-      <thead>
-        <tr>{{range .LongestCTHeaders}}<th>{{.}}</th>{{end}}</tr>
-      </thead>
-      <tbody>
-        {{range .LongestCTRows}}<tr{{if .Outlier}} class="outlier"{{end}}>
-          {{range .Cells}}<td>{{.}}</td>{{end}}
-        </tr>{{end}}
-      </tbody>
-    </table>
-  </div>
-  <div class="panel">
-    <h2>Epic Forecast</h2>
-    <table>
-      <colgroup>
-        <col style="width:14%">
-        <col style="width:30%">
-        <col style="width:20%">
-        <col style="width:12%">
-        <col style="width:12%">
-        <col style="width:12%">
-      </colgroup>
-      <thead>
-        <tr><th>Epic</th><th>Summary</th><th>Progress</th><th>50%</th><th>85%</th><th>95%</th></tr>
-      </thead>
-      <tbody>
-        {{range .ForecastRows}}<tr>
-          <td>{{.EpicKey}}</td>
-          <td>{{.Summary}}</td>
-          <td>
-            <div class="progress-wrap">
-              <progress value="{{.ProgressVal}}" max="{{.ProgressMax}}"></progress>
-              <span class="progress-label">{{.ProgressLabel}}</span>
-            </div>
-          </td>
-          <td>{{.Forecast50}}</td>
-          <td>{{.Forecast85}}</td>
-          <td>{{.Forecast95}}</td>
-        </tr>{{end}}
-      </tbody>
-    </table>
-  </div>
+<div class="report-grid">
+{{.CycleTimeHTML}}
+{{.ThroughputHTML}}
+{{.LongestCTHTML}}
+{{.ForecastHTML}}
 </div>
-<script>{{.ChartJS}}</script>
-<script>{{.DateAdapterJS}}</script>
-<script>
-  new Chart(document.getElementById('cycleTimeChart').getContext('2d'), {{.CycleTimeConfigJSON}});
-  new Chart(document.getElementById('throughputChart').getContext('2d'), {{.ThroughputConfigJSON}});
-</script>
 </body>
 </html>
