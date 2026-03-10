@@ -1,9 +1,12 @@
 package metrics
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -40,6 +43,7 @@ var (
 	trialsFlag      int
 	historyDaysFlag int
 	allEpicsFlag    bool
+	selectEpicsFlag bool
 )
 
 func init() {
@@ -52,6 +56,7 @@ func init() {
 	forecastCmd.Flags().IntVar(&trialsFlag, "trials", 10000, "Number of Monte Carlo simulations")
 	forecastCmd.Flags().IntVar(&historyDaysFlag, "history-days", 90, "Days of historical throughput to sample from")
 	forecastCmd.Flags().BoolVar(&allEpicsFlag, "all", false, "Forecast all open epics (default when no other flags)")
+	forecastCmd.Flags().BoolVar(&selectEpicsFlag, "select", false, "Interactively select which epics to forecast")
 }
 
 // EpicForecast holds forecast results for a single epic.
@@ -88,14 +93,14 @@ func runForecast(cmd *cobra.Command, args []string) error {
 		if remainingFlag > 0 {
 			return runManualForecast(ctx, client, jql, remainingFlag)
 		}
+		if selectEpicsFlag {
+			return runSelectEpicsForecast(ctx, client, team, jql)
+		}
 		return runAllEpicsForecast(ctx, client, team, jql)
 	})
 }
 
-func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, throughputJQLBase string) error {
-	fmt.Println("Discovering open epics...")
-
-	// Get project-level JQL for epic discovery
+func fetchOpenEpics(ctx context.Context, client *jira.Client, team string) ([]jira.Issue, error) {
 	var baseJQL string
 	var err error
 	if team != "" {
@@ -104,26 +109,20 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 		baseJQL, err = getProjectJQL()
 	}
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	// Find all open epics
 	epicJQL := fmt.Sprintf("(%s) AND issuetype = Epic AND resolution IS EMPTY ORDER BY key", baseJQL)
 	fmt.Printf("JQL: %s\n\n", epicJQL)
 
 	epics, err := client.SearchAllIssues(ctx, epicJQL, "summary,status", "")
 	if err != nil {
-		return fmt.Errorf("failed to fetch epics: %w", err)
+		return nil, fmt.Errorf("failed to fetch epics: %w", err)
 	}
+	return epics, nil
+}
 
-	if len(epics) == 0 {
-		fmt.Println("No open epics found.")
-		return nil
-	}
-
-	fmt.Printf("Found %d open epics\n\n", len(epics))
-
-	// Get historical throughput data (shared across all forecasts)
+func loadWeeklyThroughput(ctx context.Context, client *jira.Client, throughputJQLBase string) ([]int, error) {
 	historyEnd := time.Now()
 	historyStart := historyEnd.AddDate(0, 0, -historyDaysFlag)
 
@@ -134,15 +133,14 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 		fmt.Printf("\rProcessing: %d/%d issues...", current, total)
 	})
 	if err != nil {
-		return fmt.Errorf("failed to fetch throughput data: %w", err)
+		return nil, fmt.Errorf("failed to fetch throughput data: %w", err)
 	}
 	fmt.Println()
 
 	if len(completedIssues) == 0 {
-		return fmt.Errorf("no historical throughput data found - cannot forecast")
+		return nil, fmt.Errorf("no historical throughput data found - cannot forecast")
 	}
 
-	// Calculate weekly throughput
 	mapper := getWorkflowMapper()
 	histories := make([]workflow.IssueHistory, len(completedIssues))
 	for i, issue := range completedIssues {
@@ -155,13 +153,18 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 	weeklyThroughput = metrics.FilterOutliers(weeklyThroughput, 2.0)
 
 	if len(weeklyThroughput) == 0 {
-		return fmt.Errorf("no throughput data available for simulation")
+		return nil, fmt.Errorf("no throughput data available for simulation")
 	}
 
 	avgThroughput := float64(sum(weeklyThroughput)) / float64(len(weeklyThroughput))
 	fmt.Printf("\nHistorical throughput: %.1f items/week (from %d weeks)\n\n", avgThroughput, len(weeklyThroughput))
 
-	// Forecast each epic
+	return weeklyThroughput, nil
+}
+
+func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Issue, weeklyThroughput []int, team string, preserveOrder bool) error {
+	mapper := getWorkflowMapper()
+
 	var forecasts []EpicForecast
 
 	fmt.Println("Forecasting epics...")
@@ -176,17 +179,18 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 	}
 	fmt.Println()
 
-	// Sort by 85th percentile completion date
-	sort.Slice(forecasts, func(i, j int) bool {
-		// Put errors at the end
-		if forecasts[i].Error != "" && forecasts[j].Error == "" {
-			return false
-		}
-		if forecasts[i].Error == "" && forecasts[j].Error != "" {
-			return true
-		}
-		return forecasts[i].Forecast85.Before(forecasts[j].Forecast85)
-	})
+	// Sort by 85th percentile completion date unless caller wants input order preserved
+	if !preserveOrder {
+		sort.Slice(forecasts, func(i, j int) bool {
+			if forecasts[i].Error != "" && forecasts[j].Error == "" {
+				return false
+			}
+			if forecasts[i].Error == "" && forecasts[j].Error != "" {
+				return true
+			}
+			return forecasts[i].Forecast85.Before(forecasts[j].Forecast85)
+		})
+	}
 
 	// Print summary
 	fmt.Printf("\nEpic Forecast Summary\n")
@@ -269,6 +273,80 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 	}
 
 	return nil
+}
+
+func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, throughputJQLBase string) error {
+	fmt.Println("Discovering open epics...")
+
+	epics, err := fetchOpenEpics(ctx, client, team)
+	if err != nil {
+		return err
+	}
+
+	if len(epics) == 0 {
+		fmt.Println("No open epics found.")
+		return nil
+	}
+
+	fmt.Printf("Found %d open epics\n\n", len(epics))
+
+	weeklyThroughput, err := loadWeeklyThroughput(ctx, client, throughputJQLBase)
+	if err != nil {
+		return err
+	}
+
+	return runEpicForecasts(ctx, client, epics, weeklyThroughput, team, false)
+}
+
+func runSelectEpicsForecast(ctx context.Context, client *jira.Client, team, throughputJQLBase string) error {
+	fmt.Println("Discovering open epics...")
+
+	epics, err := fetchOpenEpics(ctx, client, team)
+	if err != nil {
+		return err
+	}
+
+	if len(epics) == 0 {
+		fmt.Println("No open epics found.")
+		return nil
+	}
+
+	// Show numbered list
+	fmt.Printf("Found %d open epics:\n\n", len(epics))
+	for i, epic := range epics {
+		fmt.Printf("  %2d. %-14s  %s\n", i+1, epic.Key, truncate(epic.Fields.Summary, 60))
+	}
+
+	fmt.Printf("\nEnter epic numbers to forecast (comma-separated, e.g. 1,3,5): ")
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+	input := strings.TrimSpace(scanner.Text())
+
+	if input == "" {
+		return fmt.Errorf("no epics selected")
+	}
+
+	var selected []jira.Issue
+	seen := make(map[int]bool)
+	for _, part := range strings.Split(input, ",") {
+		n, err := strconv.Atoi(strings.TrimSpace(part))
+		if err != nil || n < 1 || n > len(epics) {
+			return fmt.Errorf("invalid selection: %q (must be 1-%d)", strings.TrimSpace(part), len(epics))
+		}
+		if !seen[n] {
+			seen[n] = true
+			selected = append(selected, epics[n-1])
+		}
+	}
+
+	fmt.Printf("\nSelected %d epic(s)\n\n", len(selected))
+
+	weeklyThroughput, err := loadWeeklyThroughput(ctx, client, throughputJQLBase)
+	if err != nil {
+		return err
+	}
+
+	return runEpicForecasts(ctx, client, selected, weeklyThroughput, team, true)
 }
 
 func forecastEpic(ctx context.Context, client *jira.Client, mapper *workflow.Mapper, epic jira.Issue, weeklyThroughput []int) EpicForecast {
