@@ -170,8 +170,11 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 					if selected, selErr := promptEpicSelection(epics); selErr != nil {
 						fmt.Printf("Warning: epic selection skipped: %v\n", selErr)
 					} else {
+						saveEpicSelection(team, selected)
 						epics = selected
 					}
+				} else {
+					epics = applyEpicSelection(epics, team)
 				}
 				fmt.Printf("Found %d open epics, forecasting...\n", len(epics))
 				for _, epic := range epics {

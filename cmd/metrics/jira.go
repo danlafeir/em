@@ -145,6 +145,7 @@ var emConfigSchema = config.ConfigSchema{
 	"jira.email",
 	"teams.*.jira.project",
 	"teams.*.jira.jql_filter_for_metrics",
+	"teams.*.jira.selected_epics",
 	"teams.*.github.workflows",
 	"teams.*.github.workflows.*",
 	"workflow.stages",
@@ -201,6 +202,45 @@ func getTeamConfigString(team, key string) string {
 // getSelectedTeam returns the team set by select-team, or "" if none.
 func getSelectedTeam() string {
 	return getConfigString("selected_team")
+}
+
+// epicSelectionKey returns the config key for the saved epic selection for a team.
+func epicSelectionKey(team string) string {
+	if team != "" {
+		return fmt.Sprintf("teams.%s.jira.selected_epics", team)
+	}
+	return "jira.selected_epics"
+}
+
+// loadEpicSelection returns the saved epic keys for the team, or nil if none saved.
+func loadEpicSelection(team string) []string {
+	raw := getConfigAny(epicSelectionKey(team))
+	if raw == nil {
+		return nil
+	}
+	switch v := raw.(type) {
+	case []interface{}:
+		keys := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				keys = append(keys, s)
+			}
+		}
+		return keys
+	case string:
+		return []string{v}
+	}
+	return nil
+}
+
+// saveEpicSelection persists the selected epic keys for a team.
+func saveEpicSelection(team string, epics []jira.Issue) {
+	anyKeys := make([]any, len(epics))
+	for i, e := range epics {
+		anyKeys[i] = e.Key
+	}
+	config.SetConfigValue(configNamespace, epicSelectionKey(team), anyKeys)
+	config.WriteConfig()
 }
 
 // resolveProjectEpics queries JIRA for active epics in a project and returns

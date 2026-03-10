@@ -288,6 +288,7 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 		return nil
 	}
 
+	epics = applyEpicSelection(epics, team)
 	fmt.Printf("Found %d open epics\n\n", len(epics))
 
 	weeklyThroughput, err := loadWeeklyThroughput(ctx, client, throughputJQLBase)
@@ -296,6 +297,32 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 	}
 
 	return runEpicForecasts(ctx, client, epics, weeklyThroughput, team, false)
+}
+
+// applyEpicSelection filters epics to the saved selection for the team, preserving
+// the saved order. Falls back to the full list if no selection is saved or if all
+// saved epics have since been closed.
+func applyEpicSelection(epics []jira.Issue, team string) []jira.Issue {
+	keys := loadEpicSelection(team)
+	if len(keys) == 0 {
+		return epics
+	}
+	byKey := make(map[string]jira.Issue, len(epics))
+	for _, e := range epics {
+		byKey[e.Key] = e
+	}
+	var selected []jira.Issue
+	for _, k := range keys {
+		if e, ok := byKey[k]; ok {
+			selected = append(selected, e)
+		}
+	}
+	if len(selected) == 0 {
+		// All saved epics are closed — fall back to all open epics
+		return epics
+	}
+	fmt.Printf("Using saved epic selection (%d epic(s)). Run with --select to change.\n\n", len(selected))
+	return selected
 }
 
 // promptEpicSelection shows a numbered list of epics and returns the user's selection.
@@ -348,6 +375,7 @@ func runSelectEpicsForecast(ctx context.Context, client *jira.Client, team, thro
 	if err != nil {
 		return err
 	}
+	saveEpicSelection(team, selected)
 
 	weeklyThroughput, err := loadWeeklyThroughput(ctx, client, throughputJQLBase)
 	if err != nil {
