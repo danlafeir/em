@@ -14,6 +14,7 @@ import (
 
 	"devctl-em/internal/charts"
 	gh "devctl-em/internal/github"
+	"devctl-em/internal/metrics"
 	"devctl-em/internal/output"
 )
 
@@ -244,7 +245,7 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 
 	// Generate HTML chart with aggregate weekly deployments
 	weeklyData := aggregateWeeklyDeployments(allRuns, from, to)
-	if len(weeklyData) > 0 {
+	if len(weeklyData.Periods) > 0 {
 		cfg := charts.Config{}
 		outputPath := getGithubOutputPath("deployment-frequency", "html")
 		if err := charts.DeploymentFrequencyLine(weeklyData, cfg, outputPath); err != nil {
@@ -257,50 +258,45 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// aggregateWeeklyDeployments buckets all runs into ISO weeks and returns sorted weekly counts.
-func aggregateWeeklyDeployments(runs []gh.WorkflowRun, from, to time.Time) []charts.DeploymentWeek {
-	counts := make(map[time.Time]int)
+// aggregateWeeklyDeployments buckets runs into 7-day periods anchored to `to`,
+// working backwards — matching the same period logic as jira throughput.
+func aggregateWeeklyDeployments(runs []gh.WorkflowRun, from, to time.Time) metrics.ThroughputResult {
+	end := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, time.UTC)
+	stop := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, time.UTC)
 
-	for _, run := range runs {
-		year, week := run.CreatedAt.ISOWeek()
-		// Monday of ISO week
-		weekStart := isoWeekStart(year, week)
-		counts[weekStart]++
-	}
-
-	// Fill in zero-count weeks within the range
-	startYear, startWeek := from.ISOWeek()
-	cur := isoWeekStart(startYear, startWeek)
-	for !cur.After(to) {
-		if _, ok := counts[cur]; !ok {
-			counts[cur] = 0
+	var periods []metrics.ThroughputPeriod
+	for end.After(stop) {
+		start := end.AddDate(0, 0, -7)
+		if start.Before(stop) {
+			start = stop
 		}
-		cur = cur.AddDate(0, 0, 7)
+		periods = append(periods, metrics.ThroughputPeriod{PeriodStart: start, PeriodEnd: end})
+		end = start
 	}
 
-	// Sort by week
-	weeks := make([]charts.DeploymentWeek, 0, len(counts))
-	for ws, c := range counts {
-		weeks = append(weeks, charts.DeploymentWeek{WeekStart: ws, Count: c})
+	// Reverse to chronological order.
+	for i, j := 0, len(periods)-1; i < j; i, j = i+1, j-1 {
+		periods[i], periods[j] = periods[j], periods[i]
 	}
-	sort.Slice(weeks, func(i, j int) bool {
-		return weeks[i].WeekStart.Before(weeks[j].WeekStart)
-	})
 
-	return weeks
-}
-
-// isoWeekStart returns the Monday of the given ISO year/week.
-func isoWeekStart(year, week int) time.Time {
-	// Jan 4 is always in ISO week 1
-	jan4 := time.Date(year, 1, 4, 0, 0, 0, 0, time.UTC)
-	// Weekday offset to Monday
-	offset := int(time.Monday - jan4.Weekday())
-	if offset > 0 {
-		offset -= 7
+	// Count runs per period.
+	for i := range periods {
+		for _, run := range runs {
+			t := run.CreatedAt
+			if !t.Before(periods[i].PeriodStart) && t.Before(periods[i].PeriodEnd) {
+				periods[i].Count++
+			}
+		}
 	}
-	w1Monday := jan4.AddDate(0, 0, offset)
-	return w1Monday.AddDate(0, 0, (week-1)*7)
+
+	result := metrics.ThroughputResult{Periods: periods, Frequency: metrics.FrequencyWeekly}
+	for _, p := range periods {
+		result.TotalCount += p.Count
+	}
+	if len(periods) > 0 {
+		result.AvgCount = float64(result.TotalCount) / float64(len(periods))
+	}
+	return result
 }
 
 func exportDeploymentFrequencyCSV(results []repoDeploymentResult, path string) error {

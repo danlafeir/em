@@ -50,7 +50,7 @@ Examples:
   devctl-em config list
   devctl-em config delete jira.api_token`,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Use 'devctl-em config --help' for available subcommands")
+		cmd.Help()
 	},
 }
 

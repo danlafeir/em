@@ -19,9 +19,8 @@ var BuildLatestHash string
 var updateConfig = update.Config{
 	AppName: "devctl-em",
 	Repo:    "danlafeir/devctl-em",
+	BinDir:  "bin",
 }
-
-
 
 // updateCmd represents the update command
 var updateCmd = &cobra.Command{

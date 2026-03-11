@@ -52,12 +52,6 @@ type LongestCycleTimeRow struct {
 	Outlier   bool
 }
 
-// DeploymentWeek holds deployment count for a single week.
-type DeploymentWeek struct {
-	WeekStart time.Time
-	Count     int
-}
-
 // SnykIssueWeek holds vulnerability counts by severity for a single week.
 type SnykIssueWeek struct {
 	WeekStart              time.Time
@@ -447,9 +441,8 @@ func ForecastTable(rows []ForecastRow, jiraBaseURL, path string) error {
 	return writePageHTML(path, "Epic Forecast", content)
 }
 
-// DeploymentFrequencyLine creates an HTML line chart of deployment frequency.
-func DeploymentFrequencyLine(weeks []DeploymentWeek, cfg Config, path string) error {
-	title := cfg.Title
+// DeploymentFrequencyLineHTML returns a self-contained HTML fragment for the deployment frequency line chart.
+func DeploymentFrequencyLineHTML(data metrics.ThroughputResult, title string) (template.HTML, error) {
 	if title == "" {
 		title = "Deployment Frequency"
 	}
@@ -458,13 +451,13 @@ func DeploymentFrequencyLine(weeks []DeploymentWeek, cfg Config, path string) er
 		X string `json:"x"`
 		Y int    `json:"y"`
 	}
-	points := make([]point, len(weeks))
-	xs := make([]float64, len(weeks))
-	ys := make([]float64, len(weeks))
-	for i, w := range weeks {
-		points[i] = point{X: w.WeekStart.Format("2006-01-02"), Y: w.Count}
-		xs[i] = float64(w.WeekStart.Unix())
-		ys[i] = float64(w.Count)
+	points := make([]point, len(data.Periods))
+	xs := make([]float64, len(data.Periods))
+	ys := make([]float64, len(data.Periods))
+	for i, p := range data.Periods {
+		points[i] = point{X: p.PeriodEnd.Format("2006-01-02"), Y: p.Count}
+		xs[i] = float64(p.PeriodEnd.Unix())
+		ys[i] = float64(p.Count)
 	}
 
 	datasets := []map[string]any{
@@ -502,21 +495,30 @@ func DeploymentFrequencyLine(weeks []DeploymentWeek, cfg Config, path string) er
 			"datasets": datasets,
 		},
 		"options": map[string]any{
-			"responsive": true,
+			"responsive":          true,
+			"maintainAspectRatio": false,
 			"plugins": map[string]any{
 				"title": map[string]any{
 					"display": true,
 					"text":    title,
-					"font":    map[string]any{"size": 18},
+					"font":    map[string]any{"size": 16},
+				},
+				"subtitle": map[string]any{
+					"display": true,
+					"text":    fmt.Sprintf("Avg: %.1f deploys/week", data.AvgCount),
+					"color":   "rgba(0,0,0,0.5)",
+					"font":    map[string]any{"size": 12},
+					"padding": map[string]any{"bottom": 8},
 				},
 			},
 			"scales": map[string]any{
 				"x": map[string]any{
-					"type": "time",
-					"time": map[string]any{"unit": "week"},
+					"type":  "time",
+					"time":  map[string]any{"unit": "week"},
+					"ticks": map[string]any{"source": "data"},
 					"title": map[string]any{
 						"display": true,
-						"text":    "Week",
+						"text":    "Period",
 					},
 				},
 				"y": map[string]any{
@@ -531,12 +533,25 @@ func DeploymentFrequencyLine(weeks []DeploymentWeek, cfg Config, path string) er
 	}
 
 	cjs, dajs := jsStrings()
-	return writeHTML(path, "chart.html.tmpl", map[string]any{
-		"Title":         title,
+	return renderHTML("fragment_chart.html.tmpl", map[string]any{
+		"CanvasID":      "df-chart",
 		"ChartJS":       cjs,
 		"DateAdapterJS": dajs,
 		"ConfigJSON":    mustJSON(chartConfig),
 	})
+}
+
+// DeploymentFrequencyLine creates an HTML page with a deployment frequency line chart.
+func DeploymentFrequencyLine(data metrics.ThroughputResult, cfg Config, path string) error {
+	title := cfg.Title
+	if title == "" {
+		title = "Deployment Frequency"
+	}
+	content, err := DeploymentFrequencyLineHTML(data, title)
+	if err != nil {
+		return err
+	}
+	return writePageHTML(path, title, content)
 }
 
 // SnykIssuesLine creates a multi-line HTML chart of Snyk issues by severity.

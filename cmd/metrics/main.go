@@ -12,13 +12,6 @@ import (
 var MetricsCmd = &cobra.Command{
 	Use:   "metrics",
 	Short: "Generate engineering metrics and reports",
-	Long: `Generate engineering metrics and reports from various data sources.
-
-Available data sources:
-  jira    - JIRA Cloud agile metrics
-  github  - GitHub DORA metrics
-
-Use "devctl-em metrics [source] --help" for more information about a source.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
