@@ -19,17 +19,27 @@ func TestNormalizeToPeriodStart_Daily(t *testing.T) {
 	}
 }
 
-func TestNormalizeToPeriodStart_Weekly(t *testing.T) {
+func TestGeneratePeriodsFromEnd_Weekly(t *testing.T) {
 	tc := NewThroughputCalculator(FrequencyWeekly)
 
-	// Wednesday June 19, 2024
-	input := time.Date(2024, 6, 19, 14, 30, 0, 0, time.UTC)
-	// Should normalize to Monday June 17, 2024
-	expected := time.Date(2024, 6, 17, 0, 0, 0, 0, time.UTC)
+	// 3-week range ending on a Wednesday (execution date)
+	to := time.Date(2024, 6, 19, 0, 0, 0, 0, time.UTC)
+	from := time.Date(2024, 5, 29, 0, 0, 0, 0, time.UTC)
 
-	got := tc.normalizeToPeriodStart(input)
-	if !got.Equal(expected) {
-		t.Errorf("normalizeToPeriodStart(weekly) = %v, want %v", got, expected)
+	periods := tc.generatePeriodsFromEnd(from, to)
+
+	// Expect 3 periods, each exactly 7 days, last one ending on to
+	if len(periods) != 3 {
+		t.Fatalf("expected 3 periods, got %d", len(periods))
+	}
+	if !periods[len(periods)-1].PeriodEnd.Equal(to) {
+		t.Errorf("last period end = %v, want %v", periods[len(periods)-1].PeriodEnd, to)
+	}
+	for i, p := range periods {
+		duration := p.PeriodEnd.Sub(p.PeriodStart)
+		if duration != 7*24*time.Hour {
+			t.Errorf("period %d duration = %v, want 7 days", i, duration)
+		}
 	}
 }
 

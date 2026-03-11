@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"devctl-em/internal/charts"
 	"devctl-em/internal/jira"
 	"devctl-em/internal/metrics"
 	"devctl-em/internal/output"
@@ -134,13 +135,22 @@ func generateThroughput(ctx context.Context, client *jira.Client, team, jql stri
 	}
 
 	outputName := teamOutputName("throughput", team)
-	outputFormat := getOutputFormat("csv")
-	if outputFormat == "csv" || outputFormat == "xlsx" {
+	outputFormat := getOutputFormat("html")
+	switch outputFormat {
+	case "csv", "xlsx":
 		outputPath := getOutputPath(outputName, "csv")
 		if err := exportThroughputCSV(result, outputPath); err != nil {
 			return fmt.Errorf("failed to export CSV: %w", err)
 		}
 		fmt.Printf("\nExported to %s\n", outputPath)
+	default:
+		outputPath := getOutputPath(outputName, "html")
+		cfg := charts.Config{}
+		if err := charts.ThroughputLine(result, cfg, outputPath); err != nil {
+			return fmt.Errorf("failed to generate chart: %w", err)
+		}
+		fmt.Printf("\nChart saved to %s\n", outputPath)
+		charts.OpenBrowser(outputPath)
 	}
 
 	return nil

@@ -89,53 +89,66 @@ func (tc *ThroughputCalculator) Calculate(histories []workflow.IssueHistory, fro
 }
 
 // generatePeriods creates time periods based on frequency.
+// For weekly/biweekly, periods are anchored to `to` and built backwards so the
+// last bucket always ends on the execution date. For daily/monthly the periods
+// are built forward from `from` as before.
 func (tc *ThroughputCalculator) generatePeriods(from, to time.Time) []ThroughputPeriod {
+	switch tc.frequency {
+	case FrequencyWeekly, FrequencyBiweekly:
+		return tc.generatePeriodsFromEnd(from, to)
+	}
+
+	// Daily / monthly: build forward from from.
 	var periods []ThroughputPeriod
-
-	// Normalize start to beginning of period
 	current := tc.normalizeToPeriodStart(from)
-
 	for current.Before(to) {
 		periodEnd := tc.addPeriod(current)
 		if periodEnd.After(to) {
 			periodEnd = to
 		}
-
 		periods = append(periods, ThroughputPeriod{
 			PeriodStart: current,
 			PeriodEnd:   periodEnd,
 		})
-
 		current = periodEnd
 	}
-
 	return periods
 }
 
-// normalizeToPeriodStart adjusts a time to the start of its period.
+// generatePeriodsFromEnd builds fixed-width buckets anchored to `to`, working
+// backwards so that the final bucket always ends exactly on the execution date.
+func (tc *ThroughputCalculator) generatePeriodsFromEnd(from, to time.Time) []ThroughputPeriod {
+	days := 7
+	if tc.frequency == FrequencyBiweekly {
+		days = 14
+	}
+
+	// Truncate to/from to midnight.
+	end := time.Date(to.Year(), to.Month(), to.Day(), 0, 0, 0, 0, to.Location())
+	stop := time.Date(from.Year(), from.Month(), from.Day(), 0, 0, 0, 0, from.Location())
+
+	var periods []ThroughputPeriod
+	for end.After(stop) {
+		start := end.AddDate(0, 0, -days)
+		if start.Before(stop) {
+			start = stop
+		}
+		periods = append(periods, ThroughputPeriod{PeriodStart: start, PeriodEnd: end})
+		end = start
+	}
+
+	// Reverse to chronological order.
+	for i, j := 0, len(periods)-1; i < j; i, j = i+1, j-1 {
+		periods[i], periods[j] = periods[j], periods[i]
+	}
+	return periods
+}
+
+// normalizeToPeriodStart adjusts a time to the start of its period (daily/monthly only).
 func (tc *ThroughputCalculator) normalizeToPeriodStart(t time.Time) time.Time {
 	switch tc.frequency {
 	case FrequencyDaily:
 		return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
-	case FrequencyWeekly:
-		// Start week on Monday
-		weekday := int(t.Weekday())
-		if weekday == 0 {
-			weekday = 7
-		}
-		return time.Date(t.Year(), t.Month(), t.Day()-weekday+1, 0, 0, 0, 0, t.Location())
-	case FrequencyBiweekly:
-		// Start on Monday, aligned to even weeks
-		weekday := int(t.Weekday())
-		if weekday == 0 {
-			weekday = 7
-		}
-		monday := time.Date(t.Year(), t.Month(), t.Day()-weekday+1, 0, 0, 0, 0, t.Location())
-		_, week := monday.ISOWeek()
-		if week%2 == 1 {
-			monday = monday.AddDate(0, 0, -7)
-		}
-		return monday
 	case FrequencyMonthly:
 		return time.Date(t.Year(), t.Month(), 1, 0, 0, 0, 0, t.Location())
 	default:

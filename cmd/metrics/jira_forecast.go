@@ -54,7 +54,7 @@ func init() {
 	forecastCmd.Flags().IntVar(&remainingFlag, "remaining", 0, "Number of remaining items to complete")
 	forecastCmd.Flags().StringVar(&deadlineFlag, "deadline", "", "Target deadline date (YYYY-MM-DD)")
 	forecastCmd.Flags().IntVar(&trialsFlag, "trials", 10000, "Number of Monte Carlo simulations")
-	forecastCmd.Flags().IntVar(&historyDaysFlag, "history-days", 90, "Days of historical throughput to sample from")
+	forecastCmd.Flags().IntVar(&historyDaysFlag, "history-days", 120, "Days of historical throughput to sample from")
 	forecastCmd.Flags().BoolVar(&allEpicsFlag, "all", false, "Forecast all open epics (default when no other flags)")
 	forecastCmd.Flags().BoolVar(&selectEpicsFlag, "select", false, "Interactively select which epics to forecast")
 }
