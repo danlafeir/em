@@ -204,7 +204,7 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 		}
 	}
 
-	if err := charts.CombinedReport(keptResults, []float64{50, 85, 95}, throughputResult, ctRows, forecastRows, outputPath); err != nil {
+	if err := charts.CombinedReport(keptResults, []float64{50, 85, 95}, throughputResult, ctRows, forecastRows, client.BaseURL(), outputPath); err != nil {
 		return fmt.Errorf("failed to generate report: %w", err)
 	}
 

@@ -144,7 +144,7 @@ func generateLongestCycleTime(ctx context.Context, client *jira.Client, team, jq
 		}
 		title := fmt.Sprintf("Longest Cycle Times — %s to %s", from.Format("Jan 02"), to.Format("Jan 02"))
 		outputPath := getOutputPath(outputName, "html")
-		if err := charts.LongestCycleTimeTable(rows, title, outputPath); err != nil {
+		if err := charts.LongestCycleTimeTable(rows, title, client.BaseURL(), outputPath); err != nil {
 			return fmt.Errorf("failed to save chart: %w", err)
 		}
 		fmt.Printf("\nChart saved to %s\n", outputPath)

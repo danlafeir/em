@@ -15,7 +15,7 @@
   <colgroup><col style="width:44%"><col style="width:20%"><col style="width:12%"><col style="width:12%"><col style="width:12%"></colgroup>
   <thead><tr><th>Epic</th><th>Progress</th><th>50%</th><th>85%</th><th>95%</th></tr></thead>
   <tbody>{{range .Rows}}<tr>
-    <td>{{.EpicKey}}: {{.Summary}}</td>
+    <td>{{.EpicHTML}}</td>
     <td><div class="progress-wrap"><progress value="{{.ProgressVal}}" max="{{.ProgressMax}}"></progress><span class="progress-label">{{.ProgressLabel}}</span></div></td>
     <td>{{.Forecast50}}</td>
     <td>{{.Forecast85}}</td>

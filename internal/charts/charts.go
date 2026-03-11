@@ -33,8 +33,7 @@ type ForecastRow struct {
 
 // forecastTableRow is the HTML template view of a ForecastRow.
 type forecastTableRow struct {
-	EpicKey       string
-	Summary       string
+	EpicHTML      template.HTML
 	ProgressVal   int
 	ProgressMax   int
 	ProgressLabel string
@@ -67,7 +66,7 @@ type SnykIssueWeek struct {
 
 // tableRow is used by table templates.
 type tableRow struct {
-	Cells   []string
+	Cells   []template.HTML
 	Outlier bool
 }
 
@@ -346,18 +345,23 @@ func ThroughputLineHTML(data metrics.ThroughputResult, title string) (template.H
 }
 
 // LongestCycleTimeTableHTML returns a self-contained HTML fragment for the CT table.
-func LongestCycleTimeTableHTML(rows []LongestCycleTimeRow, title string) (template.HTML, error) {
+func LongestCycleTimeTableHTML(rows []LongestCycleTimeRow, title, jiraBaseURL string) (template.HTML, error) {
 	if title == "" {
 		title = "Longest Cycle Times"
 	}
 	tRows := make([]tableRow, len(rows))
 	for i, r := range rows {
-		outlierMark := ""
+		outlierMark := template.HTML("")
 		if r.Outlier {
 			outlierMark = "*"
 		}
+		keyHTML := template.HTML(template.HTMLEscapeString(r.Key) + ": " + template.HTMLEscapeString(r.Summary))
+		if jiraBaseURL != "" {
+			href := template.HTMLEscapeString(jiraBaseURL + "/browse/" + r.Key)
+			keyHTML = template.HTML(`<a href="` + href + `" target="_blank">` + template.HTMLEscapeString(r.Key) + `</a>: ` + template.HTMLEscapeString(r.Summary))
+		}
 		tRows[i] = tableRow{
-			Cells:   []string{outlierMark, fmt.Sprintf("%s: %s", r.Key, r.Summary), r.Days, r.Started, r.Completed},
+			Cells:   []template.HTML{outlierMark, keyHTML, template.HTML(template.HTMLEscapeString(r.Days)), template.HTML(template.HTMLEscapeString(r.Started)), template.HTML(template.HTMLEscapeString(r.Completed))},
 			Outlier: r.Outlier,
 		}
 	}
@@ -369,15 +373,19 @@ func LongestCycleTimeTableHTML(rows []LongestCycleTimeRow, title string) (templa
 }
 
 // ForecastTableHTML returns a self-contained HTML fragment for the forecast table.
-func ForecastTableHTML(rows []ForecastRow, title string) (template.HTML, error) {
+func ForecastTableHTML(rows []ForecastRow, title, jiraBaseURL string) (template.HTML, error) {
 	if title == "" {
 		title = "Epic Forecast"
 	}
 	tRows := make([]forecastTableRow, len(rows))
 	for i, r := range rows {
+		epicHTML := template.HTML(template.HTMLEscapeString(r.EpicKey) + ": " + template.HTMLEscapeString(r.Summary))
+		if jiraBaseURL != "" {
+			href := template.HTMLEscapeString(jiraBaseURL + "/browse/" + r.EpicKey)
+			epicHTML = template.HTML(`<a href="` + href + `" target="_blank">` + template.HTMLEscapeString(r.EpicKey) + `</a>: ` + template.HTMLEscapeString(r.Summary))
+		}
 		tRows[i] = forecastTableRow{
-			EpicKey:       r.EpicKey,
-			Summary:       r.Summary,
+			EpicHTML:      epicHTML,
 			ProgressVal:   r.Completed,
 			ProgressMax:   r.Total,
 			ProgressLabel: fmt.Sprintf("%d/%d", r.Completed, r.Total),
@@ -419,8 +427,8 @@ func ThroughputLine(data metrics.ThroughputResult, cfg Config, path string) erro
 }
 
 // LongestCycleTimeTable creates an HTML table of longest cycle times.
-func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, path string) error {
-	content, err := LongestCycleTimeTableHTML(rows, title)
+func LongestCycleTimeTable(rows []LongestCycleTimeRow, title, jiraBaseURL, path string) error {
+	content, err := LongestCycleTimeTableHTML(rows, title, jiraBaseURL)
 	if err != nil {
 		return err
 	}
@@ -431,8 +439,8 @@ func LongestCycleTimeTable(rows []LongestCycleTimeRow, title string, path string
 }
 
 // ForecastTable creates an HTML table of epic forecasts.
-func ForecastTable(rows []ForecastRow, path string) error {
-	content, err := ForecastTableHTML(rows, "Epic Forecast")
+func ForecastTable(rows []ForecastRow, jiraBaseURL, path string) error {
+	content, err := ForecastTableHTML(rows, "Epic Forecast", jiraBaseURL)
 	if err != nil {
 		return err
 	}
@@ -622,6 +630,7 @@ func CombinedReport(
 	throughputData metrics.ThroughputResult,
 	longestCTRows []LongestCycleTimeRow,
 	forecastRows []ForecastRow,
+	jiraBaseURL string,
 	path string,
 ) error {
 	ctHTML, err := CycleTimeScatterHTML(cycleTimeData, cycleTimePercentiles, "Cycle Time Distribution")
@@ -632,11 +641,11 @@ func CombinedReport(
 	if err != nil {
 		return err
 	}
-	longestHTML, err := LongestCycleTimeTableHTML(longestCTRows, "Longest Cycle Times")
+	longestHTML, err := LongestCycleTimeTableHTML(longestCTRows, "Longest Cycle Times", jiraBaseURL)
 	if err != nil {
 		return err
 	}
-	forecastHTML, err := ForecastTableHTML(forecastRows, "Epic Forecast")
+	forecastHTML, err := ForecastTableHTML(forecastRows, "Epic Forecast", jiraBaseURL)
 	if err != nil {
 		return err
 	}

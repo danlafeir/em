@@ -266,7 +266,7 @@ func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Iss
 	}
 	if len(rows) > 0 {
 		htmlPath := getOutputPath(teamOutputName("epic-forecasts", team), "html")
-		if err := charts.ForecastTable(rows, htmlPath); err == nil {
+		if err := charts.ForecastTable(rows, client.BaseURL(), htmlPath); err == nil {
 			fmt.Printf("Chart saved to %s\n", htmlPath)
 			charts.OpenBrowser(htmlPath)
 		}

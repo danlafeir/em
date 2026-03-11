@@ -44,6 +44,16 @@ func NewClient(creds Credentials) *Client {
 	}
 }
 
+// BaseURL returns the JIRA instance base URL.
+func (c *Client) BaseURL() string {
+	return c.credentials.BaseURL()
+}
+
+// BrowseURL returns the URL to view an issue in the JIRA UI.
+func (c *Client) BrowseURL(issueKey string) string {
+	return c.credentials.BaseURL() + "/browse/" + issueKey
+}
+
 // doRequest executes a request with authentication and rate limit handling.
 func (c *Client) doRequest(ctx context.Context, method, path string, query url.Values) ([]byte, error) {
 	fullURL := c.credentials.BaseURL() + path
