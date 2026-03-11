@@ -132,8 +132,8 @@ func getGithubDateRange() (time.Time, time.Time, error) {
 			return time.Time{}, time.Time{}, fmt.Errorf("invalid --from date: %w", err)
 		}
 	} else {
-		// Default to 90 days
-		from = time.Now().AddDate(0, 0, -90)
+		// Default to 6 weeks
+		from = time.Now().AddDate(0, 0, -42)
 	}
 
 	if ghToFlag != "" {
