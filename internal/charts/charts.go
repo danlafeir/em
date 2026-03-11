@@ -258,8 +258,8 @@ func ThroughputLineHTML(data metrics.ThroughputResult, title string) (template.H
 	xs := make([]float64, len(data.Periods))
 	ys := make([]float64, len(data.Periods))
 	for i, p := range data.Periods {
-		points[i] = point{X: p.PeriodStart.Format("2006-01-02"), Y: p.Count}
-		xs[i] = float64(p.PeriodStart.Unix())
+		points[i] = point{X: p.PeriodEnd.Format("2006-01-02"), Y: p.Count}
+		xs[i] = float64(p.PeriodEnd.Unix())
 		ys[i] = float64(p.Count)
 	}
 
