@@ -107,7 +107,7 @@ func generateThroughput(ctx context.Context, client *jira.Client, team, jql stri
 		frequency = metrics.FrequencyWeekly
 	}
 
-	calculator := metrics.NewThroughputCalculator(frequency)
+	calculator := metrics.NewThroughputCalculator(frequency, mapper)
 	result := calculator.Calculate(histories, from, to)
 
 	stats := metrics.CalculateThroughputStats(result)

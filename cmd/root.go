@@ -39,19 +39,13 @@ var rootCmd = &cobra.Command{
 	Long: `devctl-em provides CLI tools for engineering managers to generate
 metrics reports and insights from JIRA and other sources.
 
-Features:
-  - JIRA agile metrics (cycle time, throughput, CFD, WIP)
-  - Monte Carlo forecasting for epic completion
-  - Automated report generation (HTML, CSV, Excel)
-
 Quick Start:
-  1. Configure JIRA connection:
-     devctl-em config set jira.domain mycompany
-     devctl-em config set jira.email user@company.com
-     devctl-em config set jira.api_token
+  1. Configure connections:
+     devctl-em metrics jira config
+     devctl-em metrics github config
 
   2. Generate a report:
-     devctl-em metrics jira report --jql "project = MYPROJ"`,
+     devctl-em metrics jira report`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

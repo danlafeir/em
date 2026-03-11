@@ -14,7 +14,8 @@ import (
 
 // SnykCmd is the parent command for all Snyk metrics.
 var SnykCmd = &cobra.Command{
-	Use:   "snyk",
+	Hidden: true,
+	Use:    "snyk",
 	Short: "Snyk security metrics",
 	Long: `Generate security metrics from Snyk data.
 

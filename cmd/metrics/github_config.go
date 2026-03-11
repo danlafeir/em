@@ -67,7 +67,6 @@ func runGhConfig(cmd *cobra.Command, args []string) error {
 			}
 		}
 	} else {
-		fmt.Print("Enter GitHub API token: ")
 		if err := promptAndStoreGhToken(); err != nil {
 			return err
 		}
@@ -253,6 +252,7 @@ func runGhTeamConfig(ctx context.Context, reader *bufio.Reader, client *github.C
 
 // promptAndStoreGhToken reads a GitHub token from the terminal and stores it in the keychain.
 func promptAndStoreGhToken() error {
+	fmt.Print("Enter GitHub API token: ")
 	var token string
 	if term.IsTerminal(int(syscall.Stdin)) {
 		byteValue, err := term.ReadPassword(int(syscall.Stdin))

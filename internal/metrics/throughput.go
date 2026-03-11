@@ -35,22 +35,33 @@ const (
 
 // ThroughputCalculator calculates throughput metrics.
 type ThroughputCalculator struct {
-	frequency ThroughputFrequency
+	frequency  ThroughputFrequency
+	startStage string // only count issues that entered this stage; empty = no filter
 }
 
 // NewThroughputCalculator creates a new throughput calculator.
-func NewThroughputCalculator(frequency ThroughputFrequency) *ThroughputCalculator {
-	return &ThroughputCalculator{frequency: frequency}
+// Pass a workflow.Mapper to apply the same In Progress filter used by cycle time:
+// issues that never entered the start stage are excluded from the count.
+func NewThroughputCalculator(frequency ThroughputFrequency, mapper ...*workflow.Mapper) *ThroughputCalculator {
+	tc := &ThroughputCalculator{frequency: frequency}
+	if len(mapper) > 0 && mapper[0] != nil {
+		tc.startStage, _ = mapper[0].GetCycleTimeStages()
+	}
+	return tc
 }
 
 // Calculate computes throughput over time periods.
 func (tc *ThroughputCalculator) Calculate(histories []workflow.IssueHistory, from, to time.Time) ThroughputResult {
-	// Filter to completed issues within date range
+	// Filter to completed issues within date range that entered the start stage.
 	var completed []workflow.IssueHistory
 	for _, h := range histories {
-		if h.Completed != nil && !h.Completed.Before(from) && !h.Completed.After(to) {
-			completed = append(completed, h)
+		if h.Completed == nil || h.Completed.Before(from) || h.Completed.After(to) {
+			continue
 		}
+		if tc.startStage != "" && !hasTransitionTo(h, tc.startStage) {
+			continue
+		}
+		completed = append(completed, h)
 	}
 
 	// Sort by completion date
@@ -86,6 +97,16 @@ func (tc *ThroughputCalculator) Calculate(histories []workflow.IssueHistory, fro
 	}
 
 	return result
+}
+
+// hasTransitionTo reports whether the issue ever transitioned into the given stage.
+func hasTransitionTo(h workflow.IssueHistory, stage string) bool {
+	for _, t := range h.Transitions {
+		if t.ToStage == stage {
+			return true
+		}
+	}
+	return false
 }
 
 // generatePeriods creates time periods based on frequency.

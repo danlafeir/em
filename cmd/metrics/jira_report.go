@@ -100,7 +100,7 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 
 	// 2. Throughput
 	fmt.Printf("Calculating throughput metrics...\n")
-	throughputCalc := pkgmetrics.NewThroughputCalculator(pkgmetrics.FrequencyWeekly)
+	throughputCalc := pkgmetrics.NewThroughputCalculator(pkgmetrics.FrequencyWeekly, mapper)
 	throughputResult := throughputCalc.Calculate(completedHistories, from, to)
 
 	// 3. Longest Cycle Time table — combine kept + outliers, mark outliers
@@ -156,7 +156,7 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 				for i, issue := range forecastIssues {
 					forecastHistories[i] = mapper.MapIssueHistory(issue)
 				}
-				fc := pkgmetrics.NewThroughputCalculator(pkgmetrics.FrequencyWeekly)
+				fc := pkgmetrics.NewThroughputCalculator(pkgmetrics.FrequencyWeekly, mapper)
 				fcResult := fc.Calculate(forecastHistories, forecastFrom, time.Now())
 				forecastThroughput = pkgmetrics.GetWeeklyThroughputValues(fcResult)
 			}

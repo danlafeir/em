@@ -76,7 +76,6 @@ func runJiraConfig(cmd *cobra.Command, args []string) error {
 			}
 		}
 	} else {
-		fmt.Print("Enter JIRA API token: ")
 		if err := promptAndStoreToken(); err != nil {
 			return err
 		}
@@ -144,6 +143,7 @@ func promptValue(reader *bufio.Reader, label, current string) (string, error) {
 
 // promptAndStoreToken reads a password from the terminal and stores it in the keychain.
 func promptAndStoreToken() error {
+	fmt.Print("Enter JIRA API token: ")
 	var token string
 	if term.IsTerminal(int(syscall.Stdin)) {
 		byteValue, err := term.ReadPassword(int(syscall.Stdin))

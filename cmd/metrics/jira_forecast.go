@@ -147,7 +147,7 @@ func loadWeeklyThroughput(ctx context.Context, client *jira.Client, throughputJQ
 		histories[i] = mapper.MapIssueHistory(issue)
 	}
 
-	throughputCalc := metrics.NewThroughputCalculator(metrics.FrequencyWeekly)
+	throughputCalc := metrics.NewThroughputCalculator(metrics.FrequencyWeekly, mapper)
 	throughputResult := throughputCalc.Calculate(histories, historyStart, historyEnd)
 	weeklyThroughput := metrics.GetWeeklyThroughputValues(throughputResult)
 
@@ -585,7 +585,7 @@ func runManualForecast(ctx context.Context, client *jira.Client, throughputJQL s
 	}
 
 	// Calculate weekly throughput
-	throughputCalc := metrics.NewThroughputCalculator(metrics.FrequencyWeekly)
+	throughputCalc := metrics.NewThroughputCalculator(metrics.FrequencyWeekly, mapper)
 	throughputResult := throughputCalc.Calculate(histories, historyStart, historyEnd)
 	weeklyThroughput := metrics.GetWeeklyThroughputValues(throughputResult)
 

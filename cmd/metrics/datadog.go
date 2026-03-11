@@ -14,7 +14,8 @@ import (
 
 // DatadogCmd is the parent command for all Datadog metrics.
 var DatadogCmd = &cobra.Command{
-	Use:   "datadog",
+	Hidden: true,
+	Use:    "datadog",
 	Short: "Datadog operational metrics",
 	Long: `Generate operational metrics from Datadog data.
 
