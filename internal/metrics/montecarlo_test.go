@@ -159,6 +159,94 @@ func TestMonteCarloSimulator_VariableThroughput(t *testing.T) {
 	}
 }
 
+func TestRunSequential_EmptyThroughput(t *testing.T) {
+	sim := NewMonteCarloSimulator(DefaultMonteCarloConfig(), []int{})
+	_, err := sim.RunSequential([]int{10, 20})
+	if err == nil {
+		t.Error("expected error for empty throughput data")
+	}
+}
+
+func TestRunSequential_EmptyEpics(t *testing.T) {
+	sim := NewMonteCarloSimulator(DefaultMonteCarloConfig(), []int{5, 5, 5})
+	results, err := sim.RunSequential([]int{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if results != nil {
+		t.Errorf("expected nil results for empty epics, got %v", results)
+	}
+}
+
+func TestRunSequential_OrderPreserved(t *testing.T) {
+	config := MonteCarloConfig{
+		Trials:          1000,
+		SimulationStart: time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
+	}
+	sim := NewMonteCarloSimulator(config, []int{5, 5, 5, 5, 5})
+
+	results, err := sim.RunSequential([]int{10, 10, 10})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results, got %d", len(results))
+	}
+
+	// Each epic must finish no earlier than the previous one (sequential)
+	for i := 1; i < len(results); i++ {
+		p50prev := results[i-1].Percentiles[50]
+		p50curr := results[i].Percentiles[50]
+		if p50curr.Before(p50prev) {
+			t.Errorf("epic %d P50 (%v) is before epic %d P50 (%v) — should be sequential",
+				i, p50curr, i-1, p50prev)
+		}
+	}
+}
+
+func TestRunSequential_LaterEpicsFinishLater(t *testing.T) {
+	config := MonteCarloConfig{
+		Trials:          2000,
+		SimulationStart: time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
+	}
+	// Consistent throughput so results are predictable
+	sim := NewMonteCarloSimulator(config, []int{5, 5, 5, 5, 5})
+
+	results, err := sim.RunSequential([]int{5, 5})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Second epic must finish strictly after first (each needs at least 1 week)
+	if !results[1].Percentiles[50].After(results[0].Percentiles[50]) {
+		t.Errorf("second epic P50 (%v) should be after first epic P50 (%v)",
+			results[1].Percentiles[50], results[0].Percentiles[50])
+	}
+}
+
+func TestRunSequential_ResultsHaveCorrectRemainingItems(t *testing.T) {
+	config := MonteCarloConfig{
+		Trials:          500,
+		SimulationStart: time.Date(2024, 6, 1, 0, 0, 0, 0, time.UTC),
+	}
+	sim := NewMonteCarloSimulator(config, []int{5, 5, 5})
+
+	items := []int{10, 20, 15}
+	results, err := sim.RunSequential(items)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for i, r := range results {
+		if r.RemainingItems != items[i] {
+			t.Errorf("result[%d].RemainingItems = %d, want %d", i, r.RemainingItems, items[i])
+		}
+		if r.TrialsRun != 500 {
+			t.Errorf("result[%d].TrialsRun = %d, want 500", i, r.TrialsRun)
+		}
+	}
+}
+
 func TestFormatForecast(t *testing.T) {
 	result := &ForecastResult{
 		RemainingItems:    25,

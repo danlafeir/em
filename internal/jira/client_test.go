@@ -1,6 +1,7 @@
 package jira
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -145,6 +146,153 @@ func TestCredentials_BaseURL(t *testing.T) {
 	if creds.BaseURL() != expected {
 		t.Errorf("BaseURL() = %q, want %q", creds.BaseURL(), expected)
 	}
+}
+
+func TestCredentials_BaseURL_Override(t *testing.T) {
+	creds := Credentials{
+		Domain:          "ignored",
+		BaseURLOverride: "https://jira.internal.example.com",
+	}
+
+	expected := "https://jira.internal.example.com"
+	if creds.BaseURL() != expected {
+		t.Errorf("BaseURL() with override = %q, want %q", creds.BaseURL(), expected)
+	}
+}
+
+func TestClient_BaseURL(t *testing.T) {
+	client := NewClient(Credentials{Domain: "acme"})
+	want := "https://acme.atlassian.net"
+	if got := client.BaseURL(); got != want {
+		t.Errorf("Client.BaseURL() = %q, want %q", got, want)
+	}
+}
+
+func TestClient_BrowseURL(t *testing.T) {
+	client := NewClient(Credentials{Domain: "acme"})
+	want := "https://acme.atlassian.net/browse/PROJ-123"
+	if got := client.BrowseURL("PROJ-123"); got != want {
+		t.Errorf("Client.BrowseURL() = %q, want %q", got, want)
+	}
+}
+
+func TestJiraTime_UnmarshalJSON(t *testing.T) {
+	tests := []struct {
+		name    string
+		input   string
+		wantErr bool
+		check   func(t *testing.T, jt JiraTime)
+	}{
+		{
+			name:  "null",
+			input: `null`,
+			check: func(t *testing.T, jt JiraTime) {
+				if !jt.Time.IsZero() {
+					t.Errorf("expected zero time for null, got %v", jt.Time)
+				}
+			},
+		},
+		{
+			name:  "empty string",
+			input: `""`,
+			check: func(t *testing.T, jt JiraTime) {
+				if !jt.Time.IsZero() {
+					t.Errorf("expected zero time for empty string, got %v", jt.Time)
+				}
+			},
+		},
+		{
+			name:  "format with milliseconds and timezone offset",
+			input: `"2024-01-15T10:30:00.000+0100"`,
+			check: func(t *testing.T, jt JiraTime) {
+				if jt.Year() != 2024 || jt.Month() != 1 || jt.Day() != 15 {
+					t.Errorf("expected 2024-01-15, got %v", jt.Time)
+				}
+			},
+		},
+		{
+			name:  "format with milliseconds and Z",
+			input: `"2024-06-01T09:00:00.000Z"`,
+			check: func(t *testing.T, jt JiraTime) {
+				if jt.Year() != 2024 || jt.Month() != 6 || jt.Day() != 1 {
+					t.Errorf("expected 2024-06-01, got %v", jt.Time)
+				}
+				if jt.Hour() != 9 {
+					t.Errorf("expected hour 9, got %d", jt.Hour())
+				}
+			},
+		},
+		{
+			name:  "format without milliseconds and timezone",
+			input: `"2024-03-10T14:00:00-0500"`,
+			check: func(t *testing.T, jt JiraTime) {
+				if jt.Year() != 2024 || jt.Month() != 3 || jt.Day() != 10 {
+					t.Errorf("expected 2024-03-10, got %v", jt.Time)
+				}
+			},
+		},
+		{
+			name:  "format without milliseconds and Z",
+			input: `"2024-12-31T23:59:59Z"`,
+			check: func(t *testing.T, jt JiraTime) {
+				if jt.Year() != 2024 || jt.Month() != 12 || jt.Day() != 31 {
+					t.Errorf("expected 2024-12-31, got %v", jt.Time)
+				}
+			},
+		},
+		{
+			name:    "invalid format",
+			input:   `"not-a-date"`,
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var jt JiraTime
+			err := json.Unmarshal([]byte(tt.input), &jt)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("UnmarshalJSON(%q) error = %v, wantErr %v", tt.input, err, tt.wantErr)
+			}
+			if !tt.wantErr && tt.check != nil {
+				tt.check(t, jt)
+			}
+		})
+	}
+}
+
+func TestJiraTime_MarshalJSON(t *testing.T) {
+	t.Run("zero time marshals to null", func(t *testing.T) {
+		jt := JiraTime{}
+		data, err := json.Marshal(jt)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if string(data) != "null" {
+			t.Errorf("MarshalJSON() = %q, want %q", data, "null")
+		}
+	})
+
+	t.Run("non-zero time marshals to ISO string", func(t *testing.T) {
+		jt := JiraTime{Time: time.Date(2024, 6, 15, 10, 30, 0, 0, time.UTC)}
+		data, err := json.Marshal(jt)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Should start and end with quotes
+		s := string(data)
+		if len(s) < 2 || s[0] != '"' || s[len(s)-1] != '"' {
+			t.Errorf("MarshalJSON() = %q, expected quoted string", s)
+		}
+		// Should round-trip
+		var rt JiraTime
+		if err := json.Unmarshal(data, &rt); err != nil {
+			t.Fatalf("round-trip unmarshal failed: %v", err)
+		}
+		if !rt.Time.Equal(jt.Time) {
+			t.Errorf("round-trip: got %v, want %v", rt.Time, jt.Time)
+		}
+	})
 }
 
 func TestNewClient(t *testing.T) {

@@ -117,18 +117,23 @@ func TestGeneratePeriods(t *testing.T) {
 }
 
 func TestCalculateThroughput(t *testing.T) {
-	tc := NewThroughputCalculator(FrequencyWeekly)
+	mapper := workflow.NewMapper(workflow.DefaultConfig())
+	tc := NewThroughputCalculator(FrequencyWeekly, mapper)
 
 	// Create some completed issues
+	started := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
 	completed1 := time.Date(2024, 1, 3, 0, 0, 0, 0, time.UTC)
 	completed2 := time.Date(2024, 1, 5, 0, 0, 0, 0, time.UTC)
 	completed3 := time.Date(2024, 1, 10, 0, 0, 0, 0, time.UTC)
 
+	inProgress := workflow.StageTransition{Timestamp: started, FromStage: "Backlog", ToStage: "In Progress"}
+
 	histories := []workflow.IssueHistory{
-		{Key: "TEST-1", Completed: &completed1},
-		{Key: "TEST-2", Completed: &completed2},
-		{Key: "TEST-3", Completed: &completed3},
-		{Key: "TEST-4", Completed: nil}, // Not completed, should be excluded
+		{Key: "TEST-1", Completed: &completed1, Transitions: []workflow.StageTransition{inProgress}},
+		{Key: "TEST-2", Completed: &completed2, Transitions: []workflow.StageTransition{inProgress}},
+		{Key: "TEST-3", Completed: &completed3, Transitions: []workflow.StageTransition{inProgress}},
+		{Key: "TEST-4", Completed: nil},                          // not completed — excluded
+		{Key: "TEST-5", Completed: &completed1},                  // no In Progress transition — excluded
 	}
 
 	from := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -182,6 +187,36 @@ func TestCalculateThroughputStats_Empty(t *testing.T) {
 
 	if stats.Periods != 0 {
 		t.Errorf("Expected Periods=0, got %d", stats.Periods)
+	}
+}
+
+func TestWeekStart(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    time.Time
+		wantWeekday time.Weekday
+	}{
+		{"Monday stays Monday", time.Date(2024, 6, 17, 12, 0, 0, 0, time.UTC), time.Monday},
+		{"Wednesday returns Monday", time.Date(2024, 6, 19, 9, 30, 0, 0, time.UTC), time.Monday},
+		{"Sunday returns Monday", time.Date(2024, 6, 23, 0, 0, 0, 0, time.UTC), time.Monday},
+		{"Saturday returns Monday", time.Date(2024, 6, 22, 0, 0, 0, 0, time.UTC), time.Monday},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := WeekStart(tt.input)
+			if got.Weekday() != tt.wantWeekday {
+				t.Errorf("WeekStart(%v).Weekday() = %v, want %v", tt.input, got.Weekday(), tt.wantWeekday)
+			}
+			// Result should be at midnight
+			if got.Hour() != 0 || got.Minute() != 0 || got.Second() != 0 {
+				t.Errorf("WeekStart(%v) = %v, want midnight", tt.input, got)
+			}
+			// Result should be <= input
+			if got.After(tt.input) {
+				t.Errorf("WeekStart(%v) = %v is after input", tt.input, got)
+			}
+		})
 	}
 }
 
