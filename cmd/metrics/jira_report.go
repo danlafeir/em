@@ -166,8 +166,6 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 			}
 		}
 
-		forecastThroughput = pkgmetrics.FilterOutliers(forecastThroughput, 2.0)
-
 		if len(forecastThroughput) > 0 {
 			epics, epicErr := fetchOpenEpics(ctx, client, team)
 			if epicErr != nil {
