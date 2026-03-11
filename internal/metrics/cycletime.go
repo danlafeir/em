@@ -92,10 +92,10 @@ func (c *CycleTimeCalculator) calculateForIssue(history workflow.IssueHistory) *
 		}
 	}
 
-	// If we never found start stage, use creation time as fallback
+	// If the card never moved to In Progress, exclude it — we only measure
+	// time from when work actually started, not from creation/backlog entry.
 	if !foundStart {
-		startTime = history.Created
-		foundStart = true
+		return nil
 	}
 
 	// If we never found end stage, use completion time
@@ -104,7 +104,7 @@ func (c *CycleTimeCalculator) calculateForIssue(history workflow.IssueHistory) *
 		foundEnd = true
 	}
 
-	if !foundStart || !foundEnd {
+	if !foundEnd {
 		return nil
 	}
 

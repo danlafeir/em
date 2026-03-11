@@ -199,14 +199,15 @@ func TestCalculate_SkipsIncompleteIssues(t *testing.T) {
 	}
 }
 
-func TestCalculate_FallsBackToCreationTime(t *testing.T) {
+func TestCalculate_ExcludesIssuesThatSkipInProgress(t *testing.T) {
 	mapper := workflow.NewMapper(workflow.DefaultConfig())
 	calc := NewCycleTimeCalculator(mapper)
 
 	base := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
 	completed := base.Add(3 * 24 * time.Hour)
 
-	// Issue goes directly to Done without ever entering In Progress
+	// Issue goes directly to Done without ever entering In Progress —
+	// cycle time clock never started, so it should be excluded.
 	histories := []workflow.IssueHistory{
 		{
 			Key:          "TEST-1",
@@ -223,14 +224,8 @@ func TestCalculate_FallsBackToCreationTime(t *testing.T) {
 
 	results := calc.Calculate(histories)
 
-	if len(results) != 1 {
-		t.Fatalf("expected 1 result, got %d", len(results))
-	}
-
-	// Should fall back to creation time as start
-	expectedCycleTime := completed.Sub(base)
-	if results[0].CycleTime != expectedCycleTime {
-		t.Errorf("expected cycle time %v (from creation), got %v", expectedCycleTime, results[0].CycleTime)
+	if len(results) != 0 {
+		t.Fatalf("expected 0 results (card never entered In Progress), got %d", len(results))
 	}
 }
 
