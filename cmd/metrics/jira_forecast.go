@@ -162,24 +162,111 @@ func loadWeeklyThroughput(ctx context.Context, client *jira.Client, throughputJQ
 	return weeklyThroughput, nil
 }
 
+func hasEpicSelection(team string) bool {
+	return len(loadEpicSelection(team)) > 0
+}
+
+// fetchEpicCounts fetches the issue counts for an epic without running simulation.
+func fetchEpicCounts(ctx context.Context, client *jira.Client, mapper *workflow.Mapper, epic jira.Issue) EpicForecast {
+	forecast := EpicForecast{
+		EpicKey:     epic.Key,
+		EpicSummary: epic.Fields.Summary,
+	}
+	jql := fmt.Sprintf("\"Epic Link\" = %s OR parent = %s", epic.Key, epic.Key)
+	issues, err := client.SearchAllIssues(ctx, jql, "status,summary,issuetype", "")
+	if err != nil {
+		forecast.Error = "fetch failed"
+		return forecast
+	}
+	forecast.TotalItems = len(issues)
+	for _, issue := range issues {
+		if mapper.IsCompleted(issue.Fields.Status.Name) {
+			forecast.CompletedItems++
+		} else {
+			forecast.RemainingItems++
+		}
+	}
+	if forecast.TotalItems > 0 {
+		forecast.Progress = float64(forecast.CompletedItems) / float64(forecast.TotalItems) * 100
+	}
+	return forecast
+}
+
+// runIndependentSimulation runs a separate Monte Carlo simulation for each epic.
+func runIndependentSimulation(pending []EpicForecast, weeklyThroughput []int) []EpicForecast {
+	config := metrics.MonteCarloConfig{
+		Trials:          trialsFlag,
+		SimulationStart: time.Now(),
+	}
+	simulator := metrics.NewMonteCarloSimulator(config, weeklyThroughput)
+	forecasts := make([]EpicForecast, 0, len(pending))
+	for _, f := range pending {
+		result, err := simulator.Run(f.RemainingItems)
+		if err != nil {
+			f.Error = "sim failed"
+			forecasts = append(forecasts, f)
+			continue
+		}
+		f.Forecast50 = result.Percentiles[50]
+		f.Forecast85 = result.Percentiles[85]
+		f.Forecast95 = result.Percentiles[95]
+		f.Days85 = result.PercentileDays[85]
+		forecasts = append(forecasts, f)
+	}
+	return forecasts
+}
+
+// runSequentialSimulation runs one Monte Carlo simulation across all epics in order,
+// so each epic's dates account for all higher-priority work completing first.
+func runSequentialSimulation(pending []EpicForecast, weeklyThroughput []int) []EpicForecast {
+	remainingItems := make([]int, len(pending))
+	for i, f := range pending {
+		remainingItems[i] = f.RemainingItems
+	}
+	config := metrics.MonteCarloConfig{
+		Trials:          trialsFlag,
+		SimulationStart: time.Now(),
+	}
+	simulator := metrics.NewMonteCarloSimulator(config, weeklyThroughput)
+	results, err := simulator.RunSequential(remainingItems)
+	if err != nil {
+		return runIndependentSimulation(pending, weeklyThroughput)
+	}
+	forecasts := make([]EpicForecast, len(pending))
+	for i, f := range pending {
+		forecasts[i] = f
+		r := results[i]
+		forecasts[i].Forecast50 = r.Percentiles[50]
+		forecasts[i].Forecast85 = r.Percentiles[85]
+		forecasts[i].Forecast95 = r.Percentiles[95]
+		forecasts[i].Days85 = r.PercentileDays[85]
+	}
+	return forecasts
+}
+
 func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Issue, weeklyThroughput []int, team string, preserveOrder bool) error {
 	mapper := getWorkflowMapper()
 
-	var forecasts []EpicForecast
-
 	fmt.Println("Forecasting epics...")
+	var pending []EpicForecast
 	for i, epic := range epics {
-		fmt.Printf("\r[%d/%d] %s...", i+1, len(epics), epic.Key)
-
-		forecast := forecastEpic(ctx, client, mapper, epic, weeklyThroughput)
-		if forecast.RemainingItems == 0 {
+		fmt.Printf("\r[%d/%d] Fetching %s...", i+1, len(epics), epic.Key)
+		f := fetchEpicCounts(ctx, client, mapper, epic)
+		if f.RemainingItems == 0 {
 			continue
 		}
-		forecasts = append(forecasts, forecast)
+		pending = append(pending, f)
 	}
 	fmt.Println()
 
-	// Sort by 85th percentile completion date unless caller wants input order preserved
+	var forecasts []EpicForecast
+	if preserveOrder {
+		fmt.Println("Running sequential Monte Carlo simulation...")
+		forecasts = runSequentialSimulation(pending, weeklyThroughput)
+	} else {
+		forecasts = runIndependentSimulation(pending, weeklyThroughput)
+	}
+
 	if !preserveOrder {
 		sort.Slice(forecasts, func(i, j int) bool {
 			if forecasts[i].Error != "" && forecasts[j].Error == "" {
@@ -288,6 +375,7 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 		return nil
 	}
 
+	sequential := hasEpicSelection(team)
 	epics = applyEpicSelection(epics, team)
 	fmt.Printf("Found %d open epics\n\n", len(epics))
 
@@ -296,7 +384,7 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 		return err
 	}
 
-	return runEpicForecasts(ctx, client, epics, weeklyThroughput, team, false)
+	return runEpicForecasts(ctx, client, epics, weeklyThroughput, team, sequential)
 }
 
 // applyEpicSelection filters epics to the saved selection for the team, preserving
@@ -343,7 +431,7 @@ func promptEpicSelection(epics []jira.Issue) ([]jira.Issue, error) {
 
 	var selected []jira.Issue
 	seen := make(map[int]bool)
-	for _, part := range strings.Split(input, ",") {
+	for part := range strings.SplitSeq(input, ",") {
 		n, err := strconv.Atoi(strings.TrimSpace(part))
 		if err != nil || n < 1 || n > len(epics) {
 			return nil, fmt.Errorf("invalid selection: %q (must be 1-%d)", strings.TrimSpace(part), len(epics))

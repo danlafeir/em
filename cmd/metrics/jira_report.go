@@ -173,20 +173,41 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 			if epicErr != nil {
 				fmt.Printf("Warning: forecast unavailable: %v\n", epicErr)
 			} else if len(epics) > 0 {
+				sequential := false
 				if selectEpicsFlag {
 					if selected, selErr := promptEpicSelection(epics); selErr != nil {
 						fmt.Printf("Warning: epic selection skipped: %v\n", selErr)
 					} else {
 						saveEpicSelection(team, selected)
 						epics = selected
+						sequential = true
 					}
 				} else {
 					epics = applyEpicSelection(epics, team)
+					sequential = hasEpicSelection(team)
 				}
+
 				fmt.Printf("Found %d open epics, forecasting...\n", len(epics))
+				mapper := getWorkflowMapper()
+
+				var pending []EpicForecast
 				for _, epic := range epics {
-					f := forecastEpic(ctx, client, mapper, epic, forecastThroughput)
+					f := fetchEpicCounts(ctx, client, mapper, epic)
 					if f.RemainingItems == 0 || f.Error != "" {
+						continue
+					}
+					pending = append(pending, f)
+				}
+
+				var forecasts []EpicForecast
+				if sequential {
+					forecasts = runSequentialSimulation(pending, forecastThroughput)
+				} else {
+					forecasts = runIndependentSimulation(pending, forecastThroughput)
+				}
+
+				for _, f := range forecasts {
+					if f.Error != "" {
 						continue
 					}
 					forecastRows = append(forecastRows, charts.ForecastRow{

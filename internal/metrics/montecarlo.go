@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math/rand"
 	"sort"
+	"strings"
 	"time"
 )
 
@@ -137,29 +138,101 @@ func (mc *MonteCarloSimulator) Run(remainingItems int) (*ForecastResult, error) 
 	return result, nil
 }
 
+// RunSequential runs Monte Carlo simulations for a prioritized list of epics,
+// treating work as sequential: each epic starts only after all prior epics complete.
+// Returns one ForecastResult per epic in the same order as remainingItems.
+func (mc *MonteCarloSimulator) RunSequential(remainingItems []int) ([]*ForecastResult, error) {
+	if len(mc.throughput) == 0 {
+		return nil, fmt.Errorf("no throughput data available for simulation")
+	}
+	if len(remainingItems) == 0 {
+		return nil, nil
+	}
+
+	var nonZeroThroughput []int
+	var totalThroughput int
+	for _, t := range mc.throughput {
+		totalThroughput += t
+		if t > 0 {
+			nonZeroThroughput = append(nonZeroThroughput, t)
+		}
+	}
+	if len(nonZeroThroughput) == 0 {
+		return nil, fmt.Errorf("no non-zero throughput data available")
+	}
+	avgThroughput := float64(totalThroughput) / float64(len(mc.throughput))
+
+	n := len(remainingItems)
+	completionDates := make([][]time.Time, n)
+	for i := range completionDates {
+		completionDates[i] = make([]time.Time, mc.config.Trials)
+	}
+
+	for trial := 0; trial < mc.config.Trials; trial++ {
+		currentDate := mc.config.SimulationStart
+		for i, items := range remainingItems {
+			remaining := items
+			for remaining > 0 {
+				w := nonZeroThroughput[rand.Intn(len(nonZeroThroughput))]
+				remaining -= w
+				currentDate = currentDate.AddDate(0, 0, 7)
+			}
+			completionDates[i][trial] = currentDate
+		}
+	}
+
+	results := make([]*ForecastResult, n)
+	for i, items := range remainingItems {
+		dates := make([]time.Time, mc.config.Trials)
+		copy(dates, completionDates[i])
+		sort.Slice(dates, func(a, b int) bool {
+			return dates[a].Before(dates[b])
+		})
+		r := &ForecastResult{
+			TargetItems:       items,
+			RemainingItems:    items,
+			TrialsRun:         mc.config.Trials,
+			Percentiles:       make(map[int]time.Time),
+			PercentileDays:    make(map[int]int),
+			ThroughputSamples: len(mc.throughput),
+			AvgThroughput:     avgThroughput,
+		}
+		for _, p := range []int{50, 70, 85, 95} {
+			idx := (p * mc.config.Trials) / 100
+			if idx >= len(dates) {
+				idx = len(dates) - 1
+			}
+			r.Percentiles[p] = dates[idx]
+			r.PercentileDays[p] = int(dates[idx].Sub(mc.config.SimulationStart).Hours() / 24)
+		}
+		results[i] = r
+	}
+	return results, nil
+}
+
 // FormatForecast returns a human-readable forecast summary.
 func FormatForecast(result *ForecastResult) string {
-	var output string
+	var b strings.Builder
 
-	output += fmt.Sprintf("Monte Carlo Forecast\n")
-	output += fmt.Sprintf("====================\n")
-	output += fmt.Sprintf("Remaining items: %d\n", result.RemainingItems)
-	output += fmt.Sprintf("Simulations run: %d\n", result.TrialsRun)
-	output += fmt.Sprintf("Throughput samples: %d weeks\n", result.ThroughputSamples)
-	output += fmt.Sprintf("Average throughput: %.1f items/week\n\n", result.AvgThroughput)
+	b.WriteString("Monte Carlo Forecast\n")
+	b.WriteString("====================\n")
+	fmt.Fprintf(&b, "Remaining items: %d\n", result.RemainingItems)
+	fmt.Fprintf(&b, "Simulations run: %d\n", result.TrialsRun)
+	fmt.Fprintf(&b, "Throughput samples: %d weeks\n", result.ThroughputSamples)
+	fmt.Fprintf(&b, "Average throughput: %.1f items/week\n\n", result.AvgThroughput)
 
-	output += fmt.Sprintf("Completion Date Forecast:\n")
+	b.WriteString("Completion Date Forecast:\n")
 	for _, p := range []int{50, 70, 85, 95} {
 		date := result.Percentiles[p]
 		days := result.PercentileDays[p]
-		output += fmt.Sprintf("  %d%% confidence: %s (%d days)\n", p, date.Format("2006-01-02"), days)
+		fmt.Fprintf(&b, "  %d%% confidence: %s (%d days)\n", p, date.Format("2006-01-02"), days)
 	}
 
 	if result.DeadlineDate != nil {
-		output += fmt.Sprintf("\nDeadline: %s\n", result.DeadlineDate.Format("2006-01-02"))
-		output += fmt.Sprintf("Probability of meeting deadline: %.1f%%\n", result.DeadlineConfidence*100)
+		fmt.Fprintf(&b, "\nDeadline: %s\n", result.DeadlineDate.Format("2006-01-02"))
+		fmt.Fprintf(&b, "Probability of meeting deadline: %.1f%%\n", result.DeadlineConfidence*100)
 	}
 
-	return output
+	return b.String()
 }
 
