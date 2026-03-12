@@ -107,18 +107,35 @@ func saveSelectedTeam(team string) error {
 
 // getAllTeams returns all team names from config regardless of which services are configured.
 func getAllTeams() []string {
-	raw := getConfigAny("teams")
-	if raw == nil {
-		return nil
+	seen := make(map[string]bool)
+
+	// Teams explicitly registered via metrics config
+	if raw := getConfigAny("team_names"); raw != nil {
+		switch v := raw.(type) {
+		case []any:
+			for _, item := range v {
+				if s, ok := item.(string); ok && s != "" {
+					seen[s] = true
+				}
+			}
+		case string:
+			if v != "" {
+				seen[v] = true
+			}
+		}
 	}
 
-	rawMap, ok := raw.(map[string]any)
-	if !ok {
-		return nil
+	// Teams that already have config under teams.*
+	if raw := getConfigAny("teams"); raw != nil {
+		if rawMap, ok := raw.(map[string]any); ok {
+			for name := range rawMap {
+				seen[name] = true
+			}
+		}
 	}
 
-	teams := make([]string, 0, len(rawMap))
-	for name := range rawMap {
+	teams := make([]string, 0, len(seen))
+	for name := range seen {
 		teams = append(teams, name)
 	}
 	sort.Strings(teams)

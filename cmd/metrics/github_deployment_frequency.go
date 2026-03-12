@@ -46,6 +46,10 @@ type repoDeploymentResult struct {
 }
 
 func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
+	fmt.Println("GitHub")
+	fmt.Println(sectionDivider)
+	fmt.Println()
+
 	ctx := context.Background()
 
 	client, err := getGithubClient()

@@ -108,6 +108,11 @@ func (c *CycleTimeCalculator) calculateForIssue(history workflow.IssueHistory) *
 		return nil
 	}
 
+	// Skip issues where end is before start (backdated or migrated timestamps)
+	if !endTime.After(startTime) {
+		return nil
+	}
+
 	// Calculate time in each stage
 	stageDetails := c.mapper.TimeInStage(history)
 

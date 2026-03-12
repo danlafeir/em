@@ -640,6 +640,7 @@ func SnykIssuesLine(weeks []SnykIssueWeek, cfg Config, path string) error {
 
 // CombinedReport renders a 2x2 HTML report with cycle time, throughput, longest CT, and forecast.
 func CombinedReport(
+	summary ReportSummary,
 	cycleTimeData []metrics.CycleTimeResult,
 	cycleTimePercentiles []float64,
 	throughputData metrics.ThroughputResult,
@@ -648,6 +649,10 @@ func CombinedReport(
 	jiraBaseURL string,
 	path string,
 ) error {
+	summaryHTML, err := ReportSummaryHTML(summary)
+	if err != nil {
+		return err
+	}
 	ctHTML, err := CycleTimeScatterHTML(cycleTimeData, cycleTimePercentiles, "Cycle Time Distribution")
 	if err != nil {
 		return err
@@ -665,6 +670,7 @@ func CombinedReport(
 		return err
 	}
 	return writeHTML(path, "report.html.tmpl", map[string]any{
+		"SummaryHTML":    summaryHTML,
 		"CycleTimeHTML":  ctHTML,
 		"ThroughputHTML": tpHTML,
 		"LongestCTHTML":  longestHTML,
@@ -672,9 +678,22 @@ func CombinedReport(
 	})
 }
 
+// ReportSummary holds the key metrics displayed in the summary bar.
+type ReportSummary struct {
+	AvgCycleTime string
+	AvgThroughput string
+	ActiveEpics  int
+}
+
+// ReportSummaryHTML returns a self-contained HTML fragment for the summary bar.
+func ReportSummaryHTML(s ReportSummary) (template.HTML, error) {
+	return renderHTML("fragment_summary.html.tmpl", s)
+}
+
 // CombinedTeamReport renders an HTML report with GitHub deployment frequency and JIRA metrics sections.
 func CombinedTeamReport(
 	title string,
+	summary ReportSummary,
 	deploymentData metrics.ThroughputResult,
 	cycleTimeData []metrics.CycleTimeResult,
 	cycleTimePercentiles []float64,
@@ -708,8 +727,13 @@ func CombinedTeamReport(
 	if err != nil {
 		return err
 	}
+	summaryHTML, err := ReportSummaryHTML(summary)
+	if err != nil {
+		return err
+	}
 	return writeHTML(path, "team_report.html.tmpl", map[string]any{
 		"Title":          title,
+		"SummaryHTML":    summaryHTML,
 		"DeploymentHTML": dfHTML,
 		"CycleTimeHTML":  ctHTML,
 		"ThroughputHTML": tpHTML,

@@ -154,6 +154,7 @@ func getJiraClient() (*jira.Client, error) {
 // emConfigSchema lists all valid config keys under the "em" namespace.
 var emConfigSchema = config.ConfigSchema{
 	"selected_team",
+	"team_names",
 	"jira.domain",
 	"jira.email",
 	"teams.*",

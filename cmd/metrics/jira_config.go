@@ -26,13 +26,13 @@ Prompts for:
   - JIRA domain (e.g. mycompany for mycompany.atlassian.net)
   - Email address
   - API token (stored in system keychain)
-  - Team project keys
+  - Team project key
 
 Existing values are shown and can be kept by pressing Enter.
+Use "devctl-em metrics select-team" to set the active team first.
 
-Examples:
-  devctl-em metrics jira config
-  devctl-em metrics jira config --team my-team`,
+Example:
+  devctl-em metrics jira config`,
 	RunE: runJiraConfig,
 }
 
@@ -81,37 +81,26 @@ func runJiraConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// 4. Teams loop
-	for {
-		teams := getAllTeams()
-		if len(teams) == 0 {
-			fmt.Println("No teams configured. Run: devctl-em metrics config to add teams first.")
-			break
+	// 4. Configure selected team
+	team := getSelectedTeam()
+	if team == "" {
+		if len(getAllTeams()) == 0 {
+			return fmt.Errorf("no teams configured. Run: devctl-em metrics config to add a team first")
 		}
+		return fmt.Errorf("no team selected. Run: devctl-em metrics select-team")
+	}
 
-		team, err := pickTeam(reader, teams)
-		if err != nil {
-			return err
-		}
+	currentProject := getTeamConfigString(team, "project")
+	project, err := promptValue(reader, fmt.Sprintf("Project key for team %q", team), currentProject)
+	if err != nil {
+		return err
+	}
+	config.SetConfigValue(configNamespace, fmt.Sprintf("teams.%s.jira.project", team), project)
+	fmt.Printf("Set teams.%s.jira.project = %s\n", team, project)
 
-		currentProject := getTeamConfigString(team, "project")
-		project, err := promptValue(reader, fmt.Sprintf("Project key for team %q", team), currentProject)
-		if err != nil {
-			return err
-		}
-		config.SetConfigValue(configNamespace, fmt.Sprintf("teams.%s.jira.project", team), project)
-		fmt.Printf("Set teams.%s.jira.project = %s\n", team, project)
-
-		// Offer board-based JQL selection
-		if err := promptBoardJQL(reader, team, project); err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: could not fetch boards: %v\n", err)
-		}
-
-		fmt.Print("Configure another team? [y/N]: ")
-		input, _ := reader.ReadString('\n')
-		if strings.TrimSpace(strings.ToLower(input)) != "y" {
-			break
-		}
+	// Offer board-based JQL selection
+	if err := promptBoardJQL(reader, team, project); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not fetch boards: %v\n", err)
 	}
 
 	// Save config

@@ -38,6 +38,10 @@ func init() {
 }
 
 func runReport(cmd *cobra.Command, args []string) error {
+	fmt.Println("JIRA Metrics")
+	fmt.Println(sectionDivider)
+	fmt.Println()
+
 	ctx := context.Background()
 
 	client, err := getJiraClient()
@@ -61,11 +65,12 @@ func runReport(cmd *cobra.Command, args []string) error {
 
 // jiraMetricsData holds computed JIRA metrics ready for chart rendering.
 type jiraMetricsData struct {
-	KeptResults     []pkgmetrics.CycleTimeResult
+	KeptResults      []pkgmetrics.CycleTimeResult
 	ThroughputResult pkgmetrics.ThroughputResult
-	LongestCTRows   []charts.LongestCycleTimeRow
-	ForecastRows    []charts.ForecastRow
-	BaseURL         string
+	LongestCTRows    []charts.LongestCycleTimeRow
+	ForecastRows     []charts.ForecastRow
+	Summary          charts.ReportSummary
+	BaseURL          string
 }
 
 // collectJIRAMetricsData fetches and computes JIRA metrics for a single team/JQL.
@@ -231,13 +236,59 @@ func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql 
 		}
 	}
 
+	// Summary metrics
+	summary := buildSummary(keptResults, throughputResult)
+	summary.ActiveEpics = countActiveEpics(ctx, client, jql)
+
 	return jiraMetricsData{
 		KeptResults:      keptResults,
 		ThroughputResult: throughputResult,
 		LongestCTRows:    ctRows,
 		ForecastRows:     forecastRows,
+		Summary:          summary,
 		BaseURL:          client.BaseURL(),
 	}, nil
+}
+
+// buildSummary computes the avg cycle time and avg throughput summary values.
+func buildSummary(cycleResults []pkgmetrics.CycleTimeResult, throughput pkgmetrics.ThroughputResult) charts.ReportSummary {
+	avgCT := "—"
+	if len(cycleResults) > 0 {
+		stats := pkgmetrics.CalculateStats(cycleResults)
+		days := stats.Mean.Hours() / 24
+		if days < 1 {
+			avgCT = "<1 day"
+		} else {
+			avgCT = fmt.Sprintf("%.1f days", days)
+		}
+	}
+	avgTP := "—"
+	if throughput.AvgCount > 0 {
+		avgTP = fmt.Sprintf("%.1f", throughput.AvgCount)
+	}
+	return charts.ReportSummary{
+		AvgCycleTime:  avgCT,
+		AvgThroughput: avgTP,
+	}
+}
+
+// countActiveEpics queries for issues currently in progress and counts distinct parent epics.
+// Returns 0 on any error (best-effort).
+func countActiveEpics(ctx context.Context, client *jira.Client, baseJQL string) int {
+	activeJQL := fmt.Sprintf("(%s) AND issuetype in (Story, Spike, Bug, Defect) AND statusCategory = \"In Progress\"", baseJQL)
+	issues, err := client.SearchAllIssues(ctx, activeJQL, "parent,issuetype", "")
+	if err != nil {
+		return 0
+	}
+	epicSet := make(map[string]bool, len(issues))
+	for _, issue := range issues {
+		if p := issue.Fields.Parent; p != nil && p.Key != "" && p.Fields.IssueType.Name == "Epic" {
+			epicSet[p.Key] = true
+		} else if e := issue.Fields.Epic; e != nil && e.Key != "" {
+			epicSet[e.Key] = true
+		}
+	}
+	return len(epicSet)
 }
 
 // generateReport generates a single combined HTML report for the given JQL.
@@ -253,7 +304,7 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 		return err
 	}
 
-	if err := charts.CombinedReport(data.KeptResults, []float64{50, 85, 95}, data.ThroughputResult, data.LongestCTRows, data.ForecastRows, data.BaseURL, outputPath); err != nil {
+	if err := charts.CombinedReport(data.Summary, data.KeptResults, []float64{50, 85, 95}, data.ThroughputResult, data.LongestCTRows, data.ForecastRows, data.BaseURL, outputPath); err != nil {
 		return fmt.Errorf("failed to generate report: %w", err)
 	}
 

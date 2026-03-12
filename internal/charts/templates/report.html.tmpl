@@ -10,11 +10,14 @@ body{margin:0;padding:20px;background:#fff;font-family:-apple-system,BlinkMacSys
 </style>
 </head>
 <body>
+<div style="max-width:1400px;margin:0 auto;">
+{{.SummaryHTML}}
 <div class="report-grid">
 {{.CycleTimeHTML}}
 {{.ThroughputHTML}}
 {{.LongestCTHTML}}
 {{.ForecastHTML}}
+</div>
 </div>
 </body>
 </html>

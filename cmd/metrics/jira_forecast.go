@@ -75,6 +75,10 @@ type EpicForecast struct {
 }
 
 func runForecast(cmd *cobra.Command, args []string) error {
+	fmt.Println("JIRA Metrics")
+	fmt.Println(sectionDivider)
+	fmt.Println()
+
 	ctx := context.Background()
 
 	client, err := getJiraClient()

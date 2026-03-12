@@ -36,17 +36,11 @@ func runMetricsReport(cmd *cobra.Command, args []string) error {
 	skipBrowserOpen = true
 	defer func() { skipBrowserOpen = false }()
 
-	fmt.Println("GitHub")
-	fmt.Println(sectionDivider)
-	fmt.Println()
 	if err := runDeploymentFrequency(cmd, args); err != nil {
 		fmt.Printf("Warning: GitHub report skipped: %v\n", err)
 	}
 
 	fmt.Println()
-	fmt.Println(sectionDivider)
-	fmt.Println()
-	fmt.Println("JIRA Metrics")
 	fmt.Println(sectionDivider)
 	fmt.Println()
 	if err := runReport(cmd, args); err != nil {
@@ -90,6 +84,7 @@ func generateCombinedTeamReport() error {
 
 	if err := charts.CombinedTeamReport(
 		title,
+		jiraData.Summary,
 		deployments,
 		jiraData.KeptResults,
 		[]float64{50, 85, 95},

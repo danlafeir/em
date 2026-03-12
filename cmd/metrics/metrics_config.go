@@ -60,7 +60,13 @@ func runMetricsConfig(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		config.SetConfigValue(configNamespace, fmt.Sprintf("teams.%s", teamName), map[string]any{})
+		names := getAllTeams()
+		updated := make([]any, 0, len(names)+1)
+		for _, n := range names {
+			updated = append(updated, n)
+		}
+		updated = append(updated, teamName)
+		config.SetConfigValue(configNamespace, "team_names", updated)
 		if err := config.WriteConfig(); err != nil {
 			return fmt.Errorf("failed to save config: %w", err)
 		}
