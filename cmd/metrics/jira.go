@@ -113,6 +113,7 @@ func init() {
 
 	initConfig()
 	if unrecognized := config.ValidateNamespace(configNamespace, emConfigSchema); len(unrecognized) > 0 {
+		fmt.Fprintf(os.Stderr, "Warning: unrecognized config keys (will clear namespace): %s\n", strings.Join(unrecognized, ", "))
 		config.ClearNamespace(configNamespace)
 	}
 }
@@ -157,6 +158,7 @@ var emConfigSchema = config.ConfigSchema{
 	"team_names",
 	"jira.domain",
 	"jira.email",
+	"jira.selected_epics",
 	"teams.*",
 	"teams.*.jira.project",
 	"teams.*.jira.jql_filter_for_metrics",
