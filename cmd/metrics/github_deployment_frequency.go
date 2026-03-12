@@ -252,7 +252,7 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to create chart: %w", err)
 		}
 		fmt.Printf("\nChart saved to %s\n", outputPath)
-		charts.OpenBrowser(outputPath)
+		openBrowser(outputPath)
 	}
 
 	return nil
@@ -297,6 +297,50 @@ func aggregateWeeklyDeployments(runs []gh.WorkflowRun, from, to time.Time) metri
 		result.AvgCount = float64(result.TotalCount) / float64(len(periods))
 	}
 	return result
+}
+
+// fetchTeamDeploymentData fetches successful workflow runs for the given team and aggregates by week.
+// Returns an empty result (not an error) if GitHub workflows are not configured for the team.
+func fetchTeamDeploymentData(ctx context.Context, client *gh.Client, org, teamName string, from, to time.Time) metrics.ThroughputResult {
+	workflows, err := getConfiguredWorkflowsByTeam(teamName)
+	if err != nil {
+		return metrics.ThroughputResult{}
+	}
+
+	repos := make([]string, 0, len(workflows))
+	for repo := range workflows {
+		repos = append(repos, repo)
+	}
+	sort.Strings(repos)
+
+	var allRuns []gh.WorkflowRun
+	for _, repo := range repos {
+		wfFilenames := workflows[repo]
+		allWfs, err := client.ListWorkflows(ctx, org, repo)
+		if err != nil {
+			continue
+		}
+		wfIndex := make(map[string]int64, len(allWfs))
+		for _, wf := range allWfs {
+			wfIndex[filepath.Base(wf.Path)] = wf.ID
+		}
+		for _, wfFilename := range wfFilenames {
+			workflowID := wfIndex[wfFilename]
+			if workflowID == 0 {
+				continue
+			}
+			runs, err := client.ListWorkflowRuns(ctx, org, repo, workflowID, "", from, to)
+			if err != nil {
+				continue
+			}
+			for _, run := range runs {
+				if run.Conclusion == "success" {
+					allRuns = append(allRuns, run)
+				}
+			}
+		}
+	}
+	return aggregateWeeklyDeployments(allRuns, from, to)
 }
 
 func exportDeploymentFrequencyCSV(results []repoDeploymentResult, path string) error {

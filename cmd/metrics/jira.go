@@ -12,6 +12,7 @@ import (
 	"github.com/danlafeir/devctl/pkg/secrets"
 	"github.com/spf13/cobra"
 
+	"devctl-em/internal/charts"
 	"devctl-em/internal/jira"
 	"devctl-em/internal/output"
 	"devctl-em/internal/workflow"
@@ -19,6 +20,18 @@ import (
 
 // configNamespace is the namespace for devctl-em config
 const configNamespace = "em"
+
+// skipBrowserOpen suppresses openBrowser calls when set to true.
+// Used by runMetricsReport so the browser only opens after all reports finish.
+var skipBrowserOpen bool
+
+// openBrowser opens the file in the default browser unless suppressed.
+func openBrowser(path string) {
+	if skipBrowserOpen {
+		return
+	}
+	charts.OpenBrowser(path) //nolint:errcheck
+}
 
 func initConfig() {
 	config.InitConfig("")
@@ -147,6 +160,7 @@ var emConfigSchema = config.ConfigSchema{
 	"teams.*.jira.project",
 	"teams.*.jira.jql_filter_for_metrics",
 	"teams.*.jira.selected_epics",
+	"teams.*.github.slug",
 	"teams.*.github.workflows",
 	"teams.*.github.workflows.*",
 	"workflow.stages",

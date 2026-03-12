@@ -672,6 +672,52 @@ func CombinedReport(
 	})
 }
 
+// CombinedTeamReport renders an HTML report with GitHub deployment frequency and JIRA metrics sections.
+func CombinedTeamReport(
+	title string,
+	deploymentData metrics.ThroughputResult,
+	cycleTimeData []metrics.CycleTimeResult,
+	cycleTimePercentiles []float64,
+	throughputData metrics.ThroughputResult,
+	longestCTRows []LongestCycleTimeRow,
+	forecastRows []ForecastRow,
+	jiraBaseURL string,
+	path string,
+) error {
+	var dfHTML template.HTML
+	if len(deploymentData.Periods) > 0 {
+		var err error
+		dfHTML, err = DeploymentFrequencyLineHTML(deploymentData, "Deployment Frequency")
+		if err != nil {
+			return err
+		}
+	}
+	ctHTML, err := CycleTimeScatterHTML(cycleTimeData, cycleTimePercentiles, "Cycle Time Distribution")
+	if err != nil {
+		return err
+	}
+	tpHTML, err := ThroughputLineHTML(throughputData, "Weekly Throughput")
+	if err != nil {
+		return err
+	}
+	longestHTML, err := LongestCycleTimeTableHTML(longestCTRows, "Longest Cycle Times", jiraBaseURL)
+	if err != nil {
+		return err
+	}
+	forecastHTML, err := ForecastTableHTML(forecastRows, "Epic Forecast", jiraBaseURL)
+	if err != nil {
+		return err
+	}
+	return writeHTML(path, "team_report.html.tmpl", map[string]any{
+		"Title":          title,
+		"DeploymentHTML": dfHTML,
+		"CycleTimeHTML":  ctHTML,
+		"ThroughputHTML": tpHTML,
+		"LongestCTHTML":  longestHTML,
+		"ForecastHTML":   forecastHTML,
+	})
+}
+
 func formatDays(d float64) string {
 	if d < 1 {
 		return "<1 day"

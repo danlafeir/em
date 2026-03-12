@@ -59,67 +59,76 @@ func runReport(cmd *cobra.Command, args []string) error {
 	})
 }
 
-// generateReport generates a single combined HTML report for the given JQL.
-func generateReport(ctx context.Context, client *jira.Client, team, jql string, from, to time.Time) error {
-	outputPath := getOutputPath(teamOutputName("jira-report", team), "html")
+// jiraMetricsData holds computed JIRA metrics ready for chart rendering.
+type jiraMetricsData struct {
+	KeptResults     []pkgmetrics.CycleTimeResult
+	ThroughputResult pkgmetrics.ThroughputResult
+	LongestCTRows   []charts.LongestCycleTimeRow
+	ForecastRows    []charts.ForecastRow
+	BaseURL         string
+}
 
-	fmt.Printf("Generating JIRA Report...\n")
-	fmt.Printf("JQL: %s\n", jql)
-	fmt.Printf("Date range: %s to %s\n\n", from.Format("2006-01-02"), to.Format("2006-01-02"))
+// collectJIRAMetricsData fetches and computes JIRA metrics for a single team/JQL.
+// When verbose is true, progress is printed to stdout.
+func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql string, from, to time.Time, verbose bool) (jiraMetricsData, error) {
+	log := func(format string, args ...any) {
+		if verbose {
+			fmt.Printf(format, args...)
+		}
+	}
+	progress := func(current, total int) {
+		if verbose {
+			fmt.Printf("\rProcessing completed issues: %d/%d...", current, total)
+		}
+	}
 
-	// Fetch completed issues
-	fmt.Printf("Fetching issues from JIRA...\n")
 	jqlCompleted := jqlWithDateRange(
 		fmt.Sprintf("(%s) AND issuetype in (Story, Spike, Bug, Defect)", jql),
 		from.Format("2006-01-02"), to.Format("2006-01-02"),
 	)
 
-	completedIssues, err := client.FetchIssuesWithHistory(ctx, jqlCompleted, func(current, total int) {
-		fmt.Printf("\rProcessing completed issues: %d/%d...", current, total)
-	})
+	log("Fetching issues from JIRA...\n")
+	completedIssues, err := client.FetchIssuesWithHistory(ctx, jqlCompleted, progress)
 	if err != nil {
-		return fmt.Errorf("failed to fetch completed issues: %w", err)
+		return jiraMetricsData{}, fmt.Errorf("failed to fetch completed issues: %w", err)
 	}
-	fmt.Println()
-	fmt.Printf("\nFound %d completed issues\n\n", len(completedIssues))
+	if verbose {
+		fmt.Println()
+	}
+	log("\nFound %d completed issues\n\n", len(completedIssues))
 
 	mapper := getWorkflowMapper()
-
 	completedHistories := make([]workflow.IssueHistory, len(completedIssues))
 	for i, issue := range completedIssues {
 		completedHistories[i] = mapper.MapIssueHistory(issue)
 	}
 
-	// 1. Cycle Time
-	fmt.Printf("Calculating cycle time metrics...\n")
+	log("Calculating cycle time metrics...\n")
 	cycleCalc := pkgmetrics.NewCycleTimeCalculator(mapper)
 	cycleResults := cycleCalc.Calculate(completedHistories)
-
-	// Filter outliers from scatter chart (still shown in longest CT table)
 	keptResults, outlierResults := pkgmetrics.FilterCycleTimeOutliers(cycleResults, 2.0)
 
-	// 2. Throughput
-	fmt.Printf("Calculating throughput metrics...\n")
+	log("Calculating throughput metrics...\n")
 	throughputCalc := pkgmetrics.NewThroughputCalculator(pkgmetrics.FrequencyWeekly, mapper)
 	throughputResult := throughputCalc.Calculate(completedHistories, from, to)
 
-	// 3. Longest Cycle Time table — combine kept + outliers, mark outliers
+	// Longest Cycle Time table
 	var ctRows []charts.LongestCycleTimeRow
 	if len(cycleResults) > 0 {
 		outlierKeys := make(map[string]bool, len(outlierResults))
 		for _, r := range outlierResults {
 			outlierKeys[r.IssueKey] = true
 		}
-
-		sorted := make([]pkgmetrics.CycleTimeResult, len(cycleResults))
-		copy(sorted, cycleResults)
+		sorted := make([]pkgmetrics.CycleTimeResult, 0, len(cycleResults))
+		for _, r := range cycleResults {
+			if r.IssueType != "Epic" {
+				sorted = append(sorted, r)
+			}
+		}
 		sort.Slice(sorted, func(i, j int) bool {
 			return sorted[i].CycleTime > sorted[j].CycleTime
 		})
-		n := len(sorted)
-		if n > 10 {
-			n = 10
-		}
+		n := min(len(sorted), 5)
 		for _, r := range sorted[:n] {
 			ctRows = append(ctRows, charts.LongestCycleTimeRow{
 				Key:       r.IssueKey,
@@ -132,7 +141,7 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 		}
 	}
 
-	// 4. Forecast table — use 90-day throughput window for Monte Carlo
+	// Forecast — use 90-day throughput window for Monte Carlo
 	var forecastRows []charts.ForecastRow
 	{
 		const forecastHistoryDays = 90
@@ -143,15 +152,18 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 			forecastThroughput = pkgmetrics.GetWeeklyThroughputValues(throughputResult)
 		} else {
 			forecastJQL := jqlWithDateRange(jql, forecastFrom.Format("2006-01-02"), time.Now().Format("2006-01-02"))
-
-			fmt.Printf("Fetching 90-day throughput history for forecast...\n")
+			log("Fetching 120-day throughput history for forecast...\n")
 			forecastIssues, fetchErr := client.FetchIssuesWithHistory(ctx, forecastJQL, func(current, total int) {
-				fmt.Printf("\rProcessing forecast issues: %d/%d...", current, total)
+				if verbose {
+					fmt.Printf("\rProcessing forecast issues: %d/%d...", current, total)
+				}
 			})
 			if fetchErr != nil {
-				fmt.Printf("Warning: forecast unavailable: %v\n", fetchErr)
+				log("Warning: forecast unavailable: %v\n", fetchErr)
 			} else {
-				fmt.Println()
+				if verbose {
+					fmt.Println()
+				}
 				forecastHistories := make([]workflow.IssueHistory, len(forecastIssues))
 				for i, issue := range forecastIssues {
 					forecastHistories[i] = mapper.MapIssueHistory(issue)
@@ -165,12 +177,12 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 		if len(forecastThroughput) > 0 {
 			epics, epicErr := fetchOpenEpics(ctx, client, team)
 			if epicErr != nil {
-				fmt.Printf("Warning: forecast unavailable: %v\n", epicErr)
+				log("Warning: forecast unavailable: %v\n", epicErr)
 			} else if len(epics) > 0 {
 				sequential := false
 				if selectEpicsFlag {
 					if selected, selErr := promptEpicSelection(epics); selErr != nil {
-						fmt.Printf("Warning: epic selection skipped: %v\n", selErr)
+						log("Warning: epic selection skipped: %v\n", selErr)
 					} else {
 						saveEpicSelection(team, selected)
 						epics = selected
@@ -181,7 +193,7 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 					sequential = hasEpicSelection(team)
 				}
 
-				fmt.Printf("Found %d open epics, forecasting...\n", len(epics))
+				log("Found %d open epics, forecasting...\n", len(epics))
 				mapper := getWorkflowMapper()
 
 				var pending []EpicForecast
@@ -219,12 +231,34 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 		}
 	}
 
-	if err := charts.CombinedReport(keptResults, []float64{50, 85, 95}, throughputResult, ctRows, forecastRows, client.BaseURL(), outputPath); err != nil {
+	return jiraMetricsData{
+		KeptResults:      keptResults,
+		ThroughputResult: throughputResult,
+		LongestCTRows:    ctRows,
+		ForecastRows:     forecastRows,
+		BaseURL:          client.BaseURL(),
+	}, nil
+}
+
+// generateReport generates a single combined HTML report for the given JQL.
+func generateReport(ctx context.Context, client *jira.Client, team, jql string, from, to time.Time) error {
+	outputPath := getOutputPath(teamOutputName("jira-report", team), "html")
+
+	fmt.Printf("Generating JIRA Report...\n")
+	fmt.Printf("JQL: %s\n", jql)
+	fmt.Printf("Date range: %s to %s\n\n", from.Format("2006-01-02"), to.Format("2006-01-02"))
+
+	data, err := collectJIRAMetricsData(ctx, client, team, jql, from, to, true)
+	if err != nil {
+		return err
+	}
+
+	if err := charts.CombinedReport(data.KeptResults, []float64{50, 85, 95}, data.ThroughputResult, data.LongestCTRows, data.ForecastRows, data.BaseURL, outputPath); err != nil {
 		return fmt.Errorf("failed to generate report: %w", err)
 	}
 
 	fmt.Printf("\nReport generated: %s\n", outputPath)
-	charts.OpenBrowser(outputPath)
+	openBrowser(outputPath)
 	return nil
 }
 
