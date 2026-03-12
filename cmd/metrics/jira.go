@@ -166,6 +166,7 @@ var emConfigSchema = config.ConfigSchema{
 	"teams.*.github.slug",
 	"teams.*.github.workflows",
 	"teams.*.github.workflows.*",
+	"teams.*.snyk.team",
 	"workflow.stages",
 	"workflow.cycle_time.started",
 	"workflow.cycle_time.completed",

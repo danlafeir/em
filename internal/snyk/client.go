@@ -29,6 +29,12 @@ type RateLimiter struct {
 	MaxRetries int
 }
 
+// NewAuthClient creates a Snyk client with only token and site — no OrgID required.
+// Use for operations that don't need an org (e.g. ListOrgs during config).
+func NewAuthClient(token, site string) *Client {
+	return NewClient(Credentials{Token: token, Site: site})
+}
+
 // NewClient creates a new Snyk API client.
 func NewClient(creds Credentials) *Client {
 	return &Client{
@@ -136,12 +142,54 @@ func (c *Client) TestConnection(ctx context.Context) error {
 	return nil
 }
 
+// ListOrgs lists all Snyk organizations accessible to the authenticated user.
+func (c *Client) ListOrgs(ctx context.Context) ([]Org, error) {
+	var all []Org
+
+	query := url.Values{}
+	query.Set("limit", "100")
+
+	nextURL := ""
+	for {
+		var body []byte
+		var err error
+		if nextURL != "" {
+			body, err = c.doRequest(ctx, "GET", "", nil, nextURL)
+		} else {
+			body, err = c.doRequest(ctx, "GET", "/rest/orgs", query, "")
+		}
+		if err != nil {
+			return nil, fmt.Errorf("listing orgs: %w", err)
+		}
+
+		var resp orgListResponse
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return nil, fmt.Errorf("parsing orgs: %w", err)
+		}
+
+		for _, d := range resp.Data {
+			all = append(all, Org{ID: d.ID, Name: d.Attributes.Name})
+		}
+
+		if resp.Links.Next == "" {
+			break
+		}
+		nextURL = resp.Links.Next
+		if nextURL != "" && nextURL[0] == '/' {
+			nextURL = c.credentials.BaseURL() + nextURL
+		}
+	}
+
+	return all, nil
+}
+
 // ListProjects lists Snyk projects filtered by a team tag.
 func (c *Client) ListProjects(ctx context.Context, teamTag string) ([]Project, error) {
 	var allProjects []Project
 	path := fmt.Sprintf("/rest/orgs/%s/projects", url.PathEscape(c.credentials.OrgID))
 
 	query := url.Values{}
+	query.Set("limit", "100")
 	if teamTag != "" {
 		query.Set("tags", "team:"+teamTag)
 	}
@@ -184,27 +232,13 @@ func (c *Client) ListProjects(ctx context.Context, teamTag string) ([]Project, e
 	return allProjects, nil
 }
 
-// ListIssues lists Snyk issues for the given project IDs within a date range.
-func (c *Client) ListIssues(ctx context.Context, projectIDs []string, from, to time.Time) ([]Issue, error) {
-	var allIssues []Issue
-
-	for _, projID := range projectIDs {
-		issues, err := c.listProjectIssues(ctx, projID, from, to)
-		if err != nil {
-			return nil, err
-		}
-		allIssues = append(allIssues, issues...)
-	}
-
-	return allIssues, nil
-}
-
-func (c *Client) listProjectIssues(ctx context.Context, projectID string, from, to time.Time) ([]Issue, error) {
-	var issues []Issue
+// ListIssues fetches all issues for the org within the given date range.
+func (c *Client) ListIssues(ctx context.Context, from, to time.Time) ([]Issue, error) {
+	var all []Issue
 	path := fmt.Sprintf("/rest/orgs/%s/issues", url.PathEscape(c.credentials.OrgID))
 
 	query := url.Values{}
-	query.Set("project_id", projectID)
+	query.Set("limit", "100")
 	query.Set("created_after", from.Format(time.RFC3339))
 	query.Set("created_before", to.Format(time.RFC3339))
 
@@ -218,7 +252,7 @@ func (c *Client) listProjectIssues(ctx context.Context, projectID string, from, 
 			body, err = c.doRequest(ctx, "GET", path, query, "")
 		}
 		if err != nil {
-			return nil, fmt.Errorf("listing issues for project %s: %w", projectID, err)
+			return nil, fmt.Errorf("listing issues: %w", err)
 		}
 
 		var resp issueListResponse
@@ -237,7 +271,7 @@ func (c *Client) listProjectIssues(ctx context.Context, projectID string, from, 
 			if t, err := time.Parse(time.RFC3339, d.Attributes.CreatedAt); err == nil {
 				issue.CreatedAt = t
 			}
-			issues = append(issues, issue)
+			all = append(all, issue)
 		}
 
 		if resp.Links.Next == "" {
@@ -249,5 +283,5 @@ func (c *Client) listProjectIssues(ctx context.Context, projectID string, from, 
 		}
 	}
 
-	return issues, nil
+	return all, nil
 }

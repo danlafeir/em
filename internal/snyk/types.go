@@ -19,6 +19,12 @@ func (c *Credentials) BaseURL() string {
 	return "https://" + site
 }
 
+// Org represents a Snyk organization.
+type Org struct {
+	ID   string
+	Name string
+}
+
 // Project represents a Snyk project.
 type Project struct {
 	ID   string
@@ -76,6 +82,25 @@ type issueData struct {
 // issueListResponse is the raw API response for listing issues.
 type issueListResponse struct {
 	Data  []issueData `json:"data"`
+	Links struct {
+		Next string `json:"next"`
+	} `json:"links"`
+}
+
+// orgAttributes holds attributes from the orgs API response.
+type orgAttributes struct {
+	Name string `json:"name"`
+}
+
+// orgData represents a single item in the orgs API response.
+type orgData struct {
+	ID         string        `json:"id"`
+	Attributes orgAttributes `json:"attributes"`
+}
+
+// orgListResponse is the raw API response for listing orgs.
+type orgListResponse struct {
+	Data  []orgData `json:"data"`
 	Links struct {
 		Next string `json:"next"`
 	} `json:"links"`

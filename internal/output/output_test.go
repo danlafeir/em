@@ -8,10 +8,12 @@ import (
 
 // -- Dir ----------------------------------------------------------------------
 
-func TestDir_DefaultsToOut(t *testing.T) {
+func TestDir_DefaultsToHomeDotDevctl(t *testing.T) {
 	os.Unsetenv("DEVCTL_EM_OUTPUT_DIR")
-	if got := Dir(); got != "out" {
-		t.Errorf("expected 'out', got %q", got)
+	home, _ := os.UserHomeDir()
+	expected := filepath.Join(home, ".devctl", "output", "em")
+	if got := Dir(); got != expected {
+		t.Errorf("expected %q, got %q", expected, got)
 	}
 }
 
@@ -23,9 +25,11 @@ func TestDir_ReadsEnvVar(t *testing.T) {
 }
 
 func TestDir_EmptyEnvVarFallsBackToDefault(t *testing.T) {
-	t.Setenv("DEVCTL_EM_OUTPUT_DIR", "")
-	if got := Dir(); got != "out" {
-		t.Errorf("expected 'out' when env var is empty, got %q", got)
+	os.Unsetenv("DEVCTL_EM_OUTPUT_DIR")
+	home, _ := os.UserHomeDir()
+	expected := filepath.Join(home, ".devctl", "output", "em")
+	if got := Dir(); got != expected {
+		t.Errorf("expected %q when env var is empty, got %q", expected, got)
 	}
 }
 
@@ -33,8 +37,9 @@ func TestDir_EmptyEnvVarFallsBackToDefault(t *testing.T) {
 
 func TestPath_JoinsDirAndName(t *testing.T) {
 	os.Unsetenv("DEVCTL_EM_OUTPUT_DIR")
+	home, _ := os.UserHomeDir()
 	got := Path("report.csv")
-	expected := filepath.Join("out", "report.csv")
+	expected := filepath.Join(home, ".devctl", "output", "em", "report.csv")
 	if got != expected {
 		t.Errorf("expected %q, got %q", expected, got)
 	}
@@ -51,8 +56,9 @@ func TestPath_UsesCustomDir(t *testing.T) {
 
 func TestPath_NestedName(t *testing.T) {
 	os.Unsetenv("DEVCTL_EM_OUTPUT_DIR")
+	home, _ := os.UserHomeDir()
 	got := Path("subdir/file.txt")
-	expected := filepath.Join("out", "subdir", "file.txt")
+	expected := filepath.Join(home, ".devctl", "output", "em", "subdir", "file.txt")
 	if got != expected {
 		t.Errorf("expected %q, got %q", expected, got)
 	}

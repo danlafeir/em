@@ -39,11 +39,6 @@ func runSnykIssues(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	team := getSnykTeam()
-	if team == "" {
-		return fmt.Errorf("Snyk team not configured. Run: devctl-em config set snyk.team <team-tag>")
-	}
-
 	fmt.Println("Testing Snyk connection...")
 	if err := client.TestConnection(ctx); err != nil {
 		return fmt.Errorf("failed to connect to Snyk: %w", err)
@@ -54,27 +49,10 @@ func runSnykIssues(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("Fetching projects for team %q...\n", team)
-	projects, err := client.ListProjects(ctx, team)
-	if err != nil {
-		return fmt.Errorf("failed to list projects: %w", err)
-	}
-
-	if len(projects) == 0 {
-		fmt.Println("\nNo projects found for team tag.")
-		return nil
-	}
-	fmt.Printf("Found %d projects\n", len(projects))
-
-	projectIDs := make([]string, len(projects))
-	for i, p := range projects {
-		projectIDs[i] = p.ID
-	}
-
 	fmt.Printf("Fetching issues (%s to %s)...\n",
 		from.Format("2006-01-02"), to.Format("2006-01-02"))
 
-	issues, err := client.ListIssues(ctx, projectIDs, from, to)
+	issues, err := client.ListIssues(ctx, from, to)
 	if err != nil {
 		return fmt.Errorf("failed to list issues: %w", err)
 	}

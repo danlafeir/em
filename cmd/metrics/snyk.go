@@ -14,18 +14,15 @@ import (
 
 // SnykCmd is the parent command for all Snyk metrics.
 var SnykCmd = &cobra.Command{
-	Hidden: true,
-	Use:    "snyk",
+	Use:   "snyk",
 	Short: "Snyk security metrics",
 	Long: `Generate security metrics from Snyk data.
 
 Available metrics:
   - issues   (vulnerability counts and weekly trends)
 
-Setup:
-  devctl-em config set snyk.org_id <org-id>
-  devctl-em config set snyk.api_token
-  devctl-em config set snyk.team <team-tag>
+Configure Snyk first:
+  devctl-em metrics snyk config
 
 Examples:
   devctl-em metrics snyk issues
@@ -62,12 +59,12 @@ func getSnykClient() (*snyk.Client, error) {
 	}
 
 	if token == "" {
-		return nil, fmt.Errorf("Snyk API token not configured. Run: devctl-em config set snyk.api_token")
+		return nil, fmt.Errorf("Snyk API token not configured. Run: devctl-em metrics snyk config")
 	}
 
 	orgID := getConfigString("snyk.org_id")
 	if orgID == "" {
-		return nil, fmt.Errorf("Snyk org ID not configured. Run: devctl-em config set snyk.org_id <org-id>")
+		return nil, fmt.Errorf("Snyk org ID not configured. Run: devctl-em metrics snyk config")
 	}
 
 	site := getConfigString("snyk.site")
@@ -84,10 +81,15 @@ func getSnykClient() (*snyk.Client, error) {
 	return snyk.NewClient(creds), nil
 }
 
-// getSnykTeam returns the Snyk team tag from flag or config.
+// getSnykTeam returns the Snyk team tag from flag, team config, or global config.
 func getSnykTeam() string {
 	if snykTeamFlag != "" {
 		return snykTeamFlag
+	}
+	if team := getSelectedTeam(); team != "" {
+		if tag := getConfigString(fmt.Sprintf("teams.%s.snyk.team", team)); tag != "" {
+			return tag
+		}
 	}
 	return getConfigString("snyk.team")
 }

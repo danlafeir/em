@@ -7,12 +7,16 @@ import (
 )
 
 // Dir returns the output directory path.
-// It checks the DEVCTL_EM_OUTPUT_DIR env var, defaulting to "out".
+// It checks the DEVCTL_EM_OUTPUT_DIR env var, defaulting to $HOME/.devctl/output/em.
 func Dir() string {
 	if d := os.Getenv("DEVCTL_EM_OUTPUT_DIR"); d != "" {
 		return d
 	}
-	return "out"
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "out"
+	}
+	return filepath.Join(home, ".devctl", "output", "em")
 }
 
 // Path returns a file path within the output directory.
