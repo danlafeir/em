@@ -40,15 +40,7 @@ var configCmd = &cobra.Command{
 
 Use this command to get, set, or delete configuration values.
 Regular config is stored in ~/.devctl/config.yaml under the 'em' namespace.
-Sensitive values (like api_token) are stored in the system keychain.
-
-Examples:
-  devctl-em config set jira.domain mycompany
-  devctl-em config set jira.email user@company.com
-  devctl-em config set jira.api_token              # prompts for value, stored in keychain
-  devctl-em config get jira.domain
-  devctl-em config list
-  devctl-em config delete jira.api_token`,
+Sensitive values (like api_token) are stored in the system keychain.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
@@ -58,11 +50,7 @@ Examples:
 var getCmd = &cobra.Command{
 	Use:   "get [key]",
 	Short: "Get a configuration value",
-	Long: `Get a configuration value. Secrets are retrieved from the system keychain.
-
-Examples:
-  devctl-em config get jira.domain
-  devctl-em config get jira.api_token`,
+	Long: `Get a configuration value. Secrets are retrieved from the system keychain.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		key := args[0]
@@ -104,12 +92,7 @@ var setCmd = &cobra.Command{
 	Short: "Set a configuration value",
 	Long: `Set a configuration value. Secrets are stored in the system keychain.
 
-For secrets, if no value is provided, you will be prompted to enter it securely.
-
-Examples:
-  devctl-em config set jira.domain mycompany
-  devctl-em config set jira.api_token              # prompts securely
-  devctl-em config set jira.api_token my_token`,
+For secrets, if no value is provided, you will be prompted to enter it securely.`,
 	Args: cobra.RangeArgs(1, 2),
 	Run: func(cmd *cobra.Command, args []string) {
 		key := args[0]
@@ -169,11 +152,7 @@ Examples:
 var deleteCmd = &cobra.Command{
 	Use:   "delete [key]",
 	Short: "Delete a configuration value",
-	Long: `Delete a configuration value. Secrets are removed from the system keychain.
-
-Examples:
-  devctl-em config delete jira.domain
-  devctl-em config delete jira.api_token`,
+	Long: `Delete a configuration value. Secrets are removed from the system keychain.`,
 	Args: cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		key := args[0]
@@ -206,10 +185,7 @@ Examples:
 var listCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List configuration values",
-	Long: `List all configuration values.
-
-Examples:
-  devctl-em config list`,
+	Long: `List all configuration values.`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := config.InitConfig(""); err != nil {

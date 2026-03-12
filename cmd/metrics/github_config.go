@@ -90,7 +90,18 @@ func runGhConfig(cmd *cobra.Command, args []string) error {
 
 	// 4. Team workflow loop
 	for {
-		if err := runGhTeamConfig(ctx, reader, client, org); err != nil {
+		teams := getAllTeams()
+		if len(teams) == 0 {
+			fmt.Println("No teams configured. Run: devctl-em metrics config to add teams first.")
+			break
+		}
+
+		team, err := pickTeam(reader, teams)
+		if err != nil {
+			return err
+		}
+
+		if err := runGhTeamConfig(ctx, reader, client, org, team); err != nil {
 			return err
 		}
 
@@ -106,21 +117,9 @@ func runGhConfig(cmd *cobra.Command, args []string) error {
 }
 
 // runGhTeamConfig handles workflow selection for a single team.
-func runGhTeamConfig(ctx context.Context, reader *bufio.Reader, client *github.Client, org string) error {
-	teamName, githubSlug, err := resolveGhConfigTeam(ctx, client, org)
-	if err != nil {
-		return err
-	}
-
-	if githubSlug == "" {
-		fmt.Printf("\nTeam %q saved. No GitHub team slug available — run config again and select a team from the list to configure its repositories.\n", teamName)
-		configKey := fmt.Sprintf("teams.%s.github.workflows", teamName)
-		config.SetConfigValue(configNamespace, configKey, map[string]any{})
-		return config.WriteConfig()
-	}
-
-	fmt.Printf("\nFetching repositories for %s/%s...\n", org, githubSlug)
-	repos, err := client.ListTeamRepos(ctx, org, githubSlug)
+func runGhTeamConfig(ctx context.Context, reader *bufio.Reader, client *github.Client, org, teamName string) error {
+	fmt.Printf("\nFetching repositories for %s/%s...\n", org, teamName)
+	repos, err := client.ListTeamRepos(ctx, org, teamName)
 	if err != nil {
 		return fmt.Errorf("failed to list team repos: %w", err)
 	}
@@ -281,102 +280,3 @@ func promptAndStoreGhToken() error {
 	return nil
 }
 
-// resolveGhConfigTeam determines which team to configure.
-// Returns (configName, githubSlug) — configName is the key used in config,
-// githubSlug is the GitHub team slug used for API calls (empty if not known).
-func resolveGhConfigTeam(ctx context.Context, client *github.Client, org string) (string, string, error) {
-	if ghTeamFlag != "" {
-		return ghTeamFlag, ghTeamFlag, nil
-	}
-
-	reader := bufio.NewReader(os.Stdin)
-	existingTeams := getGithubTeams()
-
-	if len(existingTeams) > 0 {
-		fmt.Println("Configured teams:")
-		for i, t := range existingTeams {
-			fmt.Printf("  %d) %s\n", i+1, t)
-		}
-		fmt.Printf("  %d) Add new team\n", len(existingTeams)+1)
-		fmt.Printf("Select team [%d]: ", len(existingTeams)+1)
-
-		input, _ := reader.ReadString('\n')
-		input = strings.TrimSpace(input)
-
-		if input == "" {
-			input = strconv.Itoa(len(existingTeams) + 1)
-		}
-
-		choice, err := strconv.Atoi(input)
-		if err == nil && choice >= 1 && choice <= len(existingTeams) {
-			name := existingTeams[choice-1]
-			return name, name, nil
-		}
-	}
-
-	return selectTeamFromAPI(ctx, client, org, existingTeams)
-}
-
-// selectTeamFromAPI fetches org teams via the GitHub API and presents them for selection.
-// Returns (configName, githubSlug) — both are the team slug when selected from API,
-// or (name, "") when the user enters a name manually.
-func selectTeamFromAPI(ctx context.Context, client *github.Client, org string, exclude []string) (string, string, error) {
-	reader := bufio.NewReader(os.Stdin)
-
-	fmt.Printf("Fetching teams for %s...\n", org)
-	apiTeams, err := client.ListUserTeams(ctx, org)
-	if err != nil {
-		fmt.Printf("Could not fetch teams: %v\n", err)
-		return promptTeamName(reader)
-	}
-
-	excludeSet := make(map[string]bool, len(exclude))
-	for _, t := range exclude {
-		excludeSet[t] = true
-	}
-	var available []github.Team
-	for _, t := range apiTeams {
-		if !excludeSet[t.Slug] {
-			available = append(available, t)
-		}
-	}
-
-	if len(available) == 0 {
-		fmt.Println("No additional teams found in this org.")
-		return promptTeamName(reader)
-	}
-
-	fmt.Println("Available teams:")
-	for i, t := range available {
-		fmt.Printf("  %d) %s\n", i+1, t.Name)
-	}
-	fmt.Printf("Select team [1]: ")
-
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-	if input == "" {
-		input = "1"
-	}
-
-	choice, err := strconv.Atoi(input)
-	if err != nil || choice < 1 || choice > len(available) {
-		return "", "", fmt.Errorf("invalid selection")
-	}
-
-	t := available[choice-1]
-	return t.Slug, t.Slug, nil
-}
-
-// promptTeamName asks the user to enter a team name as a config label.
-// The name is not used for GitHub API lookups — githubSlug is returned empty.
-func promptTeamName(reader *bufio.Reader) (string, string, error) {
-	fmt.Print("Enter team name: ")
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-
-	if input == "" {
-		return "", "", fmt.Errorf("team name is required")
-	}
-
-	return input, "", nil
-}

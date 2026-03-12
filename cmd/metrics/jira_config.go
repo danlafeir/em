@@ -83,7 +83,13 @@ func runJiraConfig(cmd *cobra.Command, args []string) error {
 
 	// 4. Teams loop
 	for {
-		team, err := resolveJiraConfigTeam(reader)
+		teams := getAllTeams()
+		if len(teams) == 0 {
+			fmt.Println("No teams configured. Run: devctl-em metrics config to add teams first.")
+			break
+		}
+
+		team, err := pickTeam(reader, teams)
 		if err != nil {
 			return err
 		}
@@ -101,7 +107,7 @@ func runJiraConfig(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "Warning: could not fetch boards: %v\n", err)
 		}
 
-		fmt.Print("Add another team? [y/N]: ")
+		fmt.Print("Configure another team? [y/N]: ")
 		input, _ := reader.ReadString('\n')
 		if strings.TrimSpace(strings.ToLower(input)) != "y" {
 			break
@@ -170,52 +176,6 @@ func promptAndStoreToken() error {
 	}
 	fmt.Println("API token stored in keychain.")
 	return nil
-}
-
-// resolveJiraConfigTeam determines which team to configure.
-// If --team is set, use that. Otherwise list existing teams or prompt for a new slug.
-func resolveJiraConfigTeam(reader *bufio.Reader) (string, error) {
-	if jiraTeamFlag != "" {
-		return jiraTeamFlag, nil
-	}
-
-	existingTeams := getJiraTeams()
-
-	if len(existingTeams) > 0 {
-		fmt.Println("Configured teams:")
-		for i, t := range existingTeams {
-			project := getTeamConfigString(t, "project")
-			if project != "" {
-				fmt.Printf("  %d) %s (project: %s)\n", i+1, t, project)
-			} else {
-				fmt.Printf("  %d) %s\n", i+1, t)
-			}
-		}
-		fmt.Printf("  %d) Add new team\n", len(existingTeams)+1)
-		fmt.Printf("Select team [%d]: ", len(existingTeams)+1)
-
-		input, _ := reader.ReadString('\n')
-		input = strings.TrimSpace(input)
-
-		if input == "" {
-			input = strconv.Itoa(len(existingTeams) + 1)
-		}
-
-		choice, err := strconv.Atoi(input)
-		if err == nil && choice >= 1 && choice <= len(existingTeams) {
-			return existingTeams[choice-1], nil
-		}
-	}
-
-	fmt.Print("Enter team name: ")
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-
-	if input == "" {
-		return "", fmt.Errorf("team name is required")
-	}
-
-	return input, nil
 }
 
 // promptBoardJQL queries JIRA for boards in the project and lets the user

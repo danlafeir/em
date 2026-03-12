@@ -143,6 +143,7 @@ var emConfigSchema = config.ConfigSchema{
 	"selected_team",
 	"jira.domain",
 	"jira.email",
+	"teams.*",
 	"teams.*.jira.project",
 	"teams.*.jira.jql_filter_for_metrics",
 	"teams.*.jira.selected_epics",
