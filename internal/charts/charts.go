@@ -52,10 +52,11 @@ type LongestCycleTimeRow struct {
 	Outlier   bool
 }
 
-// SnykIssueWeek holds vulnerability counts by severity for a single week.
+// SnykIssueWeek holds open vulnerability total and resolved count for a week.
 type SnykIssueWeek struct {
-	WeekStart              time.Time
-	Critical, High, Medium, Low int
+	WeekStart time.Time
+	Total     int // running total of open issues at end of week
+	Resolved  int // issues resolved during this week
 }
 
 // tableRow is used by table templates.
@@ -569,33 +570,34 @@ func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 		Y int    `json:"y"`
 	}
 
-	type seriesDef struct {
-		name  string
-		color string
-		val   func(SnykIssueWeek) int
+	pts := make([]point, len(weeks))
+	for i, w := range weeks {
+		pts[i] = point{X: w.WeekStart.Format("2006-01-02"), Y: w.Total}
 	}
 
-	series := []seriesDef{
-		{"Critical", "rgba(220, 38, 38, 1)", func(w SnykIssueWeek) int { return w.Critical }},
-		{"High", "rgba(234, 88, 12, 1)", func(w SnykIssueWeek) int { return w.High }},
-		{"Medium", "rgba(202, 138, 4, 1)", func(w SnykIssueWeek) int { return w.Medium }},
-		{"Low", "rgba(37, 99, 235, 1)", func(w SnykIssueWeek) int { return w.Low }},
+	resolvedPts := make([]point, len(weeks))
+	for i, w := range weeks {
+		resolvedPts[i] = point{X: w.WeekStart.Format("2006-01-02"), Y: w.Resolved}
 	}
 
-	var datasets []map[string]any
-	for _, s := range series {
-		pts := make([]point, len(weeks))
-		for i, w := range weeks {
-			pts[i] = point{X: w.WeekStart.Format("2006-01-02"), Y: s.val(w)}
-		}
-		datasets = append(datasets, map[string]any{
-			"label":       s.name,
-			"data":        pts,
-			"borderColor": s.color,
+	datasets := []map[string]any{
+		{
+			"label":           "Total Open",
+			"data":            pts,
+			"borderColor":     "rgba(99, 102, 241, 1)",
+			"backgroundColor": "rgba(99, 102, 241, 0.1)",
+			"borderWidth":     2,
+			"pointRadius":     4,
+			"fill":            true,
+		},
+		{
+			"label":       "Resolved",
+			"data":        resolvedPts,
+			"borderColor": "rgba(22, 163, 74, 1)",
 			"borderWidth": 2,
-			"pointRadius": 3,
+			"pointRadius": 4,
 			"fill":        false,
-		})
+		},
 	}
 
 	return map[string]any{
@@ -614,8 +616,7 @@ func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 			},
 			"scales": map[string]any{
 				"x": map[string]any{
-					"type": "time",
-					"time": map[string]any{"unit": "week"},
+					"type": "category",
 					"title": map[string]any{
 						"display": true,
 						"text":    "Week",
@@ -624,7 +625,7 @@ func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 				"y": map[string]any{
 					"title": map[string]any{
 						"display": true,
-						"text":    "Issues",
+						"text":    "Open Issues",
 					},
 					"beginAtZero": true,
 				},

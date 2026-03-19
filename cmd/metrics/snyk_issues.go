@@ -57,8 +57,19 @@ func runSnykIssues(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list issues: %w", err)
 	}
 
-	if len(issues) == 0 {
-		fmt.Println("\nNo issues found in the specified date range.")
+	resolved, err := client.ListResolvedIssues(ctx, from, to)
+	if err != nil {
+		return fmt.Errorf("failed to list resolved issues: %w", err)
+	}
+
+	fmt.Println("Counting total open issues...")
+	openCounts, err := client.CountOpenIssues(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to count open issues: %w", err)
+	}
+
+	if openCounts.Total == 0 && len(issues) == 0 {
+		fmt.Println("\nNo issues found.")
 		return nil
 	}
 
@@ -88,7 +99,7 @@ func runSnykIssues(cmd *cobra.Command, args []string) error {
 	fmt.Printf("| %-10s | %5d |\n", "Total", total)
 
 	// Generate weekly trend chart
-	weeks := bucketByWeek(issues, from, to)
+	weeks := bucketByWeek(issues, resolved, openCounts.Total, from, to)
 	if len(weeks) > 0 {
 		cfg := charts.Config{Title: "Snyk Issues — Weekly Trend"}
 		chartPath := getSnykOutputPath("snyk-issues", "html")
@@ -118,64 +129,88 @@ func countBySeverity(issues []snyk.Issue) map[string]int {
 	return counts
 }
 
-// bucketByWeek groups issues by ISO week and severity.
-func bucketByWeek(issues []snyk.Issue, from, to time.Time) []charts.SnykIssueWeek {
+// weekDelta holds the net change in open issues for a single week.
+type weekDelta struct {
+	WeekStart time.Time
+	Net      int // created - resolved
+	Resolved int // count of issues resolved this week
+}
+
+// bucketByWeek computes the true total of open vulnerabilities at each week's end.
+// It anchors on currentOpen (the live count right now) and walks backwards through
+// the weeks, reversing each week's net change to reconstruct the historical total.
+func bucketByWeek(issues []snyk.Issue, resolved []snyk.Issue, currentOpen int, from, to time.Time) []charts.SnykIssueWeek {
 	type weekKey struct {
 		year int
 		week int
 	}
 
-	buckets := map[weekKey]*charts.SnykIssueWeek{}
+	deltas := map[weekKey]*weekDelta{}
 
-	// Initialize all weeks in range
+	// Initialize all weeks in range aligned to Monday
 	current := from.Truncate(24 * time.Hour)
-	// Align to Monday
 	for current.Weekday() != time.Monday {
 		current = current.AddDate(0, 0, -1)
 	}
 	for !current.After(to) {
 		y, w := current.ISOWeek()
-		k := weekKey{y, w}
-		if _, ok := buckets[k]; !ok {
-			buckets[k] = &charts.SnykIssueWeek{WeekStart: current}
-		}
+		deltas[weekKey{y, w}] = &weekDelta{WeekStart: current}
 		current = current.AddDate(0, 0, 7)
 	}
 
-	// Bucket issues
-	for _, issue := range issues {
-		y, w := issue.CreatedAt.ISOWeek()
-		k := weekKey{y, w}
-		bucket, ok := buckets[k]
-		if !ok {
-			// Find Monday of this week
-			ws := issue.CreatedAt.Truncate(24 * time.Hour)
-			for ws.Weekday() != time.Monday {
-				ws = ws.AddDate(0, 0, -1)
-			}
-			bucket = &charts.SnykIssueWeek{WeekStart: ws}
-			buckets[k] = bucket
+	weekMonday := func(t time.Time) time.Time {
+		d := t.Truncate(24 * time.Hour)
+		for d.Weekday() != time.Monday {
+			d = d.AddDate(0, 0, -1)
 		}
-		switch strings.ToLower(issue.Severity) {
-		case "critical":
-			bucket.Critical++
-		case "high":
-			bucket.High++
-		case "medium":
-			bucket.Medium++
-		case "low":
-			bucket.Low++
+		return d
+	}
+
+	getOrCreate := func(t time.Time) *weekDelta {
+		y, w := t.ISOWeek()
+		k := weekKey{y, w}
+		if d, ok := deltas[k]; ok {
+			return d
+		}
+		d := &weekDelta{WeekStart: weekMonday(t)}
+		deltas[k] = d
+		return d
+	}
+
+	// Net change per week: +1 for each issue created, -1 for each resolved
+	for _, issue := range issues {
+		getOrCreate(issue.CreatedAt).Net++
+	}
+	for _, issue := range resolved {
+		if !issue.ResolvedAt.IsZero() {
+			d := getOrCreate(issue.ResolvedAt)
+			d.Net--
+			d.Resolved++
 		}
 	}
 
-	// Sort by week start
-	weeks := make([]charts.SnykIssueWeek, 0, len(buckets))
-	for _, w := range buckets {
-		weeks = append(weeks, *w)
+	// Sort weeks oldest → newest
+	sorted := make([]*weekDelta, 0, len(deltas))
+	for _, d := range deltas {
+		sorted = append(sorted, d)
 	}
-	sort.Slice(weeks, func(i, j int) bool {
-		return weeks[i].WeekStart.Before(weeks[j].WeekStart)
+	sort.Slice(sorted, func(i, j int) bool {
+		return sorted[i].WeekStart.Before(sorted[j].WeekStart)
 	})
+
+	// Walk backwards from currentOpen: each earlier week = later week's total - that later week's net
+	weeks := make([]charts.SnykIssueWeek, len(sorted))
+	for i := len(sorted) - 1; i >= 0; i-- {
+		if i == len(sorted)-1 {
+			weeks[i] = charts.SnykIssueWeek{WeekStart: sorted[i].WeekStart, Total: currentOpen, Resolved: sorted[i].Resolved}
+		} else {
+			weeks[i] = charts.SnykIssueWeek{
+				WeekStart: sorted[i].WeekStart,
+				Total:     max(0, weeks[i+1].Total-sorted[i+1].Net),
+				Resolved:  sorted[i].Resolved,
+			}
+		}
+	}
 
 	return weeks
 }

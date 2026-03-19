@@ -25,14 +25,20 @@ type Org struct {
 	Name string
 }
 
+// OpenCounts holds the current total of open issues broken down by severity.
+type OpenCounts struct {
+	Critical, High, Medium, Low, Total int
+}
+
 // Issue represents a Snyk vulnerability issue.
 type Issue struct {
-	ID        string
-	Title     string
-	Severity  string // critical, high, medium, low
-	IssueType string
-	Status    string
-	CreatedAt time.Time
+	ID         string
+	Title      string
+	Severity   string // critical, high, medium, low
+	IssueType  string
+	Status     string
+	CreatedAt  time.Time
+	ResolvedAt time.Time
 }
 
 // issueAttributes holds attributes from the issues API response.
@@ -42,6 +48,7 @@ type issueAttributes struct {
 	Type                   string `json:"type"`
 	Status                 string `json:"status"`
 	CreatedAt              string `json:"created_at"`
+	ResolvedAt             string `json:"resolved_at"`
 }
 
 // issueData represents a single item in the issues API response.

@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -183,6 +184,127 @@ func (c *Client) ListOrgs(ctx context.Context) ([]Org, error) {
 	return all, nil
 }
 
+// CountOpenIssues returns the current open issue counts broken down by severity
+// by paginating all issues and counting those with status "open".
+func (c *Client) CountOpenIssues(ctx context.Context) (OpenCounts, error) {
+	path := fmt.Sprintf("/rest/orgs/%s/issues", url.PathEscape(c.credentials.OrgID))
+
+	query := url.Values{}
+	query.Set("limit", "100")
+
+	var counts OpenCounts
+	nextURL := ""
+	for {
+		var body []byte
+		var err error
+		if nextURL != "" {
+			body, err = c.doRequest(ctx, "GET", "", nil, nextURL)
+		} else {
+			body, err = c.doRequest(ctx, "GET", path, query, "")
+		}
+		if err != nil {
+			return OpenCounts{}, fmt.Errorf("counting open issues: %w", err)
+		}
+
+		var resp issueListResponse
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return OpenCounts{}, fmt.Errorf("counting open issues: %w", err)
+		}
+
+		for _, d := range resp.Data {
+			if d.Attributes.Status != "open" {
+				continue
+			}
+			counts.Total++
+			switch strings.ToLower(d.Attributes.EffectiveSeverityLevel) {
+			case "critical":
+				counts.Critical++
+			case "high":
+				counts.High++
+			case "medium":
+				counts.Medium++
+			case "low":
+				counts.Low++
+			}
+		}
+
+		if resp.Links.Next == "" {
+			break
+		}
+		nextURL = resp.Links.Next
+		if nextURL[0] == '/' {
+			nextURL = c.credentials.BaseURL() + nextURL
+		}
+	}
+	return counts, nil
+}
+
+// ListResolvedIssues fetches issues resolved within the given date range.
+// It filters by update time to catch recently resolved issues, then returns
+// only those with status "resolved" and a resolved_at within the range.
+func (c *Client) ListResolvedIssues(ctx context.Context, from, to time.Time) ([]Issue, error) {
+	var all []Issue
+	path := fmt.Sprintf("/rest/orgs/%s/issues", url.PathEscape(c.credentials.OrgID))
+
+	query := url.Values{}
+	query.Set("limit", "100")
+	query.Set("updated_after", from.Format(time.RFC3339))
+	query.Set("updated_before", to.Format(time.RFC3339))
+
+	nextURL := ""
+	for {
+		var body []byte
+		var err error
+		if nextURL != "" {
+			body, err = c.doRequest(ctx, "GET", "", nil, nextURL)
+		} else {
+			body, err = c.doRequest(ctx, "GET", path, query, "")
+		}
+		if err != nil {
+			return nil, fmt.Errorf("listing resolved issues: %w", err)
+		}
+
+		var resp issueListResponse
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return nil, fmt.Errorf("parsing resolved issues: %w", err)
+		}
+
+		for _, d := range resp.Data {
+			if d.Attributes.Status != "resolved" {
+				continue
+			}
+			issue := Issue{
+				ID:        d.ID,
+				Title:     d.Attributes.Title,
+				Severity:  d.Attributes.EffectiveSeverityLevel,
+				IssueType: d.Attributes.Type,
+				Status:    d.Attributes.Status,
+			}
+			if t, err := time.Parse(time.RFC3339, d.Attributes.CreatedAt); err == nil {
+				issue.CreatedAt = t
+			}
+			if t, err := time.Parse(time.RFC3339, d.Attributes.ResolvedAt); err == nil {
+				issue.ResolvedAt = t
+			}
+			// Only include if resolved_at falls within the requested range
+			if issue.ResolvedAt.IsZero() || issue.ResolvedAt.Before(from) || issue.ResolvedAt.After(to) {
+				continue
+			}
+			all = append(all, issue)
+		}
+
+		if resp.Links.Next == "" {
+			break
+		}
+		nextURL = resp.Links.Next
+		if nextURL != "" && nextURL[0] == '/' {
+			nextURL = c.credentials.BaseURL() + nextURL
+		}
+	}
+
+	return all, nil
+}
+
 // ListIssues fetches all issues for the org within the given date range.
 func (c *Client) ListIssues(ctx context.Context, from, to time.Time) ([]Issue, error) {
 	var all []Issue
@@ -221,6 +343,9 @@ func (c *Client) ListIssues(ctx context.Context, from, to time.Time) ([]Issue, e
 			}
 			if t, err := time.Parse(time.RFC3339, d.Attributes.CreatedAt); err == nil {
 				issue.CreatedAt = t
+			}
+			if t, err := time.Parse(time.RFC3339, d.Attributes.ResolvedAt); err == nil {
+				issue.ResolvedAt = t
 			}
 			all = append(all, issue)
 		}

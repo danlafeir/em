@@ -52,15 +52,25 @@ func runSnykReport(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to list issues: %w", err)
 	}
 
-	counts := countBySeverity(issues)
-	summary := charts.SnykSummary{
-		Critical: counts["critical"],
-		High:     counts["high"],
-		Medium:   counts["medium"],
-		Low:      counts["low"],
+	resolved, err := client.ListResolvedIssues(ctx, from, to)
+	if err != nil {
+		return fmt.Errorf("failed to list resolved issues: %w", err)
 	}
 
-	weeks := bucketByWeek(issues, from, to)
+	fmt.Println("Counting total open issues...")
+	openCounts, err := client.CountOpenIssues(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to count open issues: %w", err)
+	}
+
+	summary := charts.SnykSummary{
+		Critical: openCounts.Critical,
+		High:     openCounts.High,
+		Medium:   openCounts.Medium,
+		Low:      openCounts.Low,
+	}
+
+	weeks := bucketByWeek(issues, resolved, openCounts.Total, from, to)
 
 	outputPath := getSnykOutputPath("snyk-report", "html")
 

@@ -34,9 +34,14 @@ func init() {
 func runSelectTeam(cmd *cobra.Command, args []string) error {
 	initConfig()
 
-	// Direct argument
+	reader := bufio.NewReader(os.Stdin)
+
+	// Direct argument: register if new, then select
 	if len(args) == 1 {
 		team := args[0]
+		if err := registerTeamIfNew(team); err != nil {
+			return err
+		}
 		return saveSelectedTeam(team)
 	}
 
@@ -46,45 +51,78 @@ func runSelectTeam(cmd *cobra.Command, args []string) error {
 	}
 
 	teams := getAllTeams()
-	if len(teams) == 0 {
-		return fmt.Errorf("no teams configured. Run: devctl-em metrics jira config or devctl-em metrics github config")
-	}
 
-	fmt.Println("Configured teams:")
-	for i, t := range teams {
-		marker := ""
-		if t == current {
-			marker = " (current)"
+	if len(teams) > 0 {
+		fmt.Println("Configured teams:")
+		for i, t := range teams {
+			marker := ""
+			if t == current {
+				marker = " (current)"
+			}
+			fmt.Printf("  %d) %s%s\n", i+1, t, marker)
 		}
-		fmt.Printf("  %d) %s%s\n", i+1, t, marker)
+		fmt.Printf("  0) Clear selection (use all teams)\n")
+		fmt.Printf("  n) Add a new team\n")
+
+		if current != "" {
+			fmt.Printf("Select team [current: %s]: ", current)
+		} else {
+			fmt.Printf("Select team: ")
+		}
+
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(input)
+
+		if input == "" && current != "" {
+			fmt.Printf("Kept: %s\n", current)
+			return nil
+		}
+
+		if input == "0" {
+			return saveSelectedTeam("")
+		}
+
+		if input != "n" {
+			choice, err := strconv.Atoi(input)
+			if err != nil || choice < 1 || choice > len(teams) {
+				return fmt.Errorf("invalid selection")
+			}
+			return saveSelectedTeam(teams[choice-1])
+		}
 	}
-	fmt.Printf("  0) Clear selection (use all teams)\n")
 
-	if current != "" {
-		fmt.Printf("Select team [current: %s]: ", current)
-	} else {
-		fmt.Printf("Select team: ")
+	// New team prompt (either "n" chosen or no teams exist yet)
+	fmt.Print("New team name: ")
+	name, _ := reader.ReadString('\n')
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return fmt.Errorf("team name cannot be empty")
 	}
-
-	reader := bufio.NewReader(os.Stdin)
-	input, _ := reader.ReadString('\n')
-	input = strings.TrimSpace(input)
-
-	if input == "" && current != "" {
-		fmt.Printf("Kept: %s\n", current)
-		return nil
+	if err := registerTeamIfNew(name); err != nil {
+		return err
 	}
+	return saveSelectedTeam(name)
+}
 
-	if input == "0" {
-		return saveSelectedTeam("")
+// registerTeamIfNew adds the team to team_names if it isn't already there.
+func registerTeamIfNew(team string) error {
+	existing := getAllTeams()
+	for _, t := range existing {
+		if t == team {
+			return nil
+		}
 	}
-
-	choice, err := strconv.Atoi(input)
-	if err != nil || choice < 1 || choice > len(teams) {
-		return fmt.Errorf("invalid selection")
+	updated := make([]any, 0, len(existing)+1)
+	for _, t := range existing {
+		updated = append(updated, t)
 	}
-
-	return saveSelectedTeam(teams[choice-1])
+	updated = append(updated, team)
+	config.SetConfigValue(configNamespace, "team_names", updated)
+	if err := config.WriteConfig(); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+	fmt.Printf("Added team: %s\n", team)
+	return nil
 }
 
 func saveSelectedTeam(team string) error {
