@@ -183,55 +183,6 @@ func (c *Client) ListOrgs(ctx context.Context) ([]Org, error) {
 	return all, nil
 }
 
-// ListProjects lists Snyk projects filtered by a team tag.
-func (c *Client) ListProjects(ctx context.Context, teamTag string) ([]Project, error) {
-	var allProjects []Project
-	path := fmt.Sprintf("/rest/orgs/%s/projects", url.PathEscape(c.credentials.OrgID))
-
-	query := url.Values{}
-	query.Set("limit", "100")
-	if teamTag != "" {
-		query.Set("tags", "team:"+teamTag)
-	}
-
-	nextURL := ""
-	for {
-		var body []byte
-		var err error
-		if nextURL != "" {
-			body, err = c.doRequest(ctx, "GET", "", nil, nextURL)
-		} else {
-			body, err = c.doRequest(ctx, "GET", path, query, "")
-		}
-		if err != nil {
-			return nil, fmt.Errorf("listing projects: %w", err)
-		}
-
-		var resp projectListResponse
-		if err := json.Unmarshal(body, &resp); err != nil {
-			return nil, fmt.Errorf("parsing projects: %w", err)
-		}
-
-		for _, d := range resp.Data {
-			allProjects = append(allProjects, Project{
-				ID:   d.ID,
-				Name: d.Attributes.Name,
-			})
-		}
-
-		if resp.Links.Next == "" {
-			break
-		}
-		nextURL = resp.Links.Next
-		// Ensure next URL is absolute
-		if nextURL != "" && nextURL[0] == '/' {
-			nextURL = c.credentials.BaseURL() + nextURL
-		}
-	}
-
-	return allProjects, nil
-}
-
 // ListIssues fetches all issues for the org within the given date range.
 func (c *Client) ListIssues(ctx context.Context, from, to time.Time) ([]Issue, error) {
 	var all []Issue

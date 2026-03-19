@@ -20,13 +20,12 @@ import (
 var snykConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Interactive Snyk configuration",
-	Long: `Interactively configure Snyk connection and team project tags.
+	Long: `Interactively configure Snyk connection.
 
 Prompts for:
   - Snyk site (optional, defaults to api.snyk.io)
   - API token (stored in system keychain)
   - Snyk org (selected from your accessible organizations)
-  - Team project tag (team-specific, set via select-team first)
 
 Existing values are shown and can be kept by pressing Enter.
 
@@ -97,7 +96,7 @@ func runSnykConfig(cmd *cobra.Command, args []string) error {
 	fmt.Println("Connected successfully.")
 
 	// 4. Org selection
-	orgID, err := resolveSnykOrg(ctx, reader, authClient)
+	orgID, orgName, err := resolveSnykOrg(ctx, reader, authClient)
 	if err != nil {
 		return err
 	}
@@ -105,33 +104,10 @@ func runSnykConfig(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("Snyk org ID is required")
 	}
 	config.SetConfigValue(configNamespace, "snyk.org_id", orgID)
+	config.SetConfigValue(configNamespace, "snyk.org_name", orgName)
 	if err := config.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
-
-	// 5. Team-specific: Snyk team tag
-	team := getSelectedTeam()
-	if team == "" {
-		if len(getAllTeams()) == 0 {
-			fmt.Println("\nNo teams configured. Run: devctl-em metrics config to add a team.")
-		} else {
-			fmt.Println("\nNo team selected. Run: devctl-em metrics select-team to configure team-specific settings.")
-		}
-		fmt.Println("Snyk configuration saved.")
-		return nil
-	}
-
-	currentTag := getConfigString(fmt.Sprintf("teams.%s.snyk.team", team))
-	fmt.Printf("\nConfiguring Snyk for team %q\n", team)
-	tag, err := promptValue(reader, "Snyk project tag (team:<tag> value)", currentTag)
-	if err != nil {
-		return err
-	}
-	config.SetConfigValue(configNamespace, fmt.Sprintf("teams.%s.snyk.team", team), tag)
-	if err := config.WriteConfig(); err != nil {
-		return fmt.Errorf("failed to save config: %w", err)
-	}
-	fmt.Printf("Set Snyk team tag for %q: %s\n", team, tag)
 
 	fmt.Println("Snyk configuration saved.")
 	return nil
@@ -139,14 +115,20 @@ func runSnykConfig(cmd *cobra.Command, args []string) error {
 
 // resolveSnykOrg lists the authenticated user's Snyk orgs and lets them pick one.
 // Falls back to manual entry if the API call fails.
-func resolveSnykOrg(ctx context.Context, reader *bufio.Reader, client *snyk.Client) (string, error) {
-	existing := getConfigString("snyk.org_id")
-	if existing != "" {
-		fmt.Printf("Snyk org ID: %s\n", existing)
+// Returns the org ID and name.
+func resolveSnykOrg(ctx context.Context, reader *bufio.Reader, client *snyk.Client) (string, string, error) {
+	existingID := getConfigString("snyk.org_id")
+	existingName := getConfigString("snyk.org_name")
+	if existingID != "" {
+		if existingName != "" {
+			fmt.Printf("Snyk org: %s (%s)\n", existingName, existingID)
+		} else {
+			fmt.Printf("Snyk org ID: %s\n", existingID)
+		}
 		fmt.Print("Change org? [y/N]: ")
 		input, _ := reader.ReadString('\n')
 		if strings.TrimSpace(strings.ToLower(input)) != "y" {
-			return existing, nil
+			return existingID, existingName, nil
 		}
 	}
 
@@ -160,7 +142,7 @@ func resolveSnykOrg(ctx context.Context, reader *bufio.Reader, client *snyk.Clie
 		}
 		fmt.Print("Enter Snyk org ID manually: ")
 		input, _ := reader.ReadString('\n')
-		return strings.TrimSpace(input), nil
+		return strings.TrimSpace(input), "", nil
 	}
 
 	fmt.Println("Snyk organizations:")
@@ -175,9 +157,10 @@ func resolveSnykOrg(ctx context.Context, reader *bufio.Reader, client *snyk.Clie
 	}
 	choice, err := strconv.Atoi(input)
 	if err != nil || choice < 1 || choice > len(orgs) {
-		return "", fmt.Errorf("invalid selection")
+		return "", "", fmt.Errorf("invalid selection")
 	}
-	return orgs[choice-1].ID, nil
+	org := orgs[choice-1]
+	return org.ID, org.Name, nil
 }
 
 func promptAndStoreSnykToken() error {

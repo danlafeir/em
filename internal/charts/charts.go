@@ -554,13 +554,16 @@ func DeploymentFrequencyLine(data metrics.ThroughputResult, cfg Config, path str
 	return writePageHTML(path, title, content)
 }
 
-// SnykIssuesLine creates a multi-line HTML chart of Snyk issues by severity.
-func SnykIssuesLine(weeks []SnykIssueWeek, cfg Config, path string) error {
-	title := cfg.Title
-	if title == "" {
-		title = "Snyk Issues — Weekly Trend"
-	}
+// SnykSummary holds aggregate vulnerability counts for the summary bar.
+type SnykSummary struct {
+	Critical int
+	High     int
+	Medium   int
+	Low      int
+}
 
+// snykIssuesChartConfig builds the Chart.js config for the Snyk issues line chart.
+func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 	type point struct {
 		X string `json:"x"`
 		Y int    `json:"y"`
@@ -595,7 +598,7 @@ func SnykIssuesLine(weeks []SnykIssueWeek, cfg Config, path string) error {
 		})
 	}
 
-	chartConfig := map[string]any{
+	return map[string]any{
 		"type": "line",
 		"data": map[string]any{
 			"datasets": datasets,
@@ -628,13 +631,60 @@ func SnykIssuesLine(weeks []SnykIssueWeek, cfg Config, path string) error {
 			},
 		},
 	}
+}
+
+// SnykIssuesLineHTML returns a self-contained HTML fragment for the Snyk issues line chart.
+func SnykIssuesLineHTML(weeks []SnykIssueWeek, title string) (template.HTML, error) {
+	if title == "" {
+		title = "Snyk Issues — Weekly Trend"
+	}
+	cjs, dajs := jsStrings()
+	return renderHTML("fragment_chart.html.tmpl", map[string]any{
+		"CanvasID":      "snyk-chart",
+		"ChartJS":       cjs,
+		"DateAdapterJS": dajs,
+		"ConfigJSON":    mustJSON(snykIssuesChartConfig(weeks, title)),
+	})
+}
+
+// SnykSummaryHTML returns a self-contained HTML fragment for the Snyk vulnerability summary bar.
+func SnykSummaryHTML(s SnykSummary) (template.HTML, error) {
+	return renderHTML("fragment_snyk_summary.html.tmpl", s)
+}
+
+// SnykReport renders a single-page HTML report with a Snyk header, summary bar, and weekly trend chart.
+func SnykReport(summary SnykSummary, weeks []SnykIssueWeek, title, path string) error {
+	if title == "" {
+		title = "Snyk Security Report"
+	}
+	summaryHTML, err := SnykSummaryHTML(summary)
+	if err != nil {
+		return err
+	}
+	chartHTML, err := SnykIssuesLineHTML(weeks, "Issues — Weekly Trend")
+	if err != nil {
+		return err
+	}
+	return writeHTML(path, "snyk_report.html.tmpl", map[string]any{
+		"Title":       title,
+		"SummaryHTML": summaryHTML,
+		"ChartHTML":   chartHTML,
+	})
+}
+
+// SnykIssuesLine creates a multi-line HTML chart of Snyk issues by severity.
+func SnykIssuesLine(weeks []SnykIssueWeek, cfg Config, path string) error {
+	title := cfg.Title
+	if title == "" {
+		title = "Snyk Issues — Weekly Trend"
+	}
 
 	cjs, dajs := jsStrings()
 	return writeHTML(path, "chart.html.tmpl", map[string]any{
 		"Title":         title,
 		"ChartJS":       cjs,
 		"DateAdapterJS": dajs,
-		"ConfigJSON":    mustJSON(chartConfig),
+		"ConfigJSON":    mustJSON(snykIssuesChartConfig(weeks, title)),
 	})
 }
 

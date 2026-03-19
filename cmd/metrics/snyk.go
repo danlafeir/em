@@ -36,7 +36,6 @@ Examples:
 var (
 	snykFromFlag   string
 	snykToFlag     string
-	snykTeamFlag   string
 	snykOutputFlag string
 	snykFormatFlag string
 )
@@ -46,7 +45,6 @@ func init() {
 
 	SnykCmd.PersistentFlags().StringVar(&snykFromFlag, "from", "", "Start date (YYYY-MM-DD)")
 	SnykCmd.PersistentFlags().StringVar(&snykToFlag, "to", "", "End date (YYYY-MM-DD)")
-	SnykCmd.PersistentFlags().StringVar(&snykTeamFlag, "team", "", "Snyk project team tag (overrides config)")
 	SnykCmd.PersistentFlags().StringVarP(&snykOutputFlag, "output", "o", "", "Output file path")
 	SnykCmd.PersistentFlags().StringVarP(&snykFormatFlag, "format", "f", "", "Output format (csv)")
 }
@@ -79,19 +77,6 @@ func getSnykClient() (*snyk.Client, error) {
 	}
 
 	return snyk.NewClient(creds), nil
-}
-
-// getSnykTeam returns the Snyk team tag from flag, team config, or global config.
-func getSnykTeam() string {
-	if snykTeamFlag != "" {
-		return snykTeamFlag
-	}
-	if team := getSelectedTeam(); team != "" {
-		if tag := getConfigString(fmt.Sprintf("teams.%s.snyk.team", team)); tag != "" {
-			return tag
-		}
-	}
-	return getConfigString("snyk.team")
 }
 
 // getSnykDateRange returns the from/to date range for Snyk commands.

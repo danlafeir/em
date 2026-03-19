@@ -25,12 +25,6 @@ type Org struct {
 	Name string
 }
 
-// Project represents a Snyk project.
-type Project struct {
-	ID   string
-	Name string
-}
-
 // Issue represents a Snyk vulnerability issue.
 type Issue struct {
 	ID        string
@@ -39,29 +33,6 @@ type Issue struct {
 	IssueType string
 	Status    string
 	CreatedAt time.Time
-}
-
-// projectAttributes holds attributes from the projects API response.
-type projectAttributes struct {
-	Name string `json:"name"`
-	Tags []struct {
-		Key   string `json:"key"`
-		Value string `json:"value"`
-	} `json:"tags"`
-}
-
-// projectData represents a single item in the projects API response.
-type projectData struct {
-	ID         string            `json:"id"`
-	Attributes projectAttributes `json:"attributes"`
-}
-
-// projectListResponse is the raw API response for listing projects.
-type projectListResponse struct {
-	Data  []projectData `json:"data"`
-	Links struct {
-		Next string `json:"next"`
-	} `json:"links"`
 }
 
 // issueAttributes holds attributes from the issues API response.
