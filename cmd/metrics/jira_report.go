@@ -251,11 +251,28 @@ func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql 
 }
 
 // buildSummary computes the avg cycle time and avg throughput summary values.
+// Cycle time mean excludes outliers beyond 2 standard deviations.
 func buildSummary(cycleResults []pkgmetrics.CycleTimeResult, throughput pkgmetrics.ThroughputResult) charts.ReportSummary {
 	avgCT := "—"
 	if len(cycleResults) > 0 {
 		stats := pkgmetrics.CalculateStats(cycleResults)
-		days := stats.Mean.Hours() / 24
+		mean := stats.Mean
+		stdDev := stats.StdDev
+		if stdDev > 0 {
+			var total time.Duration
+			var count int
+			threshold := 2 * stdDev
+			for _, r := range cycleResults {
+				if r.CycleTime >= mean-threshold && r.CycleTime <= mean+threshold {
+					total += r.CycleTime
+					count++
+				}
+			}
+			if count > 0 {
+				mean = total / time.Duration(count)
+			}
+		}
+		days := mean.Hours() / 24
 		if days < 1 {
 			avgCT = "<1 day"
 		} else {

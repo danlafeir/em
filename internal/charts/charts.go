@@ -143,12 +143,16 @@ func CycleTimeScatterHTML(data []metrics.CycleTimeResult, percentiles []float64,
 		X string  `json:"x"`
 		Y float64 `json:"y"`
 	}
-	points := make([]point, len(data))
-	for i, ct := range data {
-		points[i] = point{
-			X: ct.EndDate.Format("2006-01-02"),
-			Y: math.Round(ct.CycleTimeDays()*10) / 10,
+	var points []point
+	for _, ct := range data {
+		y := math.Round(ct.CycleTimeDays()*10) / 10
+		if y == 0 {
+			continue
 		}
+		points = append(points, point{
+			X: ct.EndDate.Format("2006-01-02"),
+			Y: y,
+		})
 	}
 
 	datasets := []map[string]any{
