@@ -52,11 +52,10 @@ type LongestCycleTimeRow struct {
 	Outlier   bool
 }
 
-// SnykIssueWeek holds open vulnerability total and resolved count for a week.
+// SnykIssueWeek holds the total open vulnerability count at the end of a week.
 type SnykIssueWeek struct {
 	WeekStart time.Time
-	Total     int // running total of open issues at end of week
-	Resolved  int // issues resolved during this week
+	Total     int
 }
 
 // tableRow is used by table templates.
@@ -575,11 +574,6 @@ func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 		pts[i] = point{X: w.WeekStart.Format("2006-01-02"), Y: w.Total}
 	}
 
-	resolvedPts := make([]point, len(weeks))
-	for i, w := range weeks {
-		resolvedPts[i] = point{X: w.WeekStart.Format("2006-01-02"), Y: w.Resolved}
-	}
-
 	datasets := []map[string]any{
 		{
 			"label":           "Total Open",
@@ -589,14 +583,6 @@ func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 			"borderWidth":     2,
 			"pointRadius":     4,
 			"fill":            true,
-		},
-		{
-			"label":       "Resolved",
-			"data":        resolvedPts,
-			"borderColor": "rgba(22, 163, 74, 1)",
-			"borderWidth": 2,
-			"pointRadius": 4,
-			"fill":        false,
 		},
 	}
 
@@ -752,6 +738,8 @@ func CombinedTeamReport(
 	longestCTRows []LongestCycleTimeRow,
 	forecastRows []ForecastRow,
 	jiraBaseURL string,
+	snykSummary SnykSummary,
+	snykWeeks []SnykIssueWeek,
 	path string,
 ) error {
 	var dfHTML template.HTML
@@ -782,14 +770,27 @@ func CombinedTeamReport(
 	if err != nil {
 		return err
 	}
+	var snykSummaryHTML, snykChartHTML template.HTML
+	if len(snykWeeks) > 0 {
+		snykSummaryHTML, err = SnykSummaryHTML(snykSummary)
+		if err != nil {
+			return err
+		}
+		snykChartHTML, err = SnykIssuesLineHTML(snykWeeks, "Issues — Weekly Trend")
+		if err != nil {
+			return err
+		}
+	}
 	return writeHTML(path, "team_report.html.tmpl", map[string]any{
-		"Title":          title,
-		"SummaryHTML":    summaryHTML,
-		"DeploymentHTML": dfHTML,
-		"CycleTimeHTML":  ctHTML,
-		"ThroughputHTML": tpHTML,
-		"LongestCTHTML":  longestHTML,
-		"ForecastHTML":   forecastHTML,
+		"Title":           title,
+		"SummaryHTML":     summaryHTML,
+		"DeploymentHTML":  dfHTML,
+		"CycleTimeHTML":   ctHTML,
+		"ThroughputHTML":  tpHTML,
+		"LongestCTHTML":   longestHTML,
+		"ForecastHTML":    forecastHTML,
+		"SnykSummaryHTML": snykSummaryHTML,
+		"SnykChartHTML":   snykChartHTML,
 	})
 }
 

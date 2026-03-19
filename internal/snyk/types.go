@@ -51,10 +51,41 @@ type issueAttributes struct {
 	ResolvedAt             string `json:"resolved_at"`
 }
 
+// issueRelationships holds relationship references from the issues API response.
+type issueRelationships struct {
+	ScanItem struct {
+		Data struct {
+			ID   string `json:"id"`
+			Type string `json:"type"`
+		} `json:"data"`
+	} `json:"scan_item"`
+}
+
 // issueData represents a single item in the issues API response.
 type issueData struct {
-	ID         string          `json:"id"`
-	Attributes issueAttributes `json:"attributes"`
+	ID            string             `json:"id"`
+	Attributes    issueAttributes    `json:"attributes"`
+	Relationships issueRelationships `json:"relationships"`
+}
+
+// projectData represents a single item in the projects API response.
+type projectData struct {
+	ID            string `json:"id"`
+	Relationships struct {
+		Target struct {
+			Data struct {
+				ID string `json:"id"`
+			} `json:"data"`
+		} `json:"target"`
+	} `json:"relationships"`
+}
+
+// projectListResponse is the raw API response for listing projects.
+type projectListResponse struct {
+	Data  []projectData `json:"data"`
+	Links struct {
+		Next string `json:"next"`
+	} `json:"links"`
 }
 
 // issueListResponse is the raw API response for listing issues.

@@ -50,6 +50,13 @@ func runMetricsReport(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 	fmt.Println(sectionDivider)
 	fmt.Println()
+	if err := runSnykReport(cmd, args); err != nil {
+		fmt.Printf("Warning: Snyk report skipped: %v\n", err)
+	}
+
+	fmt.Println()
+	fmt.Println(sectionDivider)
+	fmt.Println()
 	skipBrowserOpen = false
 	if err := generateCombinedTeamReport(); err != nil {
 		fmt.Printf("Warning: combined report skipped: %v\n", err)
@@ -76,6 +83,8 @@ func generateCombinedTeamReport() error {
 
 	deployments := fetchGitHubDeploymentsForReport(ctx, team, from, to)
 
+	snykSummary, snykWeeks := fetchSnykDataForReport(ctx, from, to)
+
 	title := "Engineering Report"
 	if team != "" {
 		title = team + " — Engineering Report"
@@ -92,6 +101,8 @@ func generateCombinedTeamReport() error {
 		jiraData.LongestCTRows,
 		jiraData.ForecastRows,
 		jiraData.BaseURL,
+		snykSummary,
+		snykWeeks,
 		outputPath,
 	); err != nil {
 		return fmt.Errorf("render: %w", err)
@@ -140,3 +151,34 @@ func fetchGitHubDeploymentsForReport(ctx context.Context, team string, from, to 
 	return fetchTeamDeploymentData(ctx, client, org, team, from, to)
 }
 
+// fetchSnykDataForReport fetches Snyk open counts and weekly trend for the combined report.
+// Returns zero values silently if Snyk is not configured.
+func fetchSnykDataForReport(ctx context.Context, from, to time.Time) (charts.SnykSummary, []charts.SnykIssueWeek) {
+	client, err := getSnykClient()
+	if err != nil {
+		return charts.SnykSummary{}, nil
+	}
+	if err := client.TestConnection(ctx); err != nil {
+		return charts.SnykSummary{}, nil
+	}
+	issues, err := client.ListIssues(ctx, from, to)
+	if err != nil {
+		return charts.SnykSummary{}, nil
+	}
+	resolved, err := client.ListResolvedIssues(ctx, from, to)
+	if err != nil {
+		return charts.SnykSummary{}, nil
+	}
+	openCounts, err := client.CountOpenIssues(ctx)
+	if err != nil {
+		return charts.SnykSummary{}, nil
+	}
+	summary := charts.SnykSummary{
+		Critical: openCounts.Critical,
+		High:     openCounts.High,
+		Medium:   openCounts.Medium,
+		Low:      openCounts.Low,
+	}
+	weeks := bucketByWeek(issues, resolved, openCounts.Total, from, to)
+	return summary, weeks
+}

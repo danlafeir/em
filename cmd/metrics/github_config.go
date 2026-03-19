@@ -270,9 +270,15 @@ func runGhTeamConfig(ctx context.Context, reader *bufio.Reader, client *github.C
 
 		// Save this repo's selection immediately
 		repoKey := fmt.Sprintf("teams.%s.github.workflows.%s", teamName, repo.Name)
-		var repoValue any = chosen
+		var repoValue any
 		if len(chosen) == 1 {
 			repoValue = chosen[0]
+		} else {
+			items := make([]any, len(chosen))
+			for i, s := range chosen {
+				items[i] = s
+			}
+			repoValue = items
 		}
 		config.SetConfigValue(configNamespace, repoKey, repoValue)
 		if err := config.WriteConfig(); err != nil {

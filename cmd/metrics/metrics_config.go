@@ -3,20 +3,19 @@ package metrics
 import (
 	"bufio"
 	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
-	"github.com/danlafeir/devctl/pkg/config"
 	"github.com/spf13/cobra"
 )
 
 var metricsConfigCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Configure teams for metrics commands",
-	Long: `Add and manage teams used across metrics commands.
+	Short: "Interactive configuration for all metrics services",
+	Long: `Runs the interactive configuration for each metrics service in sequence.
 
-Teams configured here are referenced when running jira and github config.
+Configures JIRA, GitHub, and Snyk in order. Each section can be skipped
+by pressing Ctrl+C, but errors are shown and configuration continues.
 
 Examples:
   devctl-em metrics config`,
@@ -28,53 +27,25 @@ func init() {
 }
 
 func runMetricsConfig(cmd *cobra.Command, args []string) error {
-	initConfig()
-	reader := bufio.NewReader(os.Stdin)
-
-	for {
-		existing := getAllTeams()
-		if len(existing) > 0 {
-			fmt.Println("Configured teams:")
-			for i, t := range existing {
-				fmt.Printf("  %d) %s\n", i+1, t)
-			}
-			fmt.Println()
-		}
-
-		fmt.Print("Add team name (or press Enter to finish): ")
-		input, _ := reader.ReadString('\n')
-		teamName := strings.TrimSpace(input)
-		if teamName == "" {
-			break
-		}
-
-		alreadyExists := false
-		for _, t := range existing {
-			if t == teamName {
-				alreadyExists = true
-				break
-			}
-		}
-		if alreadyExists {
-			fmt.Printf("Team %q is already configured.\n\n", teamName)
-			continue
-		}
-
-		names := getAllTeams()
-		updated := make([]any, 0, len(names)+1)
-		for _, n := range names {
-			updated = append(updated, n)
-		}
-		updated = append(updated, teamName)
-		config.SetConfigValue(configNamespace, "team_names", updated)
-		if err := config.WriteConfig(); err != nil {
-			return fmt.Errorf("failed to save config: %w", err)
-		}
-		fmt.Printf("Added team: %s\n\n", teamName)
+	fmt.Println("=== JIRA ===")
+	if err := runJiraConfig(cmd, args); err != nil {
+		fmt.Printf("Warning: JIRA config failed: %v\n", err)
 	}
 
-	fmt.Println("Done.")
-	fmt.Println("Run 'devctl-em metrics jira config' or 'devctl-em metrics github config' to configure service settings per team.")
+	fmt.Println()
+	fmt.Println("=== GitHub ===")
+	if err := runGhConfig(cmd, args); err != nil {
+		fmt.Printf("Warning: GitHub config failed: %v\n", err)
+	}
+
+	fmt.Println()
+	fmt.Println("=== Snyk ===")
+	if err := runSnykConfig(cmd, args); err != nil {
+		fmt.Printf("Warning: Snyk config failed: %v\n", err)
+	}
+
+	fmt.Println()
+	fmt.Println("Configuration complete.")
 	return nil
 }
 

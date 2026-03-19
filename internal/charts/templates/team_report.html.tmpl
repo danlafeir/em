@@ -25,6 +25,12 @@ hr.divider{border:none;border-top:2px solid #eee;margin:32px 0}
     {{.LongestCTHTML}}
     {{.ForecastHTML}}
   </div>
+  {{if .SnykChartHTML}}
+  <hr class="divider">
+  <h2>Snyk</h2>
+  {{.SnykSummaryHTML}}
+  {{.SnykChartHTML}}
+  {{end}}
 </div>
 </body>
 </html>

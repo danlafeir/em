@@ -132,8 +132,7 @@ func countBySeverity(issues []snyk.Issue) map[string]int {
 // weekDelta holds the net change in open issues for a single week.
 type weekDelta struct {
 	WeekStart time.Time
-	Net      int // created - resolved
-	Resolved int // count of issues resolved this week
+	Net       int // created - resolved
 }
 
 // bucketByWeek computes the true total of open vulnerabilities at each week's end.
@@ -185,7 +184,6 @@ func bucketByWeek(issues []snyk.Issue, resolved []snyk.Issue, currentOpen int, f
 		if !issue.ResolvedAt.IsZero() {
 			d := getOrCreate(issue.ResolvedAt)
 			d.Net--
-			d.Resolved++
 		}
 	}
 
@@ -202,12 +200,11 @@ func bucketByWeek(issues []snyk.Issue, resolved []snyk.Issue, currentOpen int, f
 	weeks := make([]charts.SnykIssueWeek, len(sorted))
 	for i := len(sorted) - 1; i >= 0; i-- {
 		if i == len(sorted)-1 {
-			weeks[i] = charts.SnykIssueWeek{WeekStart: sorted[i].WeekStart, Total: currentOpen, Resolved: sorted[i].Resolved}
+			weeks[i] = charts.SnykIssueWeek{WeekStart: sorted[i].WeekStart, Total: currentOpen}
 		} else {
 			weeks[i] = charts.SnykIssueWeek{
 				WeekStart: sorted[i].WeekStart,
 				Total:     max(0, weeks[i+1].Total-sorted[i+1].Net),
-				Resolved:  sorted[i].Resolved,
 			}
 		}
 	}

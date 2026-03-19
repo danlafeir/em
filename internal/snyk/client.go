@@ -184,19 +184,71 @@ func (c *Client) ListOrgs(ctx context.Context) ([]Org, error) {
 	return all, nil
 }
 
-// CountOpenIssues returns the current open issue counts broken down by severity
-// by paginating all issues and counting those with status "open".
+// GetProjectTargetMap returns a map of project ID → target ID for all projects in the org.
+func (c *Client) GetProjectTargetMap(ctx context.Context) (map[string]string, error) {
+	path := fmt.Sprintf("/rest/orgs/%s/projects", url.PathEscape(c.credentials.OrgID))
+
+	query := url.Values{}
+	query.Set("limit", "100")
+
+	result := make(map[string]string)
+	nextURL := ""
+	for {
+		var body []byte
+		var err error
+		if nextURL != "" {
+			body, err = c.doRequest(ctx, "GET", "", nil, nextURL)
+		} else {
+			body, err = c.doRequest(ctx, "GET", path, query, "")
+		}
+		if err != nil {
+			return nil, fmt.Errorf("fetching projects: %w", err)
+		}
+
+		var resp projectListResponse
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return nil, fmt.Errorf("parsing projects: %w", err)
+		}
+
+		for _, p := range resp.Data {
+			result[p.ID] = p.Relationships.Target.Data.ID
+		}
+
+		if resp.Links.Next == "" {
+			break
+		}
+		nextURL = resp.Links.Next
+		if nextURL[0] == '/' {
+			nextURL = c.credentials.BaseURL() + nextURL
+		}
+	}
+	return result, nil
+}
+
+// CountOpenIssues returns the current open issue counts broken down by severity,
+// deduplicated by (target, title, severity) to match the Snyk UI's per-target grouping.
 func (c *Client) CountOpenIssues(ctx context.Context) (OpenCounts, error) {
+	projectTargets, err := c.GetProjectTargetMap(ctx)
+	if err != nil {
+		return OpenCounts{}, err
+	}
+
 	path := fmt.Sprintf("/rest/orgs/%s/issues", url.PathEscape(c.credentials.OrgID))
 
 	query := url.Values{}
 	query.Set("limit", "100")
 
+	type issueKey struct {
+		targetID string
+		title    string
+		severity string
+	}
+	seen := make(map[issueKey]bool)
+
 	var counts OpenCounts
 	nextURL := ""
 	for {
 		var body []byte
-		var err error
 		if nextURL != "" {
 			body, err = c.doRequest(ctx, "GET", "", nil, nextURL)
 		} else {
@@ -215,8 +267,23 @@ func (c *Client) CountOpenIssues(ctx context.Context) (OpenCounts, error) {
 			if d.Attributes.Status != "open" {
 				continue
 			}
+			projectID := d.Relationships.ScanItem.Data.ID
+			targetID := projectTargets[projectID]
+			// Fall back to project ID if target mapping is missing
+			if targetID == "" {
+				targetID = projectID
+			}
+			key := issueKey{
+				targetID: targetID,
+				title:    d.Attributes.Title,
+				severity: strings.ToLower(d.Attributes.EffectiveSeverityLevel),
+			}
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
 			counts.Total++
-			switch strings.ToLower(d.Attributes.EffectiveSeverityLevel) {
+			switch key.severity {
 			case "critical":
 				counts.Critical++
 			case "high":
