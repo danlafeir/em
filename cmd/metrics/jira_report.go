@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -289,17 +290,30 @@ func buildSummary(cycleResults []pkgmetrics.CycleTimeResult, throughput pkgmetri
 	}
 }
 
-// countActiveEpics queries for issues currently in progress and counts distinct parent epics.
+// countActiveEpics fetches open epics scoped to baseJQL, then counts those with at least
+// one child card that was ever moved to "In Progress" (checked via JQL history operator).
 // Returns 0 on any error (best-effort).
 func countActiveEpics(ctx context.Context, client *jira.Client, baseJQL string) int {
-	activeJQL := fmt.Sprintf("(%s) AND issuetype in (Story, Spike, Bug, Defect) AND statusCategory = \"In Progress\"", baseJQL)
-	issues, err := client.SearchAllIssues(ctx, activeJQL, "parent,issuetype", "")
+	epicJQL := fmt.Sprintf("(%s) AND issuetype = Epic AND resolution IS EMPTY", baseJQL)
+	epics, err := client.SearchAllIssues(ctx, epicJQL, "summary", "")
+	if err != nil || len(epics) == 0 {
+		return 0
+	}
+
+	keys := make([]string, len(epics))
+	for i, e := range epics {
+		keys[i] = e.Key
+	}
+	childJQL := fmt.Sprintf("parent in (%s) AND statusCategory was \"In Progress\"",
+		strings.Join(keys, ","))
+	children, err := client.SearchAllIssues(ctx, childJQL, "parent", "")
 	if err != nil {
 		return 0
 	}
-	epicSet := make(map[string]bool, len(issues))
-	for _, issue := range issues {
-		if p := issue.Fields.Parent; p != nil && p.Key != "" && p.Fields.IssueType.Name == "Epic" {
+
+	epicSet := make(map[string]bool, len(children))
+	for _, issue := range children {
+		if p := issue.Fields.Parent; p != nil && p.Key != "" {
 			epicSet[p.Key] = true
 		}
 	}
