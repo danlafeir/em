@@ -85,6 +85,6 @@ func runSnykReport(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("\nReport generated: %s\n", outputPath)
-	charts.OpenBrowser(outputPath)
+	openBrowser(outputPath)
 	return nil
 }
