@@ -301,8 +301,6 @@ func countActiveEpics(ctx context.Context, client *jira.Client, baseJQL string) 
 	for _, issue := range issues {
 		if p := issue.Fields.Parent; p != nil && p.Key != "" && p.Fields.IssueType.Name == "Epic" {
 			epicSet[p.Key] = true
-		} else if e := issue.Fields.Epic; e != nil && e.Key != "" {
-			epicSet[e.Key] = true
 		}
 	}
 	return len(epicSet)
