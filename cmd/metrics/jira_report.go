@@ -291,7 +291,8 @@ func buildSummary(cycleResults []pkgmetrics.CycleTimeResult, throughput pkgmetri
 }
 
 // countActiveEpics fetches open epics scoped to baseJQL, then counts those with at least
-// one child card that was ever moved to "In Progress" (checked via JQL history operator).
+// one child card whose changelog shows it was ever transitioned to the cycle start stage
+// or later (e.g. "In Progress" and beyond).
 // Returns 0 on any error (best-effort).
 func countActiveEpics(ctx context.Context, client *jira.Client, baseJQL string) int {
 	epicJQL := fmt.Sprintf("(%s) AND issuetype = Epic AND resolution IS EMPTY", baseJQL)
@@ -304,17 +305,33 @@ func countActiveEpics(ctx context.Context, client *jira.Client, baseJQL string) 
 	for i, e := range epics {
 		keys[i] = e.Key
 	}
-	childJQL := fmt.Sprintf("parent in (%s) AND statusCategory was \"In Progress\"",
-		strings.Join(keys, ","))
-	children, err := client.SearchAllIssues(ctx, childJQL, "parent", "")
+
+	childJQL := fmt.Sprintf("parent in (%s)", strings.Join(keys, ","))
+	children, err := client.SearchAllIssues(ctx, childJQL, "parent", "changelog")
 	if err != nil {
 		return 0
 	}
 
+	mapper := getWorkflowMapper()
+	startStage, _ := mapper.GetCycleTimeStages()
+	startOrder := mapper.GetStageOrder(startStage)
+
 	epicSet := make(map[string]bool, len(children))
 	for _, issue := range children {
-		if p := issue.Fields.Parent; p != nil && p.Key != "" {
-			epicSet[p.Key] = true
+		if issue.Changelog == nil {
+			continue
+		}
+		for _, entry := range issue.Changelog.Histories {
+			for _, item := range entry.Items {
+				if item.Field != "status" {
+					continue
+				}
+				if mapper.GetStageOrder(mapper.GetStage(item.ToString)) >= startOrder {
+					if p := issue.Fields.Parent; p != nil && p.Key != "" {
+						epicSet[p.Key] = true
+					}
+				}
+			}
 		}
 	}
 	return len(epicSet)
