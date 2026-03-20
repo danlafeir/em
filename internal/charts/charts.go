@@ -571,48 +571,39 @@ type SnykSummary struct {
 	Ignored   int
 }
 
-// snykIssuesChartConfig builds the Chart.js config for the Snyk issues line chart.
+// snykIssuesChartConfig builds the Chart.js config for the Snyk issues stacked area chart.
 func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 	type point struct {
 		X string `json:"x"`
 		Y int    `json:"y"`
 	}
 
-	totalPts := make([]point, len(weeks))
 	fixablePts := make([]point, len(weeks))
 	unfixablePts := make([]point, len(weeks))
 	for i, w := range weeks {
 		x := w.WeekStart.Format("2006-01-02")
-		totalPts[i] = point{X: x, Y: w.Total}
 		fixablePts[i] = point{X: x, Y: w.Fixable}
 		unfixablePts[i] = point{X: x, Y: w.Unfixable}
 	}
 
 	datasets := []map[string]any{
 		{
-			"label":           "Total Open",
-			"data":            totalPts,
-			"borderColor":     "rgba(99, 102, 241, 1)",
-			"backgroundColor": "rgba(99, 102, 241, 0.1)",
-			"borderWidth":     2,
-			"pointRadius":     4,
+			"label":           "Unfixable",
+			"data":            unfixablePts,
+			"borderColor":     "rgba(220, 38, 38, 1)",
+			"backgroundColor": "rgba(220, 38, 38, 0.4)",
+			"borderWidth":     1,
+			"pointRadius":     3,
 			"fill":            true,
 		},
 		{
-			"label":       "Fixable",
-			"data":        fixablePts,
-			"borderColor": "rgba(22, 163, 74, 1)",
-			"borderWidth": 2,
-			"pointRadius": 3,
-			"fill":        false,
-		},
-		{
-			"label":       "Unfixable",
-			"data":        unfixablePts,
-			"borderColor": "rgba(220, 38, 38, 1)",
-			"borderWidth": 2,
-			"pointRadius": 3,
-			"fill":        false,
+			"label":           "Fixable",
+			"data":            fixablePts,
+			"borderColor":     "rgba(22, 163, 74, 1)",
+			"backgroundColor": "rgba(22, 163, 74, 0.4)",
+			"borderWidth":     1,
+			"pointRadius":     3,
+			"fill":            true,
 		},
 	}
 
@@ -639,6 +630,7 @@ func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 					},
 				},
 				"y": map[string]any{
+					"stacked": true,
 					"title": map[string]any{
 						"display": true,
 						"text":    "Open Issues",
