@@ -564,13 +564,14 @@ func DeploymentFrequencyLine(data metrics.ThroughputResult, cfg Config, path str
 
 // SnykSummary holds aggregate vulnerability counts for the summary bar.
 type SnykSummary struct {
-	Critical  int
-	High      int
-	Medium    int
-	Low       int
-	Fixable   int
-	Unfixable int
-	Ignored   int
+	Critical        int
+	High            int
+	Medium          int
+	Low             int
+	Fixable         int
+	Unfixable       int
+	IgnoredFixable  int
+	IgnoredUnfixable int
 }
 
 // snykIssuesChartConfig builds the Chart.js config for the Snyk issues stacked area chart.
