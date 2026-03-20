@@ -99,7 +99,7 @@ func runSnykIssues(cmd *cobra.Command, args []string) error {
 	fmt.Printf("| %-10s | %5d |\n", "Total", total)
 
 	// Generate weekly trend chart
-	weeks := bucketByWeek(issues, resolved, openCounts.Total, openCounts.Fixable, from, to)
+	weeks := bucketByWeek(issues, resolved, openCounts.Total, openCounts.Fixable, openCounts.IgnoredFixable, openCounts.IgnoredUnfixable, from, to)
 	if len(weeks) > 0 {
 		cfg := charts.Config{Title: "Snyk Issues — Weekly Trend"}
 		chartPath := getSnykOutputPath("snyk-issues", "html")
@@ -131,15 +131,17 @@ func countBySeverity(issues []snyk.Issue) map[string]int {
 
 // weekDelta holds the net change in open issues for a single week.
 type weekDelta struct {
-	WeekStart   time.Time
-	Net         int // created - resolved
-	FixableNet  int // fixable created - fixable resolved
+	WeekStart          time.Time
+	Net                int // created - resolved
+	FixableNet         int // fixable created - fixable resolved
+	IgnoredFixableNet  int
+	IgnoredUnfixableNet int
 }
 
 // bucketByWeek computes the true total of open vulnerabilities at each week's end.
 // It anchors on currentOpen (the live count right now) and walks backwards through
 // the weeks, reversing each week's net change to reconstruct the historical total.
-func bucketByWeek(issues []snyk.Issue, resolved []snyk.Issue, currentOpen, currentFixable int, from, to time.Time) []charts.SnykIssueWeek {
+func bucketByWeek(issues []snyk.Issue, resolved []snyk.Issue, currentOpen, currentFixable, currentIgnoredFixable, currentIgnoredUnfixable int, from, to time.Time) []charts.SnykIssueWeek {
 	type weekKey struct {
 		year int
 		week int
@@ -181,7 +183,13 @@ func bucketByWeek(issues []snyk.Issue, resolved []snyk.Issue, currentOpen, curre
 	for _, issue := range issues {
 		d := getOrCreate(issue.CreatedAt)
 		d.Net++
-		if issue.IsFixable {
+		if issue.IsIgnored {
+			if issue.IsFixable {
+				d.IgnoredFixableNet++
+			} else {
+				d.IgnoredUnfixableNet++
+			}
+		} else if issue.IsFixable {
 			d.FixableNet++
 		}
 	}
@@ -189,7 +197,13 @@ func bucketByWeek(issues []snyk.Issue, resolved []snyk.Issue, currentOpen, curre
 		if !issue.ResolvedAt.IsZero() {
 			d := getOrCreate(issue.ResolvedAt)
 			d.Net--
-			if issue.IsFixable {
+			if issue.IsIgnored {
+				if issue.IsFixable {
+					d.IgnoredFixableNet--
+				} else {
+					d.IgnoredUnfixableNet--
+				}
+			} else if issue.IsFixable {
 				d.FixableNet--
 			}
 		}
@@ -204,24 +218,30 @@ func bucketByWeek(issues []snyk.Issue, resolved []snyk.Issue, currentOpen, curre
 		return sorted[i].WeekStart.Before(sorted[j].WeekStart)
 	})
 
-	// Walk backwards from currentOpen/currentFixable to reconstruct historical totals.
+	// Walk backwards from current counts to reconstruct historical totals.
 	weeks := make([]charts.SnykIssueWeek, len(sorted))
 	for i := len(sorted) - 1; i >= 0; i-- {
 		if i == len(sorted)-1 {
 			weeks[i] = charts.SnykIssueWeek{
-				WeekStart: sorted[i].WeekStart,
-				Total:     currentOpen,
-				Fixable:   currentFixable,
-				Unfixable: currentOpen - currentFixable,
+				WeekStart:        sorted[i].WeekStart,
+				Total:            currentOpen,
+				Fixable:          currentFixable,
+				Unfixable:        currentOpen - currentFixable,
+				IgnoredFixable:   currentIgnoredFixable,
+				IgnoredUnfixable: currentIgnoredUnfixable,
 			}
 		} else {
 			total := max(0, weeks[i+1].Total-sorted[i+1].Net)
 			fixable := max(0, weeks[i+1].Fixable-sorted[i+1].FixableNet)
+			ignoredFixable := max(0, weeks[i+1].IgnoredFixable-sorted[i+1].IgnoredFixableNet)
+			ignoredUnfixable := max(0, weeks[i+1].IgnoredUnfixable-sorted[i+1].IgnoredUnfixableNet)
 			weeks[i] = charts.SnykIssueWeek{
-				WeekStart: sorted[i].WeekStart,
-				Total:     total,
-				Fixable:   fixable,
-				Unfixable: total - fixable,
+				WeekStart:        sorted[i].WeekStart,
+				Total:            total,
+				Fixable:          fixable,
+				Unfixable:        total - fixable,
+				IgnoredFixable:   ignoredFixable,
+				IgnoredUnfixable: ignoredUnfixable,
 			}
 		}
 	}

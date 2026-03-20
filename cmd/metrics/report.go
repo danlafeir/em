@@ -182,6 +182,6 @@ func fetchSnykDataForReport(ctx context.Context, from, to time.Time) (charts.Sny
 		Unfixable: openCounts.Unfixable,
 		Ignored:   openCounts.Ignored,
 	}
-	weeks := bucketByWeek(issues, resolved, openCounts.Total, openCounts.Fixable, from, to)
+	weeks := bucketByWeek(issues, resolved, openCounts.Total, openCounts.Fixable, openCounts.IgnoredFixable, openCounts.IgnoredUnfixable, from, to)
 	return summary, weeks
 }

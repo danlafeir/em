@@ -294,6 +294,11 @@ func (c *Client) CountOpenIssues(ctx context.Context) (OpenCounts, error) {
 				}
 				seenIgnored[key] = true
 				counts.Ignored++
+				if isFixable(d.Attributes.Coordinates) {
+					counts.IgnoredFixable++
+				} else {
+					counts.IgnoredUnfixable++
+				}
 				continue
 			}
 			if seenOpen[key] {

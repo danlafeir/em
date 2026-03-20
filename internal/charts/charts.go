@@ -54,10 +54,12 @@ type LongestCycleTimeRow struct {
 
 // SnykIssueWeek holds open vulnerability counts at the end of a week.
 type SnykIssueWeek struct {
-	WeekStart time.Time
-	Total     int
-	Fixable   int
-	Unfixable int
+	WeekStart       time.Time
+	Total           int
+	Fixable         int
+	Unfixable       int
+	IgnoredFixable  int
+	IgnoredUnfixable int
 }
 
 // tableRow is used by table templates.
@@ -578,12 +580,16 @@ func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 		Y int    `json:"y"`
 	}
 
-	fixablePts := make([]point, len(weeks))
 	unfixablePts := make([]point, len(weeks))
+	ignoredUnfixablePts := make([]point, len(weeks))
+	fixablePts := make([]point, len(weeks))
+	ignoredFixablePts := make([]point, len(weeks))
 	for i, w := range weeks {
 		x := w.WeekStart.Format("2006-01-02")
-		fixablePts[i] = point{X: x, Y: w.Fixable}
 		unfixablePts[i] = point{X: x, Y: w.Unfixable}
+		ignoredUnfixablePts[i] = point{X: x, Y: w.IgnoredUnfixable}
+		fixablePts[i] = point{X: x, Y: w.Fixable}
+		ignoredFixablePts[i] = point{X: x, Y: w.IgnoredFixable}
 	}
 
 	datasets := []map[string]any{
@@ -597,10 +603,28 @@ func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 			"fill":            true,
 		},
 		{
+			"label":           "Unfixable (Ignored)",
+			"data":            ignoredUnfixablePts,
+			"borderColor":     "rgba(156, 163, 175, 0.8)",
+			"backgroundColor": "rgba(156, 163, 175, 0.35)",
+			"borderWidth":     1,
+			"pointRadius":     3,
+			"fill":            true,
+		},
+		{
 			"label":           "Fixable",
 			"data":            fixablePts,
 			"borderColor":     "rgba(22, 163, 74, 1)",
 			"backgroundColor": "rgba(22, 163, 74, 0.4)",
+			"borderWidth":     1,
+			"pointRadius":     3,
+			"fill":            true,
+		},
+		{
+			"label":           "Fixable (Ignored)",
+			"data":            ignoredFixablePts,
+			"borderColor":     "rgba(156, 163, 175, 0.8)",
+			"backgroundColor": "rgba(156, 163, 175, 0.35)",
 			"borderWidth":     1,
 			"pointRadius":     3,
 			"fill":            true,

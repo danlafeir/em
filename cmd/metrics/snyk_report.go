@@ -73,7 +73,7 @@ func runSnykReport(cmd *cobra.Command, args []string) error {
 		Ignored:   openCounts.Ignored,
 	}
 
-	weeks := bucketByWeek(issues, resolved, openCounts.Total, openCounts.Fixable, from, to)
+	weeks := bucketByWeek(issues, resolved, openCounts.Total, openCounts.Fixable, openCounts.IgnoredFixable, openCounts.IgnoredUnfixable, from, to)
 
 	outputPath := getSnykOutputPath("snyk-report", "html")
 

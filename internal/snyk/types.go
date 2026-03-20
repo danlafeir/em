@@ -30,7 +30,8 @@ type Org struct {
 // OpenCounts holds the current total of open issues broken down by severity and fixability.
 type OpenCounts struct {
 	Critical, High, Medium, Low, Total int
-	Fixable, Unfixable, Ignored        int
+	Fixable, Unfixable                 int
+	Ignored, IgnoredFixable, IgnoredUnfixable int
 }
 
 // Issue represents a Snyk vulnerability issue.
