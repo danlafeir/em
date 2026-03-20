@@ -77,6 +77,10 @@ type jiraMetricsData struct {
 // collectJIRAMetricsData fetches and computes JIRA metrics for a single team/JQL.
 // When verbose is true, progress is printed to stdout.
 func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql string, from, to time.Time, verbose bool) (jiraMetricsData, error) {
+	if useSavedDataFlag {
+		return loadJIRAMetricsData(team, client)
+	}
+
 	log := func(format string, args ...any) {
 		if verbose {
 			fmt.Printf(format, args...)
@@ -241,6 +245,15 @@ func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql 
 	summary := buildSummary(keptResults, throughputResult)
 	summary.ActiveEpics = countActiveEpics(ctx, client, jql)
 
+	// Save data for future --use-saved-data runs (best effort).
+	outlierKeys := make(map[string]bool, len(outlierResults))
+	for _, r := range outlierResults {
+		outlierKeys[r.IssueKey] = true
+	}
+	_ = saveJiraCycleTimeData(cycleResults, outlierKeys, team)
+	_ = saveJiraThroughputData(throughputResult, team)
+	_ = saveJiraForecastData(forecastRows, team)
+
 	return jiraMetricsData{
 		KeptResults:      keptResults,
 		ThroughputResult: throughputResult,
@@ -248,6 +261,43 @@ func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql 
 		ForecastRows:     forecastRows,
 		Summary:          summary,
 		BaseURL:          client.BaseURL(),
+	}, nil
+}
+
+// loadJIRAMetricsData reconstructs jiraMetricsData from saved CSVs without API calls.
+func loadJIRAMetricsData(team string, client *jira.Client) (jiraMetricsData, error) {
+	fmt.Printf("Loading JIRA data from saved CSVs (team: %q)...\n", team)
+
+	ct, err := loadJiraCycleTimeData(team)
+	if err != nil {
+		return jiraMetricsData{}, err
+	}
+	throughputResult, err := loadJiraThroughputData(team)
+	if err != nil {
+		return jiraMetricsData{}, err
+	}
+	forecastRows, _ := loadJiraForecastData(team) // optional
+
+	ctRows := buildLongestCTRows(ct.all, ct.outlierKeys)
+	summary := buildSummary(ct.kept, throughputResult)
+
+	baseURL := ""
+	if client != nil {
+		baseURL = client.BaseURL()
+	} else {
+		domain := getConfigString("jira.domain")
+		if domain != "" {
+			baseURL = "https://" + domain + ".atlassian.net"
+		}
+	}
+
+	return jiraMetricsData{
+		KeptResults:      ct.kept,
+		ThroughputResult: throughputResult,
+		LongestCTRows:    ctRows,
+		ForecastRows:     forecastRows,
+		Summary:          summary,
+		BaseURL:          baseURL,
 	}, nil
 }
 

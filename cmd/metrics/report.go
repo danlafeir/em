@@ -9,6 +9,7 @@ import (
 
 	"devctl-em/internal/charts"
 	pkgmetrics "devctl-em/internal/metrics"
+	snykpkg "devctl-em/internal/snyk"
 )
 
 var metricsReportCmd = &cobra.Command{
@@ -140,6 +141,13 @@ func fetchGitHubDeploymentsForReport(ctx context.Context, team string, from, to 
 	if team == "" {
 		return pkgmetrics.ThroughputResult{}
 	}
+	if useSavedDataFlag {
+		result, err := loadDeploymentData(team)
+		if err != nil {
+			return pkgmetrics.ThroughputResult{}
+		}
+		return result
+	}
 	client, err := getGithubClient()
 	if err != nil {
 		return pkgmetrics.ThroughputResult{}
@@ -152,24 +160,20 @@ func fetchGitHubDeploymentsForReport(ctx context.Context, team string, from, to 
 }
 
 // fetchSnykDataForReport fetches Snyk open counts and weekly trend for the combined report.
-// Returns zero values silently if Snyk is not configured.
+// Returns zero values silently if Snyk is not configured or data is unavailable.
 func fetchSnykDataForReport(ctx context.Context, from, to time.Time) (charts.SnykSummary, []charts.SnykIssueWeek) {
-	client, err := getSnykClient()
-	if err != nil {
-		return charts.SnykSummary{}, nil
+	var snykCl *snykpkg.Client
+	if !useSavedDataFlag {
+		var err error
+		snykCl, err = getSnykClient()
+		if err != nil {
+			return charts.SnykSummary{}, nil
+		}
+		if err := snykCl.TestConnection(ctx); err != nil {
+			return charts.SnykSummary{}, nil
+		}
 	}
-	if err := client.TestConnection(ctx); err != nil {
-		return charts.SnykSummary{}, nil
-	}
-	issues, err := client.ListIssues(ctx, from, to)
-	if err != nil {
-		return charts.SnykSummary{}, nil
-	}
-	resolved, err := client.ListResolvedIssues(ctx, from, to)
-	if err != nil {
-		return charts.SnykSummary{}, nil
-	}
-	openCounts, err := client.CountOpenIssues(ctx)
+	issues, resolved, openCounts, err := fetchOrLoadSnykData(ctx, snykCl, from, to)
 	if err != nil {
 		return charts.SnykSummary{}, nil
 	}

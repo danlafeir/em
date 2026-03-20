@@ -31,15 +31,6 @@ Quick Start:
 }
 
 func init() {
-	// metricsCmd will be added to rootCmd from the parent package
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// metricsCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// metricsCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	MetricsCmd.PersistentFlags().BoolVar(&useSavedDataFlag, "use-saved-data", false,
+		"Skip upstream API calls and regenerate reports from previously saved CSVs")
 }

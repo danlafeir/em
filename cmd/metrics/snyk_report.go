@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"devctl-em/internal/charts"
+	snykpkg "devctl-em/internal/snyk"
 )
 
 var snykReportCmd = &cobra.Command{
@@ -30,37 +31,27 @@ func init() {
 func runSnykReport(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 
-	client, err := getSnykClient()
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Testing Snyk connection...")
-	if err := client.TestConnection(ctx); err != nil {
-		return fmt.Errorf("failed to connect to Snyk: %w", err)
-	}
-
 	from, to, err := getSnykDateRange()
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Fetching issues (%s to %s)...\n", from.Format("2006-01-02"), to.Format("2006-01-02"))
-
-	issues, err := client.ListIssues(ctx, from, to)
-	if err != nil {
-		return fmt.Errorf("failed to list issues: %w", err)
+	var client *snykpkg.Client
+	if !useSavedDataFlag {
+		client, err = getSnykClient()
+		if err != nil {
+			return err
+		}
+		fmt.Println("Testing Snyk connection...")
+		if err := client.TestConnection(ctx); err != nil {
+			return fmt.Errorf("failed to connect to Snyk: %w", err)
+		}
+		fmt.Printf("Fetching issues (%s to %s)...\n", from.Format("2006-01-02"), to.Format("2006-01-02"))
 	}
 
-	resolved, err := client.ListResolvedIssues(ctx, from, to)
+	issues, resolved, openCounts, err := fetchOrLoadSnykData(ctx, client, from, to)
 	if err != nil {
-		return fmt.Errorf("failed to list resolved issues: %w", err)
-	}
-
-	fmt.Println("Counting total open issues...")
-	openCounts, err := client.CountOpenIssues(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to count open issues: %w", err)
+		return fmt.Errorf("failed to fetch Snyk data: %w", err)
 	}
 
 	summary := charts.SnykSummary{

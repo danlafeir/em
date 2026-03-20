@@ -70,40 +70,57 @@ func runCycleTime(cmd *cobra.Command, args []string) error {
 }
 
 func generateCycleTime(ctx context.Context, client *jira.Client, team, jql string, from, to time.Time) error {
-	// Add date filter to JQL, excluding Epics
-	jqlWithDates := jqlWithDateRange(
-		fmt.Sprintf("(%s) AND issuetype in (Story, Spike, Bug, Defect)", jql),
-		from.Format("2006-01-02"), to.Format("2006-01-02"),
-	)
+	var results []metrics.CycleTimeResult
 
-	fmt.Printf("Fetching issues from JIRA...\n")
-	fmt.Printf("JQL: %s\n", jqlWithDates)
+	if useSavedDataFlag {
+		fmt.Printf("Loading JIRA cycle time data from saved CSV (team: %q)...\n", team)
+		ct, err := loadJiraCycleTimeData(team)
+		if err != nil {
+			return fmt.Errorf("use-saved-data: %w", err)
+		}
+		results = ct.all
+	} else {
+		// Add date filter to JQL, excluding Epics
+		jqlWithDates := jqlWithDateRange(
+			fmt.Sprintf("(%s) AND issuetype in (Story, Spike, Bug, Defect)", jql),
+			from.Format("2006-01-02"), to.Format("2006-01-02"),
+		)
 
-	// Fetch issues with history
-	issues, err := client.FetchIssuesWithHistory(ctx, jqlWithDates, func(current, total int) {
-		fmt.Printf("\rProcessing issue %d/%d...", current, total)
-	})
-	if err != nil {
-		return fmt.Errorf("failed to fetch issues: %w", err)
+		fmt.Printf("Fetching issues from JIRA...\n")
+		fmt.Printf("JQL: %s\n", jqlWithDates)
+
+		issues, err := client.FetchIssuesWithHistory(ctx, jqlWithDates, func(current, total int) {
+			fmt.Printf("\rProcessing issue %d/%d...", current, total)
+		})
+		if err != nil {
+			return fmt.Errorf("failed to fetch issues: %w", err)
+		}
+		fmt.Println()
+
+		if len(issues) == 0 {
+			fmt.Println("No issues found matching the query.")
+			return nil
+		}
+
+		fmt.Printf("Found %d issues\n\n", len(issues))
+
+		mapper := getWorkflowMapper()
+		histories := make([]workflow.IssueHistory, len(issues))
+		for i, issue := range issues {
+			histories[i] = mapper.MapIssueHistory(issue)
+		}
+
+		calculator := metrics.NewCycleTimeCalculator(mapper)
+		results = calculator.Calculate(histories)
+
+		// Save for future --use-saved-data runs (best effort).
+		_, outlierResults := metrics.FilterCycleTimeOutliers(results, 2.0)
+		outlierKeys := make(map[string]bool, len(outlierResults))
+		for _, r := range outlierResults {
+			outlierKeys[r.IssueKey] = true
+		}
+		_ = saveJiraCycleTimeData(results, outlierKeys, team)
 	}
-	fmt.Println()
-
-	if len(issues) == 0 {
-		fmt.Println("No issues found matching the query.")
-		return nil
-	}
-
-	fmt.Printf("Found %d issues\n\n", len(issues))
-
-	mapper := getWorkflowMapper()
-
-	histories := make([]workflow.IssueHistory, len(issues))
-	for i, issue := range issues {
-		histories[i] = mapper.MapIssueHistory(issue)
-	}
-
-	calculator := metrics.NewCycleTimeCalculator(mapper)
-	results := calculator.Calculate(histories)
 
 	if len(results) == 0 {
 		fmt.Println("No completed issues found for cycle time calculation.")

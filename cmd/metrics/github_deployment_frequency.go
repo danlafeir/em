@@ -77,6 +77,21 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	if useSavedDataFlag {
+		weeklyData, loadErr := loadDeploymentData("")
+		if loadErr != nil {
+			return fmt.Errorf("use-saved-data: %w", loadErr)
+		}
+		cfg := charts.Config{}
+		outputPath := getGithubOutputPath("deployment-frequency", "html")
+		if err := charts.DeploymentFrequencyLine(weeklyData, cfg, outputPath); err != nil {
+			return fmt.Errorf("failed to create chart: %w", err)
+		}
+		fmt.Printf("\nChart saved to %s\n", outputPath)
+		openBrowser(outputPath)
+		return nil
+	}
+
 	weeks := to.Sub(from).Hours() / (24 * 7)
 	if weeks < 1 {
 		weeks = 1
@@ -249,6 +264,7 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 
 	// Generate HTML chart with aggregate weekly deployments
 	weeklyData := aggregateWeeklyDeployments(allRuns, from, to)
+	_ = saveDeploymentData(weeklyData, "")
 	if len(weeklyData.Periods) > 0 {
 		cfg := charts.Config{}
 		outputPath := getGithubOutputPath("deployment-frequency", "html")
@@ -306,6 +322,14 @@ func aggregateWeeklyDeployments(runs []gh.WorkflowRun, from, to time.Time) metri
 // fetchTeamDeploymentData fetches successful workflow runs for the given team and aggregates by week.
 // Returns an empty result (not an error) if GitHub workflows are not configured for the team.
 func fetchTeamDeploymentData(ctx context.Context, client *gh.Client, org, teamName string, from, to time.Time) metrics.ThroughputResult {
+	if useSavedDataFlag {
+		result, err := loadDeploymentData(teamName)
+		if err != nil {
+			return metrics.ThroughputResult{}
+		}
+		return result
+	}
+
 	workflows, err := getConfiguredWorkflowsByTeam(teamName)
 	if err != nil {
 		return metrics.ThroughputResult{}
@@ -344,7 +368,9 @@ func fetchTeamDeploymentData(ctx context.Context, client *gh.Client, org, teamNa
 			}
 		}
 	}
-	return aggregateWeeklyDeployments(allRuns, from, to)
+	result := aggregateWeeklyDeployments(allRuns, from, to)
+	_ = saveDeploymentData(result, teamName)
+	return result
 }
 
 func exportDeploymentFrequencyCSV(results []repoDeploymentResult, path string) error {
