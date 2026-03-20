@@ -1,7 +1,9 @@
 // Package snyk provides a client for the Snyk REST API.
 package snyk
 
-import "time"
+import (
+	"time"
+)
 
 // Credentials holds Snyk authentication details.
 type Credentials struct {
@@ -44,9 +46,14 @@ type Issue struct {
 	ResolvedAt time.Time
 }
 
-// coordinate holds fix availability for one affected package coordinate.
+// coordinate holds fix information for one affected package coordinate.
 type coordinate struct {
-	IsFixable bool `json:"is_fixable"`
+	IsFixableManually bool `json:"is_fixable_manually"`
+	IsFixableSnyk     bool `json:"is_fixable_snyk"`
+	IsFixableUpstream bool `json:"is_fixable_upstream"`
+	IsPatchable       bool `json:"is_patchable"`
+	IsPinnable        bool `json:"is_pinnable"`
+	IsUpgradeable     bool `json:"is_upgradeable"`
 }
 
 // issueAttributes holds attributes from the issues API response.
@@ -55,6 +62,7 @@ type issueAttributes struct {
 	EffectiveSeverityLevel string       `json:"effective_severity_level"`
 	Type                   string       `json:"type"`
 	Status                 string       `json:"status"`
+	Ignored                bool         `json:"ignored"`
 	CreatedAt              string       `json:"created_at"`
 	ResolvedAt             string       `json:"resolved_at"`
 	Coordinates            []coordinate `json:"coordinates"`

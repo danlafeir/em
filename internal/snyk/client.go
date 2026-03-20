@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-const apiVersion = "2024-10-15"
+const apiVersion = "2025-11-05"
 
 // Client is the main Snyk API client.
 type Client struct {
@@ -127,6 +127,16 @@ func (c *Client) calculateBackoff(attempt int, retryAfter string) time.Duration 
 	}
 
 	return time.Duration(delay)
+}
+
+// isFixable returns true if any coordinate has a fix available.
+func isFixable(coords []coordinate) bool {
+	for _, c := range coords {
+		if c.IsFixableManually || c.IsFixableSnyk || c.IsFixableUpstream || c.IsPatchable || c.IsPinnable || c.IsUpgradeable {
+			return true
+		}
+	}
+	return false
 }
 
 // TestConnection verifies the Snyk credentials work.
@@ -265,8 +275,7 @@ func (c *Client) CountOpenIssues(ctx context.Context) (OpenCounts, error) {
 		}
 
 		for _, d := range resp.Data {
-			status := d.Attributes.Status
-			if status != "open" && status != "ignored" {
+			if d.Attributes.Status != "open" {
 				continue
 			}
 			projectID := d.Relationships.ScanItem.Data.ID
@@ -279,7 +288,7 @@ func (c *Client) CountOpenIssues(ctx context.Context) (OpenCounts, error) {
 				title:    d.Attributes.Title,
 				severity: strings.ToLower(d.Attributes.EffectiveSeverityLevel),
 			}
-			if status == "ignored" {
+			if d.Attributes.Ignored {
 				if seenIgnored[key] {
 					continue
 				}
@@ -292,7 +301,7 @@ func (c *Client) CountOpenIssues(ctx context.Context) (OpenCounts, error) {
 			}
 			seenOpen[key] = true
 			counts.Total++
-			isFixable := len(d.Attributes.Coordinates) > 0 && d.Attributes.Coordinates[0].IsFixable
+			isFixable := isFixable(d.Attributes.Coordinates)
 			if isFixable {
 				counts.Fixable++
 			} else {
@@ -361,7 +370,7 @@ func (c *Client) ListResolvedIssues(ctx context.Context, from, to time.Time) ([]
 				Severity:  d.Attributes.EffectiveSeverityLevel,
 				IssueType: d.Attributes.Type,
 				Status:    d.Attributes.Status,
-				IsFixable: len(d.Attributes.Coordinates) > 0 && d.Attributes.Coordinates[0].IsFixable,
+				IsFixable: isFixable(d.Attributes.Coordinates),
 			}
 			if t, err := time.Parse(time.RFC3339, d.Attributes.CreatedAt); err == nil {
 				issue.CreatedAt = t
@@ -423,8 +432,8 @@ func (c *Client) ListIssues(ctx context.Context, from, to time.Time) ([]Issue, e
 				Severity:  d.Attributes.EffectiveSeverityLevel,
 				IssueType: d.Attributes.Type,
 				Status:    d.Attributes.Status,
-				IsFixable: len(d.Attributes.Coordinates) > 0 && d.Attributes.Coordinates[0].IsFixable,
-				IsIgnored: d.Attributes.Status == "ignored",
+				IsFixable: isFixable(d.Attributes.Coordinates),
+				IsIgnored: d.Attributes.Ignored,
 			}
 			if t, err := time.Parse(time.RFC3339, d.Attributes.CreatedAt); err == nil {
 				issue.CreatedAt = t
