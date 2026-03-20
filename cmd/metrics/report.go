@@ -126,7 +126,7 @@ func fetchJIRADataForReport(ctx context.Context, team string, from, to time.Time
 	if jqlFlag != "" {
 		jql = jqlFlag
 	} else {
-		jql, err = resolveTeamJQL(ctx, client, team)
+		jql, err = resolveTeamJQL(team)
 		if err != nil {
 			return jiraMetricsData{}, fmt.Errorf("JIRA JQL: %w", err)
 		}

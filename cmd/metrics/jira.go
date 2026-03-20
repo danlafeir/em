@@ -262,27 +262,6 @@ func saveEpicSelection(team string, epics []jira.Issue) {
 	config.WriteConfig()
 }
 
-// resolveProjectEpics queries JIRA for active epics in a project and returns
-// a JQL that scopes to child issues of those epics.
-func resolveProjectEpics(ctx context.Context, client *jira.Client, project string) (string, error) {
-	epicJQL := fmt.Sprintf("project = %s AND issuetype = Epic AND resolution IS EMPTY", project)
-	epics, err := client.SearchAllIssues(ctx, epicJQL, "key", "")
-	if err != nil {
-		return "", fmt.Errorf("failed to fetch active epics for project %s: %w", project, err)
-	}
-
-	if len(epics) == 0 {
-		return "", fmt.Errorf("no active epics found in project %s", project)
-	}
-
-	keys := make([]string, len(epics))
-	for i, e := range epics {
-		keys[i] = e.Key
-	}
-	keyList := strings.Join(keys, ", ")
-
-	return fmt.Sprintf("\"Epic Link\" in (%s) OR parent in (%s)", keyList, keyList), nil
-}
 
 // getProjectJQL returns a simple "project = PROJ" JQL from config.
 // Used by forecast for epic discovery where the full children JQL is not needed.
@@ -405,17 +384,17 @@ func getWorkflowMapper() *workflow.Mapper {
 	return workflow.NewMapper(wfConfig)
 }
 
-// resolveTeamJQL resolves JQL for a single team, checking jql_filter_for_metrics
-// first, then falling back to the team's project via resolveProjectEpics.
-func resolveTeamJQL(ctx context.Context, client *jira.Client, team string) (string, error) {
+// resolveTeamJQL resolves JQL for a single team. Prefers the board's
+// jql_filter_for_metrics, falling back to a plain project = X constraint.
+func resolveTeamJQL(team string) (string, error) {
 	if jql := getTeamConfigString(team, "jql_filter_for_metrics"); jql != "" {
 		return jql, nil
 	}
 	project := getTeamConfigString(team, "project")
 	if project == "" {
-		return "", fmt.Errorf("no jql_filter_for_metrics or project configured")
+		return "", fmt.Errorf("no jql_filter_for_metrics or project configured for team %s", team)
 	}
-	return resolveProjectEpics(ctx, client, project)
+	return fmt.Sprintf("project = %s", project), nil
 }
 
 // withTeamIteration runs fn once per configured team, or once with aggregated
@@ -426,11 +405,7 @@ func withTeamIteration(ctx context.Context, client *jira.Client, fn func(team, j
 		return fn("", jqlFlag)
 	}
 	if projectFlag != "" {
-		jql, err := resolveProjectEpics(ctx, client, projectFlag)
-		if err != nil {
-			return err
-		}
-		return fn("", jql)
+		return fn("", fmt.Sprintf("project = %s", projectFlag))
 	}
 
 	teams := getJiraTeams()
@@ -441,7 +416,7 @@ func withTeamIteration(ctx context.Context, client *jira.Client, fn func(team, j
 	for _, team := range teams {
 		fmt.Printf("=== Team: %s ===\n\n", team)
 
-		jql, err := resolveTeamJQL(ctx, client, team)
+		jql, err := resolveTeamJQL(team)
 		if err != nil {
 			return fmt.Errorf("team %s: %w", team, err)
 		}
@@ -464,16 +439,16 @@ func teamOutputName(defaultName, team string) string {
 	return defaultName
 }
 
-// getTeamProjectJQL returns a project-scoped JQL for a single team.
-// Uses the team's project config, or falls back to jql_filter_for_metrics.
+// getTeamProjectJQL returns the base JQL for a single team.
+// Prefers jql_filter_for_metrics (board query), falling back to project = X.
 func getTeamProjectJQL(team string) (string, error) {
-	if project := getTeamConfigString(team, "project"); project != "" {
-		return fmt.Sprintf("project = %s", project), nil
-	}
 	if jql := getTeamConfigString(team, "jql_filter_for_metrics"); jql != "" {
 		return jql, nil
 	}
-	return "", fmt.Errorf("team %s has no project or jql_filter_for_metrics configured", team)
+	if project := getTeamConfigString(team, "project"); project != "" {
+		return fmt.Sprintf("project = %s", project), nil
+	}
+	return "", fmt.Errorf("team %s has no jql_filter_for_metrics or project configured", team)
 }
 
 // getOutputPath returns the output file path with default extension.
