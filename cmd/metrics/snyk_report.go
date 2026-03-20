@@ -64,13 +64,16 @@ func runSnykReport(cmd *cobra.Command, args []string) error {
 	}
 
 	summary := charts.SnykSummary{
-		Critical: openCounts.Critical,
-		High:     openCounts.High,
-		Medium:   openCounts.Medium,
-		Low:      openCounts.Low,
+		Critical:  openCounts.Critical,
+		High:      openCounts.High,
+		Medium:    openCounts.Medium,
+		Low:       openCounts.Low,
+		Fixable:   openCounts.Fixable,
+		Unfixable: openCounts.Unfixable,
+		Ignored:   openCounts.Ignored,
 	}
 
-	weeks := bucketByWeek(issues, resolved, openCounts.Total, from, to)
+	weeks := bucketByWeek(issues, resolved, openCounts.Total, openCounts.Fixable, from, to)
 
 	outputPath := getSnykOutputPath("snyk-report", "html")
 

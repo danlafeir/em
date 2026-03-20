@@ -52,10 +52,12 @@ type LongestCycleTimeRow struct {
 	Outlier   bool
 }
 
-// SnykIssueWeek holds the total open vulnerability count at the end of a week.
+// SnykIssueWeek holds open vulnerability counts at the end of a week.
 type SnykIssueWeek struct {
 	WeekStart time.Time
 	Total     int
+	Fixable   int
+	Unfixable int
 }
 
 // tableRow is used by table templates.
@@ -560,10 +562,13 @@ func DeploymentFrequencyLine(data metrics.ThroughputResult, cfg Config, path str
 
 // SnykSummary holds aggregate vulnerability counts for the summary bar.
 type SnykSummary struct {
-	Critical int
-	High     int
-	Medium   int
-	Low      int
+	Critical  int
+	High      int
+	Medium    int
+	Low       int
+	Fixable   int
+	Unfixable int
+	Ignored   int
 }
 
 // snykIssuesChartConfig builds the Chart.js config for the Snyk issues line chart.
@@ -573,20 +578,41 @@ func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 		Y int    `json:"y"`
 	}
 
-	pts := make([]point, len(weeks))
+	totalPts := make([]point, len(weeks))
+	fixablePts := make([]point, len(weeks))
+	unfixablePts := make([]point, len(weeks))
 	for i, w := range weeks {
-		pts[i] = point{X: w.WeekStart.Format("2006-01-02"), Y: w.Total}
+		x := w.WeekStart.Format("2006-01-02")
+		totalPts[i] = point{X: x, Y: w.Total}
+		fixablePts[i] = point{X: x, Y: w.Fixable}
+		unfixablePts[i] = point{X: x, Y: w.Unfixable}
 	}
 
 	datasets := []map[string]any{
 		{
 			"label":           "Total Open",
-			"data":            pts,
+			"data":            totalPts,
 			"borderColor":     "rgba(99, 102, 241, 1)",
 			"backgroundColor": "rgba(99, 102, 241, 0.1)",
 			"borderWidth":     2,
 			"pointRadius":     4,
 			"fill":            true,
+		},
+		{
+			"label":       "Fixable",
+			"data":        fixablePts,
+			"borderColor": "rgba(22, 163, 74, 1)",
+			"borderWidth": 2,
+			"pointRadius": 3,
+			"fill":        false,
+		},
+		{
+			"label":       "Unfixable",
+			"data":        unfixablePts,
+			"borderColor": "rgba(220, 38, 38, 1)",
+			"borderWidth": 2,
+			"pointRadius": 3,
+			"fill":        false,
 		},
 	}
 

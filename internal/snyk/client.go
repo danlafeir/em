@@ -243,7 +243,8 @@ func (c *Client) CountOpenIssues(ctx context.Context) (OpenCounts, error) {
 		title    string
 		severity string
 	}
-	seen := make(map[issueKey]bool)
+	seenOpen := make(map[issueKey]bool)
+	seenIgnored := make(map[issueKey]bool)
 
 	var counts OpenCounts
 	nextURL := ""
@@ -264,12 +265,12 @@ func (c *Client) CountOpenIssues(ctx context.Context) (OpenCounts, error) {
 		}
 
 		for _, d := range resp.Data {
-			if d.Attributes.Status != "open" {
+			status := d.Attributes.Status
+			if status != "open" && status != "ignored" {
 				continue
 			}
 			projectID := d.Relationships.ScanItem.Data.ID
 			targetID := projectTargets[projectID]
-			// Fall back to project ID if target mapping is missing
 			if targetID == "" {
 				targetID = projectID
 			}
@@ -278,11 +279,25 @@ func (c *Client) CountOpenIssues(ctx context.Context) (OpenCounts, error) {
 				title:    d.Attributes.Title,
 				severity: strings.ToLower(d.Attributes.EffectiveSeverityLevel),
 			}
-			if seen[key] {
+			if status == "ignored" {
+				if seenIgnored[key] {
+					continue
+				}
+				seenIgnored[key] = true
+				counts.Ignored++
 				continue
 			}
-			seen[key] = true
+			if seenOpen[key] {
+				continue
+			}
+			seenOpen[key] = true
 			counts.Total++
+			isFixable := len(d.Attributes.Coordinates) > 0 && d.Attributes.Coordinates[0].IsFixable
+			if isFixable {
+				counts.Fixable++
+			} else {
+				counts.Unfixable++
+			}
 			switch key.severity {
 			case "critical":
 				counts.Critical++
@@ -346,6 +361,7 @@ func (c *Client) ListResolvedIssues(ctx context.Context, from, to time.Time) ([]
 				Severity:  d.Attributes.EffectiveSeverityLevel,
 				IssueType: d.Attributes.Type,
 				Status:    d.Attributes.Status,
+				IsFixable: len(d.Attributes.Coordinates) > 0 && d.Attributes.Coordinates[0].IsFixable,
 			}
 			if t, err := time.Parse(time.RFC3339, d.Attributes.CreatedAt); err == nil {
 				issue.CreatedAt = t
@@ -407,6 +423,8 @@ func (c *Client) ListIssues(ctx context.Context, from, to time.Time) ([]Issue, e
 				Severity:  d.Attributes.EffectiveSeverityLevel,
 				IssueType: d.Attributes.Type,
 				Status:    d.Attributes.Status,
+				IsFixable: len(d.Attributes.Coordinates) > 0 && d.Attributes.Coordinates[0].IsFixable,
+				IsIgnored: d.Attributes.Status == "ignored",
 			}
 			if t, err := time.Parse(time.RFC3339, d.Attributes.CreatedAt); err == nil {
 				issue.CreatedAt = t

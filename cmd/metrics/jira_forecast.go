@@ -381,6 +381,9 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 
 	sequential := hasEpicSelection(team)
 	epics = applyEpicSelection(epics, team)
+	if !hasEpicSelection(team) {
+		epics = sortEpicsByInProgress(ctx, client, epics)
+	}
 	fmt.Printf("Found %d open epics\n\n", len(epics))
 
 	weeklyThroughput, err := loadWeeklyThroughput(ctx, client, throughputJQLBase)
@@ -389,6 +392,35 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 	}
 
 	return runEpicForecasts(ctx, client, epics, weeklyThroughput, team, sequential)
+}
+
+// sortEpicsByInProgress sorts epics descending by number of child cards currently in progress.
+// Epics with more active work appear first. Falls back to original order on error.
+func sortEpicsByInProgress(ctx context.Context, client *jira.Client, epics []jira.Issue) []jira.Issue {
+	if len(epics) == 0 {
+		return epics
+	}
+	keys := make([]string, len(epics))
+	for i, e := range epics {
+		keys[i] = e.Key
+	}
+	jql := fmt.Sprintf("parent in (%s) AND statusCategory = \"In Progress\"", strings.Join(keys, ","))
+	children, err := client.SearchAllIssues(ctx, jql, "parent", "")
+	if err != nil {
+		return epics
+	}
+	counts := make(map[string]int, len(epics))
+	for _, child := range children {
+		if p := child.Fields.Parent; p != nil && p.Key != "" {
+			counts[p.Key]++
+		}
+	}
+	sorted := make([]jira.Issue, len(epics))
+	copy(sorted, epics)
+	sort.SliceStable(sorted, func(i, j int) bool {
+		return counts[sorted[i].Key] > counts[sorted[j].Key]
+	})
+	return sorted
 }
 
 // applyEpicSelection filters epics to the saved selection for the team, preserving

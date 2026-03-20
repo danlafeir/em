@@ -25,9 +25,10 @@ type Org struct {
 	Name string
 }
 
-// OpenCounts holds the current total of open issues broken down by severity.
+// OpenCounts holds the current total of open issues broken down by severity and fixability.
 type OpenCounts struct {
 	Critical, High, Medium, Low, Total int
+	Fixable, Unfixable, Ignored        int
 }
 
 // Issue represents a Snyk vulnerability issue.
@@ -37,18 +38,26 @@ type Issue struct {
 	Severity   string // critical, high, medium, low
 	IssueType  string
 	Status     string
+	IsFixable  bool
+	IsIgnored  bool
 	CreatedAt  time.Time
 	ResolvedAt time.Time
 }
 
+// coordinate holds fix availability for one affected package coordinate.
+type coordinate struct {
+	IsFixable bool `json:"is_fixable"`
+}
+
 // issueAttributes holds attributes from the issues API response.
 type issueAttributes struct {
-	Title                  string `json:"title"`
-	EffectiveSeverityLevel string `json:"effective_severity_level"`
-	Type                   string `json:"type"`
-	Status                 string `json:"status"`
-	CreatedAt              string `json:"created_at"`
-	ResolvedAt             string `json:"resolved_at"`
+	Title                  string       `json:"title"`
+	EffectiveSeverityLevel string       `json:"effective_severity_level"`
+	Type                   string       `json:"type"`
+	Status                 string       `json:"status"`
+	CreatedAt              string       `json:"created_at"`
+	ResolvedAt             string       `json:"resolved_at"`
+	Coordinates            []coordinate `json:"coordinates"`
 }
 
 // issueRelationships holds relationship references from the issues API response.
