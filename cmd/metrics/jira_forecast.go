@@ -357,6 +357,15 @@ func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Iss
 			Forecast95: f.Forecast95.Format("Jan 02"),
 		})
 	}
+	if saveRawDataFlag && len(rows) > 0 {
+		if err := saveJiraForecastData(rows, team); err == nil {
+			fmt.Printf("Raw data saved to: %s\n", savedJiraForecastPath(team))
+		}
+		if err := saveJiraForecastThroughput(weeklyThroughput, team); err == nil {
+			fmt.Printf("Raw data saved to: %s\n", savedJiraForecastThroughputPath(team))
+		}
+	}
+
 	if len(rows) > 0 {
 		htmlPath := getOutputPath(teamOutputName("epic-forecasts", team), "html")
 		if err := charts.ForecastTable(rows, client.BaseURL(), htmlPath); err == nil {
@@ -670,6 +679,12 @@ func runManualForecast(ctx context.Context, client *jira.Client, throughputJQL s
 	fmt.Printf("  Weeks sampled: %d\n", len(weeklyThroughput))
 	fmt.Printf("  Weekly throughput range: %d to %d items\n",
 		minInt(weeklyThroughput), maxInt(weeklyThroughput))
+
+	if saveRawDataFlag {
+		if err := saveJiraForecastThroughput(weeklyThroughput, ""); err == nil {
+			fmt.Printf("\nRaw data saved to: %s\n", savedJiraForecastThroughputPath(""))
+		}
+	}
 
 	return nil
 }

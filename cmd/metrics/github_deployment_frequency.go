@@ -264,7 +264,11 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 
 	// Generate HTML chart with aggregate weekly deployments
 	weeklyData := aggregateWeeklyDeployments(allRuns, from, to)
-	_ = saveDeploymentData(weeklyData, "")
+	if saveRawDataFlag {
+		if err := saveDeploymentData(weeklyData, ""); err == nil {
+			fmt.Printf("\nRaw data saved to: %s\n", savedGithubDataPath(""))
+		}
+	}
 	if len(weeklyData.Periods) > 0 {
 		cfg := charts.Config{}
 		outputPath := getGithubOutputPath("deployment-frequency", "html")
@@ -369,7 +373,9 @@ func fetchTeamDeploymentData(ctx context.Context, client *gh.Client, org, teamNa
 		}
 	}
 	result := aggregateWeeklyDeployments(allRuns, from, to)
-	_ = saveDeploymentData(result, teamName)
+	if saveRawDataFlag {
+		_ = saveDeploymentData(result, teamName)
+	}
 	return result
 }
 

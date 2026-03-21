@@ -113,13 +113,16 @@ func generateCycleTime(ctx context.Context, client *jira.Client, team, jql strin
 		calculator := metrics.NewCycleTimeCalculator(mapper)
 		results = calculator.Calculate(histories)
 
-		// Save for future --use-saved-data runs (best effort).
 		_, outlierResults := metrics.FilterCycleTimeOutliers(results, 2.0)
 		outlierKeys := make(map[string]bool, len(outlierResults))
 		for _, r := range outlierResults {
 			outlierKeys[r.IssueKey] = true
 		}
-		_ = saveJiraCycleTimeData(results, outlierKeys, team)
+		if saveRawDataFlag {
+			if err := saveJiraCycleTimeData(results, outlierKeys, team); err == nil {
+				fmt.Printf("Raw data saved to: %s\n", savedJiraCycleTimePath(team))
+			}
+		}
 	}
 
 	if len(results) == 0 {

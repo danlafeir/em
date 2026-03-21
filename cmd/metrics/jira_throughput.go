@@ -114,6 +114,12 @@ func generateThroughput(ctx context.Context, client *jira.Client, team, jql stri
 	calculator := metrics.NewThroughputCalculator(frequency, mapper)
 	result := calculator.Calculate(histories, from, to)
 
+	if saveRawDataFlag {
+		if err := saveJiraThroughputData(result, team); err == nil {
+			fmt.Printf("Raw data saved to: %s\n", savedJiraThroughputPath(team))
+		}
+	}
+
 	stats := metrics.CalculateThroughputStats(result)
 
 	fmt.Printf("Throughput Analysis\n")

@@ -36,9 +36,12 @@ func savedJiraForecastPath(team string) string {
 	return output.Path(teamOutputName("jira-forecast-data", team) + ".csv")
 }
 
-func savedSnykIssuesPath() string     { return output.Path("snyk-issues-data.csv") }
-func savedSnykResolvedPath() string   { return output.Path("snyk-resolved-data.csv") }
-func savedSnykOpenCountsPath() string { return output.Path("snyk-open-counts.csv") }
+func savedSnykIssuesPath() string            { return output.Path("snyk-issues-data.csv") }
+func savedSnykResolvedPath() string          { return output.Path("snyk-resolved-data.csv") }
+func savedSnykOpenCountsPath() string        { return output.Path("snyk-open-counts.csv") }
+func savedJiraForecastThroughputPath(team string) string {
+	return output.Path(teamOutputName("jira-forecast-throughput", team) + ".csv")
+}
 
 // ---- generic throughput CSV (shared by GitHub and JIRA throughput) ----
 
@@ -268,6 +271,52 @@ func loadJiraForecastData(team string) ([]charts.ForecastRow, error) {
 	return result, nil
 }
 
+// ---- JIRA forecast throughput samples ----
+// CSV: week_index,throughput
+
+func saveJiraForecastThroughput(weeklyThroughput []int, team string) error {
+	f, err := output.Create(savedJiraForecastThroughputPath(team))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	w := csv.NewWriter(f)
+	defer w.Flush()
+	if err := w.Write([]string{"week_index", "throughput"}); err != nil {
+		return err
+	}
+	for i, v := range weeklyThroughput {
+		if err := w.Write([]string{strconv.Itoa(i), strconv.Itoa(v)}); err != nil {
+			return err
+		}
+	}
+	return w.Error()
+}
+
+func loadJiraForecastThroughput(team string) ([]int, error) {
+	f, err := os.Open(savedJiraForecastThroughputPath(team))
+	if err != nil {
+		return nil, fmt.Errorf("no saved forecast throughput at %s: %w", savedJiraForecastThroughputPath(team), err)
+	}
+	defer f.Close()
+	rows, err := csv.NewReader(f).ReadAll()
+	if err != nil {
+		return nil, err
+	}
+	var result []int
+	for _, row := range rows[1:] {
+		if len(row) < 2 {
+			continue
+		}
+		v, err := strconv.Atoi(row[1])
+		if err != nil {
+			continue
+		}
+		result = append(result, v)
+	}
+	return result, nil
+}
+
 // ---- Snyk issues CSV (shared schema for issues and resolved) ----
 // CSV: id,title,severity,type,status,is_fixable,is_ignored,created_at,resolved_at
 
@@ -425,10 +474,13 @@ func fetchOrLoadSnykData(ctx context.Context, client *snykpkg.Client, from, to t
 		return nil, nil, snykpkg.OpenCounts{}, err
 	}
 
-	// Save best-effort — don't fail the report if saving fails.
-	_ = saveSnykIssueList(issues, savedSnykIssuesPath())
-	_ = saveSnykIssueList(resolved, savedSnykResolvedPath())
-	_ = saveSnykOpenCounts(counts)
+	if saveRawDataFlag {
+		_ = saveSnykIssueList(issues, savedSnykIssuesPath())
+		_ = saveSnykIssueList(resolved, savedSnykResolvedPath())
+		_ = saveSnykOpenCounts(counts)
+		fmt.Printf("Raw data saved to: %s, %s, %s\n",
+			savedSnykIssuesPath(), savedSnykResolvedPath(), savedSnykOpenCountsPath())
+	}
 
 	return issues, resolved, counts, nil
 }

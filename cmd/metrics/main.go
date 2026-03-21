@@ -60,7 +60,13 @@ Quick Start:
 	},
 }
 
+// saveRawDataFlag saves raw calculation data to CSVs after a live API fetch.
+// Use with --use-saved-data on subsequent runs to replay reports without API calls.
+var saveRawDataFlag bool
+
 func init() {
 	MetricsCmd.PersistentFlags().BoolVar(&useSavedDataFlag, "use-saved-data", false,
 		"Skip upstream API calls and regenerate reports from previously saved CSVs")
+	MetricsCmd.PersistentFlags().BoolVar(&saveRawDataFlag, "save-raw-data", false,
+		"Save raw calculation data to CSV files after fetching (use with --use-saved-data to replay reports)")
 }
