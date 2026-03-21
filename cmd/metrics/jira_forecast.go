@@ -126,6 +126,29 @@ func fetchOpenEpics(ctx context.Context, client *jira.Client, team string) ([]ji
 	return epics, nil
 }
 
+// fetchEpicsByKeys fetches specific epics by key with no resolution filter,
+// returning them in the same order as keys.
+func fetchEpicsByKeys(ctx context.Context, client *jira.Client, keys []string) ([]jira.Issue, error) {
+	jql := fmt.Sprintf("issuetype = Epic AND key in (%s) ORDER BY key", strings.Join(keys, ","))
+	fmt.Printf("JQL: %s\n\n", jql)
+	fetched, err := client.SearchAllIssues(ctx, jql, "summary,status", "")
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch selected epics: %w", err)
+	}
+	// Re-order to match the saved selection order.
+	byKey := make(map[string]jira.Issue, len(fetched))
+	for _, e := range fetched {
+		byKey[e.Key] = e
+	}
+	ordered := make([]jira.Issue, 0, len(keys))
+	for _, k := range keys {
+		if e, ok := byKey[k]; ok {
+			ordered = append(ordered, e)
+		}
+	}
+	return ordered, nil
+}
+
 func loadWeeklyThroughput(ctx context.Context, client *jira.Client, throughputJQLBase string) ([]int, error) {
 	historyEnd := time.Now()
 	historyStart := metrics.WeekStart(historyEnd.AddDate(0, 0, -historyDaysFlag))
@@ -409,24 +432,36 @@ func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Iss
 }
 
 func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, throughputJQLBase string) error {
-	fmt.Println("Discovering open epics...")
+	var epics []jira.Issue
+	var err error
 
-	epics, err := fetchOpenEpics(ctx, client, team)
-	if err != nil {
-		return err
+	if savedKeys := loadEpicSelection(team); len(savedKeys) > 0 {
+		// Fetch selected epics by key — no resolution filter so completed epics appear too.
+		fmt.Printf("Using saved epic selection (%d epic(s)). Run with --select to change.\n\n", len(savedKeys))
+		epics, err = fetchEpicsByKeys(ctx, client, savedKeys)
+		if err != nil {
+			return err
+		}
+	} else {
+		fmt.Println("Discovering open epics...")
+		epics, err = fetchOpenEpics(ctx, client, team)
+		if err != nil {
+			return err
+		}
+		if len(epics) == 0 {
+			fmt.Println("No open epics found.")
+			return nil
+		}
+		epics = sortEpicsByInProgress(ctx, client, epics)
 	}
 
 	if len(epics) == 0 {
-		fmt.Println("No open epics found.")
+		fmt.Println("No epics found.")
 		return nil
 	}
 
 	sequential := hasEpicSelection(team)
-	epics = applyEpicSelection(epics, team)
-	if !hasEpicSelection(team) {
-		epics = sortEpicsByInProgress(ctx, client, epics)
-	}
-	fmt.Printf("Found %d open epics\n\n", len(epics))
+	fmt.Printf("Found %d epic(s)\n\n", len(epics))
 
 	weeklyThroughput, err := loadWeeklyThroughput(ctx, client, throughputJQLBase)
 	if err != nil {

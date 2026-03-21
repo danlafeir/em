@@ -185,25 +185,32 @@ func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql 
 		}
 
 		if len(forecastThroughput) > 0 {
-			epics, epicErr := fetchOpenEpics(ctx, client, team)
-			if epicErr != nil {
-				log("Warning: forecast unavailable: %v\n", epicErr)
-			} else if len(epics) > 0 {
-				sequential := false
-				if selectEpicsFlag {
+			var epics []jira.Issue
+			var epicErr error
+			sequential := false
+			if selectEpicsFlag {
+				epics, epicErr = fetchOpenEpics(ctx, client, team)
+				if epicErr == nil && len(epics) > 0 {
 					if selected, selErr := promptEpicSelection(epics); selErr != nil {
 						log("Warning: epic selection skipped: %v\n", selErr)
+						epics = nil
 					} else {
 						saveEpicSelection(team, selected)
 						epics = selected
 						sequential = true
 					}
-				} else {
-					epics = applyEpicSelection(epics, team)
-					sequential = hasEpicSelection(team)
 				}
+			} else if savedKeys := loadEpicSelection(team); len(savedKeys) > 0 {
+				epics, epicErr = fetchEpicsByKeys(ctx, client, savedKeys)
+				sequential = true
+			} else {
+				epics, epicErr = fetchOpenEpics(ctx, client, team)
+			}
 
-				log("Found %d open epics, forecasting...\n", len(epics))
+			if epicErr != nil {
+				log("Warning: forecast unavailable: %v\n", epicErr)
+			} else if len(epics) > 0 {
+				log("Found %d epic(s), forecasting...\n", len(epics))
 				mapper := getWorkflowMapper()
 
 				var pending []EpicForecast
