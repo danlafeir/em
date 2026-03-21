@@ -98,29 +98,7 @@ func getDatadogTeam() string {
 
 // getDatadogDateRange returns the from/to date range for Datadog commands.
 func getDatadogDateRange() (time.Time, time.Time, error) {
-	var from, to time.Time
-	var err error
-
-	if ddFromFlag != "" {
-		from, err = time.Parse("2006-01-02", ddFromFlag)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid --from date: %w", err)
-		}
-	} else {
-		// Default to 42 days (6 weeks)
-		from = time.Now().AddDate(0, 0, -42)
-	}
-
-	if ddToFlag != "" {
-		to, err = time.Parse("2006-01-02", ddToFlag)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid --to date: %w", err)
-		}
-	} else {
-		to = time.Now()
-	}
-
-	return from, to, nil
+	return parseDateRange(ddFromFlag, ddToFlag)
 }
 
 // getDatadogOutputPath returns the output file path.

@@ -10,10 +10,11 @@ import (
 
 // MonteCarloConfig configures the simulation.
 type MonteCarloConfig struct {
-	Trials           int           // Number of simulations (default: 10000)
-	ThroughputWindow int           // Days of history to sample from (default: 60)
-	SimulationStart  time.Time     // When to start simulation (default: now)
-	Deadline         *time.Time    // Optional deadline to check against
+	Trials           int        // Number of simulations (default: 10000)
+	ThroughputWindow int        // Days of history to sample from (default: 60)
+	SimulationStart  time.Time  // When to start simulation (default: now)
+	Deadline         *time.Time // Optional deadline to check against
+	WorkThreads      int        // Parallel work threads; multiplies weekly throughput (default: 1)
 }
 
 // ForecastResult holds Monte Carlo simulation results.
@@ -79,6 +80,11 @@ func (mc *MonteCarloSimulator) Run(remainingItems int) (*ForecastResult, error) 
 
 	avgThroughput := float64(totalThroughput) / float64(len(mc.throughput))
 
+	workers := mc.config.WorkThreads
+	if workers <= 0 {
+		workers = 1
+	}
+
 	// Run simulations
 	completionDates := make([]time.Time, mc.config.Trials)
 
@@ -88,8 +94,8 @@ func (mc *MonteCarloSimulator) Run(remainingItems int) (*ForecastResult, error) 
 
 		// Simulate week by week until all items complete
 		for remaining > 0 {
-			// Randomly sample a historical throughput value
-			weeklyThroughput := nonZeroThroughput[rand.Intn(len(nonZeroThroughput))]
+			// Randomly sample a historical throughput value, scaled by workers
+			weeklyThroughput := nonZeroThroughput[rand.Intn(len(nonZeroThroughput))] * workers
 			remaining -= weeklyThroughput
 			currentDate = currentDate.AddDate(0, 0, 7)
 		}
@@ -168,12 +174,17 @@ func (mc *MonteCarloSimulator) RunSequential(remainingItems []int) ([]*ForecastR
 		completionDates[i] = make([]time.Time, mc.config.Trials)
 	}
 
+	workers := mc.config.WorkThreads
+	if workers <= 0 {
+		workers = 1
+	}
+
 	for trial := 0; trial < mc.config.Trials; trial++ {
 		currentDate := mc.config.SimulationStart
 		for i, items := range remainingItems {
 			remaining := items
 			for remaining > 0 {
-				w := nonZeroThroughput[rand.Intn(len(nonZeroThroughput))]
+				w := nonZeroThroughput[rand.Intn(len(nonZeroThroughput))] * workers
 				remaining -= w
 				currentDate = currentDate.AddDate(0, 0, 7)
 			}
@@ -207,6 +218,137 @@ func (mc *MonteCarloSimulator) RunSequential(remainingItems []int) ([]*ForecastR
 		}
 		results[i] = r
 	}
+	return results, nil
+}
+
+// WorkThreadsForPercentile maps a confidence percentile to a work thread count given a total.
+// Higher percentiles (more conservative) use fewer work threads to model less parallelism.
+//
+//	50th  → totalWorkThreads  (fully parallel — optimistic)
+//	70th  → ¾ × threads       (floor)
+//	85th  → ½ × threads       (ceiling)
+//	95th  → 1                 (fully sequential — pessimistic)
+func WorkThreadsForPercentile(totalWorkThreads, percentile int) int {
+	if totalWorkThreads <= 1 {
+		return 1
+	}
+	switch {
+	case percentile >= 95:
+		return 1
+	case percentile >= 85:
+		return max(1, (totalWorkThreads+1)/2) // ceiling of half
+	case percentile >= 70:
+		return max(1, (totalWorkThreads*3)/4) // floor of three-quarters
+	default:
+		return totalWorkThreads
+	}
+}
+
+// RunMultiPercentile runs a separate simulation per confidence percentile, each with
+// a work thread count determined by WorkThreadsForPercentile. The median (p50) of each
+// per-thread simulation becomes that percentile's completion date.
+//
+// When totalWorkThreads <= 1, falls back to the standard Run (percentiles from one distribution).
+func (mc *MonteCarloSimulator) RunMultiPercentile(remaining, totalWorkThreads int) (*ForecastResult, error) {
+	if totalWorkThreads <= 1 {
+		return mc.Run(remaining)
+	}
+
+	var totalTP int
+	for _, t := range mc.throughput {
+		totalTP += t
+	}
+	result := &ForecastResult{
+		TargetItems:       remaining,
+		RemainingItems:    remaining,
+		TrialsRun:         mc.config.Trials,
+		Percentiles:       make(map[int]time.Time),
+		PercentileDays:    make(map[int]int),
+		ThroughputSamples: len(mc.throughput),
+		AvgThroughput:     float64(totalTP) / float64(len(mc.throughput)),
+	}
+
+	cache := make(map[int]*ForecastResult)
+	for _, p := range []int{50, 70, 85, 95} {
+		w := WorkThreadsForPercentile(totalWorkThreads, p)
+		r, ok := cache[w]
+		if !ok {
+			cfg := mc.config
+			cfg.WorkThreads = w
+			var err error
+			r, err = NewMonteCarloSimulator(cfg, mc.throughput).Run(remaining)
+			if err != nil {
+				return nil, err
+			}
+			cache[w] = r
+		}
+		result.Percentiles[p] = r.Percentiles[50]
+		result.PercentileDays[p] = r.PercentileDays[50]
+	}
+
+	if mc.config.Deadline != nil {
+		result.DeadlineDate = mc.config.Deadline
+		if r, ok := cache[totalWorkThreads]; ok {
+			result.DeadlineConfidence = r.DeadlineConfidence
+		}
+	}
+
+	return result, nil
+}
+
+// RunSequentialMultiPercentile is the sequential-epics equivalent of RunMultiPercentile.
+// Each percentile uses the work thread count from WorkThreadsForPercentile; runs are cached by
+// thread count to avoid redundant simulations.
+//
+// When totalWorkThreads <= 1, falls back to RunSequential.
+func (mc *MonteCarloSimulator) RunSequentialMultiPercentile(remainingItems []int, totalWorkThreads int) ([]*ForecastResult, error) {
+	if totalWorkThreads <= 1 {
+		return mc.RunSequential(remainingItems)
+	}
+	if len(remainingItems) == 0 {
+		return nil, nil
+	}
+
+	var totalTP int
+	for _, t := range mc.throughput {
+		totalTP += t
+	}
+	avgTP := float64(totalTP) / float64(len(mc.throughput))
+
+	n := len(remainingItems)
+	results := make([]*ForecastResult, n)
+	for i, items := range remainingItems {
+		results[i] = &ForecastResult{
+			TargetItems:       items,
+			RemainingItems:    items,
+			TrialsRun:         mc.config.Trials,
+			Percentiles:       make(map[int]time.Time),
+			PercentileDays:    make(map[int]int),
+			ThroughputSamples: len(mc.throughput),
+			AvgThroughput:     avgTP,
+		}
+	}
+
+	cache := make(map[int][]*ForecastResult)
+	for _, p := range []int{50, 70, 85, 95} {
+		w := WorkThreadsForPercentile(totalWorkThreads, p)
+		cached, ok := cache[w]
+		if !ok {
+			cfg := mc.config
+			cfg.WorkThreads = w
+			var err error
+			cached, err = NewMonteCarloSimulator(cfg, mc.throughput).RunSequential(remainingItems)
+			if err != nil {
+				return nil, err
+			}
+			cache[w] = cached
+		}
+		for i, r := range cached {
+			results[i].Percentiles[p] = r.Percentiles[50]
+			results[i].PercentileDays[p] = r.PercentileDays[50]
+		}
+	}
+
 	return results, nil
 }
 

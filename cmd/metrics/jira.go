@@ -158,6 +158,7 @@ var emConfigSchema = config.ConfigSchema{
 	"team_names",
 	"jira.domain",
 	"jira.email",
+	"jira.work_threads",
 	"jira.selected_epics",
 	"teams.*",
 	"teams.*.jira.project",
@@ -311,29 +312,7 @@ func getProjectJQL() (string, error) {
 
 // getDateRange returns the from/to date range.
 func getDateRange() (time.Time, time.Time, error) {
-	var from, to time.Time
-	var err error
-
-	if fromFlag != "" {
-		from, err = time.Parse("2006-01-02", fromFlag)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid --from date: %w", err)
-		}
-	} else {
-		// Default to 42 days (6 weeks)
-		from = time.Now().AddDate(0, 0, -42)
-	}
-
-	if toFlag != "" {
-		to, err = time.Parse("2006-01-02", toFlag)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid --to date: %w", err)
-		}
-	} else {
-		to = time.Now()
-	}
-
-	return from, to, nil
+	return parseDateRange(fromFlag, toFlag)
 }
 
 // getWorkflowMapper creates a workflow mapper from configuration.

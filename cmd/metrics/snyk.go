@@ -81,29 +81,7 @@ func getSnykClient() (*snyk.Client, error) {
 
 // getSnykDateRange returns the from/to date range for Snyk commands.
 func getSnykDateRange() (time.Time, time.Time, error) {
-	var from, to time.Time
-	var err error
-
-	if snykFromFlag != "" {
-		from, err = time.Parse("2006-01-02", snykFromFlag)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid --from date: %w", err)
-		}
-	} else {
-		// Default to 42 days (6 weeks)
-		from = time.Now().AddDate(0, 0, -42)
-	}
-
-	if snykToFlag != "" {
-		to, err = time.Parse("2006-01-02", snykToFlag)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid --to date: %w", err)
-		}
-	} else {
-		to = time.Now()
-	}
-
-	return from, to, nil
+	return parseDateRange(snykFromFlag, snykToFlag)
 }
 
 // getSnykOutputPath returns the output file path.

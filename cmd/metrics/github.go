@@ -123,29 +123,7 @@ func getGithubTeams() []string {
 
 // getGithubDateRange returns the from/to date range for GitHub commands.
 func getGithubDateRange() (time.Time, time.Time, error) {
-	var from, to time.Time
-	var err error
-
-	if ghFromFlag != "" {
-		from, err = time.Parse("2006-01-02", ghFromFlag)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid --from date: %w", err)
-		}
-	} else {
-		// Default to 6 weeks
-		from = time.Now().AddDate(0, 0, -42)
-	}
-
-	if ghToFlag != "" {
-		to, err = time.Parse("2006-01-02", ghToFlag)
-		if err != nil {
-			return time.Time{}, time.Time{}, fmt.Errorf("invalid --to date: %w", err)
-		}
-	} else {
-		to = time.Now()
-	}
-
-	return from, to, nil
+	return parseDateRange(ghFromFlag, ghToFlag)
 }
 
 // getGithubOutputPath returns the output file path.

@@ -103,12 +103,65 @@ func runJiraConfig(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "Warning: could not fetch boards: %v\n", err)
 	}
 
+	// 5. Epic priorities — select and order open epics for sequential forecasting
+	fmt.Println()
+	if err := promptEpicPriorities(reader, team); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: could not configure epic priorities: %v\n", err)
+	}
+
+	// 6. Worker threads (used for forecasting)
+	currentWorkers := getConfigString("jira.work_threads")
+	if currentWorkers == "" {
+		currentWorkers = "4"
+	}
+	workersInput, err := promptValue(reader, "Forecast worker threads", currentWorkers)
+	if err != nil {
+		return err
+	}
+	if n, err := strconv.Atoi(workersInput); err != nil || n <= 0 {
+		fmt.Fprintf(os.Stderr, "Warning: invalid work thread count %q, keeping %s\n", workersInput, currentWorkers)
+	} else {
+		config.SetConfigValue(configNamespace, "jira.work_threads", workersInput)
+	}
+
 	// Save config
 	if err := config.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
 	fmt.Println("JIRA configuration saved.")
+	return nil
+}
+
+// promptEpicPriorities fetches open epics for the team and lets the user select
+// and order them. The result is saved as the team's epic selection (priority order).
+func promptEpicPriorities(reader *bufio.Reader, team string) error {
+	fmt.Print("Configure epic priority order for forecasting? [Y/n]: ")
+	answer, _ := reader.ReadString('\n')
+	if strings.ToLower(strings.TrimSpace(answer)) == "n" {
+		return nil
+	}
+
+	client, err := getJiraClient()
+	if err != nil {
+		return err
+	}
+
+	ctx := context.Background()
+	epics, err := fetchOpenEpics(ctx, client, team)
+	if err != nil {
+		return err
+	}
+	if len(epics) == 0 {
+		fmt.Println("No open epics found.")
+		return nil
+	}
+
+	selected, err := promptEpicSelection(epics)
+	if err != nil {
+		return err
+	}
+	saveEpicSelection(team, selected)
 	return nil
 }
 

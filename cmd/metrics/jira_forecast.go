@@ -198,6 +198,7 @@ func fetchEpicCounts(ctx context.Context, client *jira.Client, mapper *workflow.
 
 // runIndependentSimulation runs a separate Monte Carlo simulation for each epic.
 func runIndependentSimulation(pending []EpicForecast, weeklyThroughput []int) []EpicForecast {
+	workers := getConfiguredWorkThreads()
 	config := metrics.MonteCarloConfig{
 		Trials:          trialsFlag,
 		SimulationStart: time.Now(),
@@ -205,7 +206,7 @@ func runIndependentSimulation(pending []EpicForecast, weeklyThroughput []int) []
 	simulator := metrics.NewMonteCarloSimulator(config, weeklyThroughput)
 	forecasts := make([]EpicForecast, 0, len(pending))
 	for _, f := range pending {
-		result, err := simulator.Run(f.RemainingItems)
+		result, err := simulator.RunMultiPercentile(f.RemainingItems, workers)
 		if err != nil {
 			f.Error = "sim failed"
 			forecasts = append(forecasts, f)
@@ -223,6 +224,7 @@ func runIndependentSimulation(pending []EpicForecast, weeklyThroughput []int) []
 // runSequentialSimulation runs one Monte Carlo simulation across all epics in order,
 // so each epic's dates account for all higher-priority work completing first.
 func runSequentialSimulation(pending []EpicForecast, weeklyThroughput []int) []EpicForecast {
+	workers := getConfiguredWorkThreads()
 	remainingItems := make([]int, len(pending))
 	for i, f := range pending {
 		remainingItems[i] = f.RemainingItems
@@ -232,7 +234,7 @@ func runSequentialSimulation(pending []EpicForecast, weeklyThroughput []int) []E
 		SimulationStart: time.Now(),
 	}
 	simulator := metrics.NewMonteCarloSimulator(config, weeklyThroughput)
-	results, err := simulator.RunSequential(remainingItems)
+	results, err := simulator.RunSequentialMultiPercentile(remainingItems, workers)
 	if err != nil {
 		return runIndependentSimulation(pending, weeklyThroughput)
 	}
@@ -656,7 +658,7 @@ func runManualForecast(ctx context.Context, client *jira.Client, throughputJQL s
 	fmt.Printf("\nRunning Monte Carlo simulation with %d trials...\n\n", config.Trials)
 
 	simulator := metrics.NewMonteCarloSimulator(config, weeklyThroughput)
-	result, err := simulator.Run(remaining)
+	result, err := simulator.RunMultiPercentile(remaining, getConfiguredWorkThreads())
 	if err != nil {
 		return fmt.Errorf("simulation failed: %w", err)
 	}
@@ -670,6 +672,16 @@ func runManualForecast(ctx context.Context, client *jira.Client, throughputJQL s
 		minInt(weeklyThroughput), maxInt(weeklyThroughput))
 
 	return nil
+}
+
+// getConfiguredWorkThreads reads jira.work_threads from config (default 1).
+func getConfiguredWorkThreads() int {
+	if raw := getConfigString("jira.work_threads"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+			return n
+		}
+	}
+	return 1
 }
 
 func sum(values []int) int {
