@@ -630,6 +630,13 @@ func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 					"text":    title,
 					"font":    map[string]any{"size": 18},
 				},
+				"subtitle": map[string]any{
+					"display": true,
+					"text":    "Plotting when issues were introduced and how fixability changed over time. When an issue is resolved, all bar graphs are reduced.",
+					"font":    map[string]any{"size": 12},
+					"color":   "#888888",
+					"padding": map[string]any{"bottom": 10},
+				},
 			},
 			"scales": map[string]any{
 				"x": map[string]any{
@@ -655,7 +662,7 @@ func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 // SnykIssuesLineHTML returns a self-contained HTML fragment for the Snyk issues line chart.
 func SnykIssuesLineHTML(weeks []SnykIssueWeek, title string) (template.HTML, error) {
 	if title == "" {
-		title = "Snyk Issues — Weekly Trend"
+		title = "Open Snyk Issues over time"
 	}
 	cjs, dajs := jsStrings()
 	return renderHTML("fragment_chart.html.tmpl", map[string]any{
@@ -680,7 +687,7 @@ func SnykReport(summary SnykSummary, weeks []SnykIssueWeek, title, path string) 
 	if err != nil {
 		return err
 	}
-	chartHTML, err := SnykIssuesLineHTML(weeks, "Issues — Weekly Trend")
+	chartHTML, err := SnykIssuesLineHTML(weeks, "Open Snyk Issues over time")
 	if err != nil {
 		return err
 	}
@@ -695,7 +702,7 @@ func SnykReport(summary SnykSummary, weeks []SnykIssueWeek, title, path string) 
 func SnykIssuesLine(weeks []SnykIssueWeek, cfg Config, path string) error {
 	title := cfg.Title
 	if title == "" {
-		title = "Snyk Issues — Weekly Trend"
+		title = "Open Snyk Issues over time"
 	}
 
 	cjs, dajs := jsStrings()
@@ -808,7 +815,7 @@ func CombinedTeamReport(
 		if err != nil {
 			return err
 		}
-		snykChartHTML, err = SnykIssuesLineHTML(snykWeeks, "Issues — Weekly Trend")
+		snykChartHTML, err = SnykIssuesLineHTML(snykWeeks, "Open Snyk Issues over time")
 		if err != nil {
 			return err
 		}
