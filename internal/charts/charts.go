@@ -576,65 +576,50 @@ type SnykSummary struct {
 
 // snykIssuesChartConfig builds the Chart.js config for the Snyk issues stacked area chart.
 func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
-	type point struct {
-		X string `json:"x"`
-		Y int    `json:"y"`
-	}
-
-	unfixablePts := make([]point, len(weeks))
-	ignoredUnfixablePts := make([]point, len(weeks))
-	fixablePts := make([]point, len(weeks))
-	ignoredFixablePts := make([]point, len(weeks))
+	labels := make([]string, len(weeks))
+	unfixable := make([]int, len(weeks))
+	ignoredUnfixable := make([]int, len(weeks))
+	fixable := make([]int, len(weeks))
+	ignoredFixable := make([]int, len(weeks))
 	for i, w := range weeks {
-		x := w.WeekStart.Format("2006-01-02")
-		unfixablePts[i] = point{X: x, Y: w.Unfixable}
-		ignoredUnfixablePts[i] = point{X: x, Y: w.IgnoredUnfixable}
-		fixablePts[i] = point{X: x, Y: w.Fixable}
-		ignoredFixablePts[i] = point{X: x, Y: w.IgnoredFixable}
+		labels[i] = w.WeekStart.Format("Jan 2")
+		unfixable[i] = w.Unfixable
+		ignoredUnfixable[i] = w.IgnoredUnfixable
+		fixable[i] = w.Fixable
+		ignoredFixable[i] = w.IgnoredFixable
 	}
 
 	datasets := []map[string]any{
 		{
 			"label":           "Unfixable",
-			"data":            unfixablePts,
-			"borderColor":     "rgba(185, 28, 28, 1)",
-			"backgroundColor": "rgba(185, 28, 28, 0.5)",
-			"borderWidth":     1,
-			"pointRadius":     3,
-			"fill":            "origin",
+			"data":            unfixable,
+			"backgroundColor": "rgba(185, 28, 28, 0.85)",
+			"stack":           "issues",
 		},
 		{
 			"label":           "Ignored Unfixable",
-			"data":            ignoredUnfixablePts,
-			"borderColor":     "rgba(248, 113, 113, 1)",
-			"backgroundColor": "rgba(248, 113, 113, 0.5)",
-			"borderWidth":     1,
-			"pointRadius":     3,
-			"fill":            "-1",
+			"data":            ignoredUnfixable,
+			"backgroundColor": "rgba(248, 113, 113, 0.85)",
+			"stack":           "issues",
 		},
 		{
 			"label":           "Fixable",
-			"data":            fixablePts,
-			"borderColor":     "rgba(21, 128, 61, 1)",
-			"backgroundColor": "rgba(21, 128, 61, 0.5)",
-			"borderWidth":     1,
-			"pointRadius":     3,
-			"fill":            "-1",
+			"data":            fixable,
+			"backgroundColor": "rgba(21, 128, 61, 0.85)",
+			"stack":           "issues",
 		},
 		{
 			"label":           "Ignored Fixable",
-			"data":            ignoredFixablePts,
-			"borderColor":     "rgba(34, 197, 94, 1)",
-			"backgroundColor": "rgba(34, 197, 94, 0.5)",
-			"borderWidth":     1,
-			"pointRadius":     3,
-			"fill":            "-1",
+			"data":            ignoredFixable,
+			"backgroundColor": "rgba(34, 197, 94, 0.85)",
+			"stack":           "issues",
 		},
 	}
 
 	return map[string]any{
-		"type": "line",
+		"type": "bar",
 		"data": map[string]any{
+			"labels":   labels,
 			"datasets": datasets,
 		},
 		"options": map[string]any{
@@ -648,19 +633,19 @@ func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 			},
 			"scales": map[string]any{
 				"x": map[string]any{
-					"type": "category",
+					"stacked": true,
 					"title": map[string]any{
 						"display": true,
 						"text":    "Week",
 					},
 				},
 				"y": map[string]any{
-					"stacked": true,
+					"stacked":     true,
+					"beginAtZero": true,
 					"title": map[string]any{
 						"display": true,
 						"text":    "Open Issues",
 					},
-					"beginAtZero": true,
 				},
 			},
 		},
