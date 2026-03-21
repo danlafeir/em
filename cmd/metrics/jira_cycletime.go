@@ -50,13 +50,16 @@ func runCycleTime(cmd *cobra.Command, args []string) error {
 
 	ctx := context.Background()
 
-	client, err := getJiraClient()
-	if err != nil {
-		return err
-	}
-
-	if err := client.TestConnection(ctx); err != nil {
-		return fmt.Errorf("failed to connect to JIRA: %w", err)
+	var client *jira.Client
+	if !useSavedDataFlag {
+		var err error
+		client, err = getJiraClient()
+		if err != nil {
+			return err
+		}
+		if err := client.TestConnection(ctx); err != nil {
+			return fmt.Errorf("failed to connect to JIRA: %w", err)
+		}
 	}
 
 	from, to, err := getDateRange()

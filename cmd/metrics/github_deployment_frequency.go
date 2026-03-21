@@ -52,26 +52,6 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 
 	ctx := context.Background()
 
-	client, err := getGithubClient()
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Testing GitHub connection...")
-	if err := client.TestConnection(ctx); err != nil {
-		return fmt.Errorf("failed to connect to GitHub: %w", err)
-	}
-
-	org := getGithubOrg()
-	if org == "" {
-		return fmt.Errorf("GitHub org not configured. Run: devctl-em config set github.org <org>")
-	}
-
-	allTeamWorkflows, err := getAllConfiguredWorkflows()
-	if err != nil {
-		return err
-	}
-
 	from, to, err := getGithubDateRange()
 	if err != nil {
 		return err
@@ -90,6 +70,25 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 		fmt.Printf("\nChart saved to %s\n", outputPath)
 		openBrowser(outputPath)
 		return nil
+	}
+
+	client, err := getGithubClient()
+	if err != nil {
+		return err
+	}
+	fmt.Println("Testing GitHub connection...")
+	if err := client.TestConnection(ctx); err != nil {
+		return fmt.Errorf("failed to connect to GitHub: %w", err)
+	}
+
+	org := getGithubOrg()
+	if org == "" {
+		return fmt.Errorf("GitHub org not configured. Run: devctl-em config set github.org <org>")
+	}
+
+	allTeamWorkflows, err := getAllConfiguredWorkflows()
+	if err != nil {
+		return err
 	}
 
 	weeks := to.Sub(from).Hours() / (24 * 7)
