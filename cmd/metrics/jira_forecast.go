@@ -254,34 +254,54 @@ func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Iss
 	mapper := getWorkflowMapper()
 
 	fmt.Println("Forecasting epics...")
+	var allFetched []EpicForecast
 	var pending []EpicForecast
 	for i, epic := range epics {
 		fmt.Printf("\r[%d/%d] Fetching %s...", i+1, len(epics), epic.Key)
 		f := fetchEpicCounts(ctx, client, mapper, epic)
-		if f.RemainingItems == 0 {
-			continue
+		allFetched = append(allFetched, f)
+		if f.RemainingItems > 0 && f.Error == "" {
+			pending = append(pending, f)
 		}
-		pending = append(pending, f)
 	}
 	fmt.Println()
 
-	var forecasts []EpicForecast
-	if preserveOrder {
-		fmt.Println("Running sequential Monte Carlo simulation...")
-		forecasts = runSequentialSimulation(pending, weeklyThroughput)
-	} else {
-		forecasts = runIndependentSimulation(pending, weeklyThroughput)
+	// Run simulation only on incomplete epics, then merge results back by key.
+	simByKey := make(map[string]EpicForecast, len(pending))
+	if len(pending) > 0 {
+		var simulated []EpicForecast
+		if preserveOrder {
+			fmt.Println("Running sequential Monte Carlo simulation...")
+			simulated = runSequentialSimulation(pending, weeklyThroughput)
+		} else {
+			simulated = runIndependentSimulation(pending, weeklyThroughput)
+		}
+		for _, f := range simulated {
+			simByKey[f.EpicKey] = f
+		}
 	}
 
+	// Reconstruct the full list in original order.
+	forecasts := make([]EpicForecast, 0, len(allFetched))
+	for _, f := range allFetched {
+		if sim, ok := simByKey[f.EpicKey]; ok {
+			forecasts = append(forecasts, sim)
+		} else {
+			forecasts = append(forecasts, f)
+		}
+	}
+
+	// When not preserving order, sort by forecast date (completed and errors last).
 	if !preserveOrder {
 		sort.Slice(forecasts, func(i, j int) bool {
-			if forecasts[i].Error != "" && forecasts[j].Error == "" {
+			fi, fj := forecasts[i], forecasts[j]
+			if fi.Error != "" || fi.RemainingItems == 0 {
 				return false
 			}
-			if forecasts[i].Error == "" && forecasts[j].Error != "" {
+			if fj.Error != "" || fj.RemainingItems == 0 {
 				return true
 			}
-			return forecasts[i].Forecast85.Before(forecasts[j].Forecast85)
+			return fi.Forecast85.Before(fj.Forecast85)
 		})
 	}
 
@@ -299,7 +319,7 @@ func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Iss
 			continue
 		}
 
-		filled := 0
+		filled := barWidth
 		if f.TotalItems > 0 {
 			filled = int(float64(f.CompletedItems) / float64(f.TotalItems) * barWidth)
 		}
@@ -308,11 +328,15 @@ func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Iss
 		indent := strings.Repeat(" ", keyWidth+2)
 
 		fmt.Printf("%-*s  %s\n", keyWidth, f.EpicKey, f.EpicSummary)
-		fmt.Printf("%s%s %s  ·  50%%: %s  85%%: %s  95%%: %s\n\n",
-			indent, bar, progress,
-			f.Forecast50.Format("Jan 02"),
-			f.Forecast85.Format("Jan 02"),
-			f.Forecast95.Format("Jan 02"))
+		if f.RemainingItems == 0 {
+			fmt.Printf("%s%s %s  ·  Done\n\n", indent, bar, progress)
+		} else {
+			fmt.Printf("%s%s %s  ·  50%%: %s  85%%: %s  95%%: %s\n\n",
+				indent, bar, progress,
+				f.Forecast50.Format("Jan 02"),
+				f.Forecast85.Format("Jan 02"),
+				f.Forecast95.Format("Jan 02"))
+		}
 	}
 
 	// Check deadline if provided
@@ -346,16 +370,23 @@ func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Iss
 		if f.Error != "" {
 			continue
 		}
-		rows = append(rows, charts.ForecastRow{
-			EpicKey:    f.EpicKey,
-			Summary:    f.EpicSummary,
-			Completed:  f.CompletedItems,
-			Total:      f.TotalItems,
-			Remaining:  f.RemainingItems,
-			Forecast50: f.Forecast50.Format("Jan 02"),
-			Forecast85: f.Forecast85.Format("Jan 02"),
-			Forecast95: f.Forecast95.Format("Jan 02"),
-		})
+		row := charts.ForecastRow{
+			EpicKey:   f.EpicKey,
+			Summary:   f.EpicSummary,
+			Completed: f.CompletedItems,
+			Total:     f.TotalItems,
+			Remaining: f.RemainingItems,
+		}
+		if f.RemainingItems == 0 {
+			row.Forecast50 = "Done"
+			row.Forecast85 = "Done"
+			row.Forecast95 = "Done"
+		} else {
+			row.Forecast50 = f.Forecast50.Format("Jan 02")
+			row.Forecast85 = f.Forecast85.Format("Jan 02")
+			row.Forecast95 = f.Forecast95.Format("Jan 02")
+		}
+		rows = append(rows, row)
 	}
 	if saveRawDataFlag && len(rows) > 0 {
 		if err := saveJiraForecastData(rows, team); err == nil {
