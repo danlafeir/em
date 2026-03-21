@@ -71,7 +71,9 @@ func runSnykReport(cmd *cobra.Command, args []string) error {
 
 	orgName := getConfigString("snyk.org_name")
 	title := "Snyk Security Report"
-	if orgName != "" {
+	if team := getSelectedTeam(); team != "" {
+		title = team + " — Snyk Security Report"
+	} else if orgName != "" {
 		title = orgName + " — Snyk Security Report"
 	}
 
