@@ -342,7 +342,7 @@ func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Iss
 			continue
 		}
 
-		filled := barWidth
+		filled := 0
 		if f.TotalItems > 0 {
 			filled = int(float64(f.CompletedItems) / float64(f.TotalItems) * barWidth)
 		}
@@ -351,9 +351,12 @@ func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Iss
 		indent := strings.Repeat(" ", keyWidth+2)
 
 		fmt.Printf("%-*s  %s\n", keyWidth, f.EpicKey, f.EpicSummary)
-		if f.RemainingItems == 0 {
+		switch {
+		case f.TotalItems == 0:
+			fmt.Printf("%s%s %s  ·  N/A\n\n", indent, bar, progress)
+		case f.RemainingItems == 0:
 			fmt.Printf("%s%s %s  ·  Done\n\n", indent, bar, progress)
-		} else {
+		default:
 			fmt.Printf("%s%s %s  ·  50%%: %s  85%%: %s  95%%: %s\n\n",
 				indent, bar, progress,
 				f.Forecast50.Format("Jan 02"),
@@ -400,11 +403,16 @@ func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Iss
 			Total:     f.TotalItems,
 			Remaining: f.RemainingItems,
 		}
-		if f.RemainingItems == 0 {
+		switch {
+		case f.TotalItems == 0:
+			row.Forecast50 = "N/A"
+			row.Forecast85 = "N/A"
+			row.Forecast95 = "N/A"
+		case f.RemainingItems == 0:
 			row.Forecast50 = "Done"
 			row.Forecast85 = "Done"
 			row.Forecast95 = "Done"
-		} else {
+		default:
 			row.Forecast50 = f.Forecast50.Format("Jan 02")
 			row.Forecast85 = f.Forecast85.Format("Jan 02")
 			row.Forecast95 = f.Forecast95.Format("Jan 02")
