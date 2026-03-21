@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"syscall"
@@ -149,6 +150,8 @@ func resolveGithubSlug(ctx context.Context, reader *bufio.Reader, client *github
 }
 
 // runGhTeamConfig handles workflow selection for a single team.
+// If repos are already configured it presents a change/add/done menu instead of
+// iterating all team repos from scratch.
 func runGhTeamConfig(ctx context.Context, reader *bufio.Reader, client *github.Client, org, teamName string) error {
 	slug, err := resolveGithubSlug(ctx, reader, client, org, teamName)
 	if err != nil {
@@ -164,6 +167,122 @@ func runGhTeamConfig(ctx context.Context, reader *bufio.Reader, client *github.C
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
+	currentWorkflows, _ := getConfiguredWorkflowsByTeam(teamName)
+
+	if len(currentWorkflows) > 0 {
+		return runGhTeamConfigUpdate(ctx, reader, client, org, slug, teamName, currentWorkflows)
+	}
+	return runGhTeamConfigFirstTime(ctx, reader, client, org, slug, teamName)
+}
+
+// runGhTeamConfigUpdate is shown when repos are already configured. It lets the
+// user change an existing repo's workflow, add a new repo, or exit unchanged.
+func runGhTeamConfigUpdate(ctx context.Context, reader *bufio.Reader, client *github.Client, org, slug, teamName string, currentWorkflows map[string][]string) error {
+	for {
+		// Show current configuration
+		fmt.Println("\nConfigured repositories:")
+		configuredRepos := sortedKeys(currentWorkflows)
+		for i, repo := range configuredRepos {
+			fmt.Printf("  %d) %-30s  %s\n", i+1, repo, strings.Join(currentWorkflows[repo], ", "))
+		}
+		fmt.Println()
+
+		fmt.Println("  c) Change a configured repo")
+		fmt.Println("  a) Add a repo")
+		fmt.Println("  d) Done — keep as-is")
+		fmt.Print("Choice [d]: ")
+
+		input, _ := reader.ReadString('\n')
+		input = strings.ToLower(strings.TrimSpace(input))
+		if input == "" || input == "d" {
+			return nil
+		}
+
+		switch input {
+		case "c":
+			if err := promptChangeRepo(ctx, reader, client, org, teamName, configuredRepos, currentWorkflows); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+			}
+		case "a":
+			if err := promptAddRepo(ctx, reader, client, org, slug, teamName, currentWorkflows); err != nil {
+				fmt.Fprintf(os.Stderr, "Warning: %v\n", err)
+			}
+		default:
+			fmt.Println("Invalid choice.")
+		}
+	}
+}
+
+// promptChangeRepo lets the user pick one of the already-configured repos and
+// re-select its deploy workflow(s).
+func promptChangeRepo(ctx context.Context, reader *bufio.Reader, client *github.Client, org, teamName string, configuredRepos []string, currentWorkflows map[string][]string) error {
+	fmt.Print("Select repo to change: ")
+	input, _ := reader.ReadString('\n')
+	choice, err := strconv.Atoi(strings.TrimSpace(input))
+	if err != nil || choice < 1 || choice > len(configuredRepos) {
+		return fmt.Errorf("invalid selection")
+	}
+	repoName := configuredRepos[choice-1]
+	saved, err := configureRepoWorkflow(ctx, reader, client, org, teamName, repoName, currentWorkflows)
+	if err != nil {
+		return err
+	}
+	if saved {
+		refreshed, _ := getConfiguredWorkflowsByTeam(teamName)
+		currentWorkflows[repoName] = refreshed[repoName]
+	}
+	return nil
+}
+
+// promptAddRepo fetches team repos from GitHub, filters out already-configured
+// ones, and lets the user pick one to configure.
+func promptAddRepo(ctx context.Context, reader *bufio.Reader, client *github.Client, org, slug, teamName string, currentWorkflows map[string][]string) error {
+	fmt.Printf("Fetching repositories for %s/%s...\n", org, slug)
+	repos, err := client.ListTeamRepos(ctx, org, slug)
+	if err != nil {
+		return fmt.Errorf("failed to list team repos: %w", err)
+	}
+
+	var unconfigured []string
+	for _, r := range repos {
+		if r.Archived {
+			continue
+		}
+		if _, already := currentWorkflows[r.Name]; !already {
+			unconfigured = append(unconfigured, r.Name)
+		}
+	}
+
+	if len(unconfigured) == 0 {
+		fmt.Println("All team repositories are already configured.")
+		return nil
+	}
+
+	fmt.Println("Unconfigured repositories:")
+	for i, name := range unconfigured {
+		fmt.Printf("  %d) %s\n", i+1, name)
+	}
+	fmt.Print("Select repo to add: ")
+	input, _ := reader.ReadString('\n')
+	choice, err := strconv.Atoi(strings.TrimSpace(input))
+	if err != nil || choice < 1 || choice > len(unconfigured) {
+		return fmt.Errorf("invalid selection")
+	}
+	repoName := unconfigured[choice-1]
+	saved, err := configureRepoWorkflow(ctx, reader, client, org, teamName, repoName, currentWorkflows)
+	if err != nil {
+		return err
+	}
+	if saved {
+		refreshed, _ := getConfiguredWorkflowsByTeam(teamName)
+		currentWorkflows[repoName] = refreshed[repoName]
+	}
+	return nil
+}
+
+// runGhTeamConfigFirstTime is the original first-run flow: iterate all team repos
+// in sequence and prompt for a deploy workflow for each.
+func runGhTeamConfigFirstTime(ctx context.Context, reader *bufio.Reader, client *github.Client, org, slug, teamName string) error {
 	fmt.Printf("\nFetching repositories for %s/%s...\n", org, slug)
 	repos, err := client.ListTeamRepos(ctx, org, slug)
 	if err != nil {
@@ -179,113 +298,22 @@ func runGhTeamConfig(ctx context.Context, reader *bufio.Reader, client *github.C
 
 	notAccessible := 0
 	saved := 0
-
-	// Load current config once for the team
-	currentWorkflows, _ := getConfiguredWorkflowsByTeam(teamName)
+	currentWorkflows := map[string][]string{}
 
 	for _, repo := range repos {
 		if repo.Archived {
 			continue
 		}
-
-		fmt.Printf("--- %s ---\n", repo.Name)
-
-		owner := repo.Owner.Login
-		if owner == "" {
-			owner = org
-		}
-		workflows, err := client.ListWorkflows(ctx, owner, repo.Name)
+		ok, err := configureRepoWorkflow(ctx, reader, client, org, teamName, repo.Name, currentWorkflows)
 		if err != nil {
 			if strings.Contains(err.Error(), "404") {
-				fmt.Printf("  Actions not accessible, skipping.\n\n")
 				notAccessible++
-			} else {
-				fmt.Printf("  Error listing workflows: %v\n\n", err)
 			}
 			continue
 		}
-
-		if len(workflows) == 0 {
-			fmt.Printf("  No workflows found, skipping.\n\n")
-			continue
+		if ok {
+			saved++
 		}
-
-		current := currentWorkflows[repo.Name] // []string, nil if not set
-
-		// Build a set of current filenames for quick lookup
-		currentSet := make(map[string]bool, len(current))
-		for _, f := range current {
-			currentSet[f] = true
-		}
-
-		fmt.Printf("  Workflows (use comma-separated numbers to select multiple):\n")
-		for i, wf := range workflows {
-			filename := filepath.Base(wf.Path)
-			marker := ""
-			if currentSet[filename] {
-				marker = " (current)"
-			}
-			fmt.Printf("    %d) %s (%s)%s\n", i+1, wf.Name, filename, marker)
-		}
-		fmt.Printf("    0) Skip this repo\n")
-
-		if len(current) > 0 {
-			fmt.Printf("  Select deploy workflow(s) [current: %s]: ", strings.Join(current, ", "))
-		} else {
-			fmt.Printf("  Select deploy workflow(s) [0]: ")
-		}
-
-		input, _ := reader.ReadString('\n')
-		input = strings.TrimSpace(input)
-
-		if input == "" {
-			if len(current) > 0 {
-				fmt.Printf("  Kept: %s\n\n", strings.Join(current, ", "))
-				continue
-			}
-			fmt.Println()
-			continue
-		}
-		if input == "0" {
-			fmt.Println()
-			continue
-		}
-
-		// Parse comma-separated indices
-		var chosen []string
-		for _, part := range strings.Split(input, ",") {
-			part = strings.TrimSpace(part)
-			choice, err := strconv.Atoi(part)
-			if err != nil || choice < 1 || choice > len(workflows) {
-				fmt.Printf("  Invalid choice %q, skipping.\n\n", part)
-				chosen = nil
-				break
-			}
-			chosen = append(chosen, filepath.Base(workflows[choice-1].Path))
-		}
-
-		if len(chosen) == 0 {
-			continue
-		}
-
-		// Save this repo's selection immediately
-		repoKey := fmt.Sprintf("teams.%s.github.workflows.%s", teamName, repo.Name)
-		var repoValue any
-		if len(chosen) == 1 {
-			repoValue = chosen[0]
-		} else {
-			items := make([]any, len(chosen))
-			for i, s := range chosen {
-				items[i] = s
-			}
-			repoValue = items
-		}
-		config.SetConfigValue(configNamespace, repoKey, repoValue)
-		if err := config.WriteConfig(); err != nil {
-			return fmt.Errorf("failed to save config: %w", err)
-		}
-		saved++
-		fmt.Printf("  Selected: %s\n\n", strings.Join(chosen, ", "))
 	}
 
 	if notAccessible > 0 && notAccessible == len(repos) {
@@ -299,6 +327,109 @@ func runGhTeamConfig(ctx context.Context, reader *bufio.Reader, client *github.C
 		fmt.Printf("Saved %d workflow selections for team %q.\n", saved, teamName)
 	}
 	return nil
+}
+
+// configureRepoWorkflow shows available workflows for a single repo and saves the
+// user's selection. Returns (true, nil) when a selection was saved.
+func configureRepoWorkflow(ctx context.Context, reader *bufio.Reader, client *github.Client, org, teamName, repoName string, currentWorkflows map[string][]string) (bool, error) {
+	owner := org
+	workflows, err := client.ListWorkflows(ctx, owner, repoName)
+	if err != nil {
+		if strings.Contains(err.Error(), "404") {
+			fmt.Printf("  %s: Actions not accessible, skipping.\n\n", repoName)
+			return false, fmt.Errorf("404: %w", err)
+		}
+		fmt.Printf("  %s: Error listing workflows: %v\n\n", repoName, err)
+		return false, err
+	}
+
+	if len(workflows) == 0 {
+		fmt.Printf("  %s: No workflows found, skipping.\n\n", repoName)
+		return false, nil
+	}
+
+	current := currentWorkflows[repoName]
+	currentSet := make(map[string]bool, len(current))
+	for _, f := range current {
+		currentSet[f] = true
+	}
+
+	fmt.Printf("--- %s ---\n", repoName)
+	fmt.Printf("  Workflows (use comma-separated numbers to select multiple):\n")
+	for i, wf := range workflows {
+		filename := filepath.Base(wf.Path)
+		marker := ""
+		if currentSet[filename] {
+			marker = " (current)"
+		}
+		fmt.Printf("    %d) %s (%s)%s\n", i+1, wf.Name, filename, marker)
+	}
+	fmt.Printf("    0) Skip this repo\n")
+
+	if len(current) > 0 {
+		fmt.Printf("  Select deploy workflow(s) [current: %s]: ", strings.Join(current, ", "))
+	} else {
+		fmt.Printf("  Select deploy workflow(s) [0]: ")
+	}
+
+	input, _ := reader.ReadString('\n')
+	input = strings.TrimSpace(input)
+
+	if input == "" {
+		if len(current) > 0 {
+			fmt.Printf("  Kept: %s\n\n", strings.Join(current, ", "))
+		} else {
+			fmt.Println()
+		}
+		return false, nil
+	}
+	if input == "0" {
+		fmt.Println()
+		return false, nil
+	}
+
+	var chosen []string
+	for _, part := range strings.Split(input, ",") {
+		part = strings.TrimSpace(part)
+		choice, err := strconv.Atoi(part)
+		if err != nil || choice < 1 || choice > len(workflows) {
+			fmt.Printf("  Invalid choice %q, skipping.\n\n", part)
+			return false, nil
+		}
+		chosen = append(chosen, filepath.Base(workflows[choice-1].Path))
+	}
+
+	if len(chosen) == 0 {
+		return false, nil
+	}
+
+	repoKey := fmt.Sprintf("teams.%s.github.workflows.%s", teamName, repoName)
+	var repoValue any
+	if len(chosen) == 1 {
+		repoValue = chosen[0]
+	} else {
+		items := make([]any, len(chosen))
+		for i, s := range chosen {
+			items[i] = s
+		}
+		repoValue = items
+	}
+	config.SetConfigValue(configNamespace, repoKey, repoValue)
+	if err := config.WriteConfig(); err != nil {
+		return false, fmt.Errorf("failed to save config: %w", err)
+	}
+	fmt.Printf("  Selected: %s\n\n", strings.Join(chosen, ", "))
+	return true, nil
+}
+
+// sortedKeys returns the keys of a map[string][]string in sorted order.
+func sortedKeys(m map[string][]string) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }
 
 // promptAndStoreGhToken reads a GitHub token from the terminal and stores it in the keychain.
