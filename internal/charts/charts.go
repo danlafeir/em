@@ -593,13 +593,13 @@ func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 		{
 			"label":           "Unfixable",
 			"data":            unfixable,
-			"backgroundColor": "rgba(127, 29, 29, 0.9)",
+			"backgroundColor": "rgba(185, 28, 28, 0.9)",
 			"stack":           "issues",
 		},
 		{
 			"label":           "Ignored Unfixable",
 			"data":            ignoredUnfixable,
-			"backgroundColor": "rgba(120, 53, 15, 0.85)",
+			"backgroundColor": "rgba(109, 40, 217, 0.85)",
 			"stack":           "issues",
 		},
 		{
@@ -611,7 +611,7 @@ func snykIssuesChartConfig(weeks []SnykIssueWeek, title string) map[string]any {
 		{
 			"label":           "Ignored Fixable",
 			"data":            ignoredFixable,
-			"backgroundColor": "rgba(22, 78, 99, 0.85)",
+			"backgroundColor": "rgba(29, 78, 216, 0.85)",
 			"stack":           "issues",
 		},
 	}
