@@ -188,38 +188,12 @@ func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql 
 				log("Warning: forecast unavailable: %v\n", epicErr)
 			} else if len(epics) > 0 {
 				log("Found %d epic(s), forecasting...\n", len(epics))
-				mapper := getWorkflowMapper()
-
-				var pending []EpicForecast
-				for _, epic := range epics {
-					f := fetchEpicCounts(ctx, client, mapper, epic)
-					if f.RemainingItems == 0 || f.Error != "" {
+				allForecasts := computeEpicForecasts(ctx, client, epics, forecastThroughput, sequential)
+				for _, f := range allForecasts {
+					if f.Error != "" || f.RemainingItems == 0 {
 						continue
 					}
-					pending = append(pending, f)
-				}
-
-				var forecasts []EpicForecast
-				if sequential {
-					forecasts = runSequentialSimulation(pending, forecastThroughput)
-				} else {
-					forecasts = runIndependentSimulation(pending, forecastThroughput)
-				}
-
-				for _, f := range forecasts {
-					if f.Error != "" {
-						continue
-					}
-					forecastRows = append(forecastRows, charts.ForecastRow{
-						EpicKey:    f.EpicKey,
-						Summary:    f.EpicSummary,
-						Completed:  f.CompletedItems,
-						Total:      f.TotalItems,
-						Remaining:  f.RemainingItems,
-						Forecast50: f.Forecast50.Format("Jan 02"),
-						Forecast85: f.Forecast85.Format("Jan 02"),
-						Forecast95: f.Forecast95.Format("Jan 02"),
-					})
+					forecastRows = append(forecastRows, epicForecastToRow(f))
 				}
 			}
 		}

@@ -273,10 +273,13 @@ func runSequentialSimulation(pending []EpicForecast, weeklyThroughput []int) []E
 	return forecasts
 }
 
-func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Issue, weeklyThroughput []int, team string, preserveOrder bool) error {
+// computeEpicForecasts fetches story counts for each epic, runs Monte Carlo
+// simulation for incomplete ones, and returns the full list in display order.
+// When preserveOrder is true the original epic order is kept and simulation is
+// run sequentially; otherwise results are sorted by Forecast85 date.
+func computeEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Issue, weeklyThroughput []int, preserveOrder bool) []EpicForecast {
 	mapper := getWorkflowMapper()
 
-	fmt.Println("Forecasting epics...")
 	var allFetched []EpicForecast
 	var pending []EpicForecast
 	for i, epic := range epics {
@@ -327,6 +330,41 @@ func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Iss
 			return fi.Forecast85.Before(fj.Forecast85)
 		})
 	}
+
+	return forecasts
+}
+
+// epicForecastToRow converts an EpicForecast to a chart-ready ForecastRow,
+// rendering forecast dates as "Jan 02" strings with "Done"/"N/A" for
+// completed/empty epics.
+func epicForecastToRow(f EpicForecast) charts.ForecastRow {
+	row := charts.ForecastRow{
+		EpicKey:   f.EpicKey,
+		Summary:   f.EpicSummary,
+		Completed: f.CompletedItems,
+		Total:     f.TotalItems,
+		Remaining: f.RemainingItems,
+	}
+	switch {
+	case f.TotalItems == 0:
+		row.Forecast50 = "N/A"
+		row.Forecast85 = "N/A"
+		row.Forecast95 = "N/A"
+	case f.RemainingItems == 0:
+		row.Forecast50 = "Done"
+		row.Forecast85 = "Done"
+		row.Forecast95 = "Done"
+	default:
+		row.Forecast50 = f.Forecast50.Format("Jan 02")
+		row.Forecast85 = f.Forecast85.Format("Jan 02")
+		row.Forecast95 = f.Forecast95.Format("Jan 02")
+	}
+	return row
+}
+
+func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Issue, weeklyThroughput []int, team string, preserveOrder bool) error {
+	fmt.Println("Forecasting epics...")
+	forecasts := computeEpicForecasts(ctx, client, epics, weeklyThroughput, preserveOrder)
 
 	// Print summary
 	fmt.Printf("\nEpic Forecast Summary\n")
@@ -396,28 +434,7 @@ func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Iss
 		if f.Error != "" {
 			continue
 		}
-		row := charts.ForecastRow{
-			EpicKey:   f.EpicKey,
-			Summary:   f.EpicSummary,
-			Completed: f.CompletedItems,
-			Total:     f.TotalItems,
-			Remaining: f.RemainingItems,
-		}
-		switch {
-		case f.TotalItems == 0:
-			row.Forecast50 = "N/A"
-			row.Forecast85 = "N/A"
-			row.Forecast95 = "N/A"
-		case f.RemainingItems == 0:
-			row.Forecast50 = "Done"
-			row.Forecast85 = "Done"
-			row.Forecast95 = "Done"
-		default:
-			row.Forecast50 = f.Forecast50.Format("Jan 02")
-			row.Forecast85 = f.Forecast85.Format("Jan 02")
-			row.Forecast95 = f.Forecast95.Format("Jan 02")
-		}
-		rows = append(rows, row)
+		rows = append(rows, epicForecastToRow(f))
 	}
 	if saveRawDataFlag && len(rows) > 0 {
 		if err := saveJiraForecastData(rows, team); err == nil {
