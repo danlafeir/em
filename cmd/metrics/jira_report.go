@@ -113,8 +113,8 @@ func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql 
 	log("Calculating throughput metrics...\n")
 	throughputResult := computeThroughputFromHistories(completedHistories, mapper, pkgmetrics.FrequencyWeekly, from, to)
 
-	// Longest Cycle Time table
-	ctRows := buildLongestCTRows(keptResults, nil, reportLongestCTLimit)
+	// Longest Cycle Time table — last 2 weeks only
+	ctRows := buildLongestCTRows(recentResults(keptResults, 14), nil, reportLongestCTLimit)
 
 	// Forecast — use 90-day throughput window for Monte Carlo
 	var forecastRows []charts.ForecastRow
@@ -216,7 +216,7 @@ func loadJIRAMetricsData(team string, client *jira.Client) (jiraMetricsData, err
 	}
 	forecastRows, _ := loadJiraForecastData(team) // optional
 
-	ctRows := buildLongestCTRows(ct.kept, nil, reportLongestCTLimit)
+	ctRows := buildLongestCTRows(recentResults(ct.kept, 14), nil, reportLongestCTLimit)
 	summary := buildSummary(ct.kept, throughputResult)
 
 	baseURL := ""
@@ -345,5 +345,17 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 	fmt.Printf("\nReport generated: %s\n", outputPath)
 	openBrowser(outputPath)
 	return nil
+}
+
+// recentResults returns cycle time results whose EndDate falls within the last days days.
+func recentResults(results []pkgmetrics.CycleTimeResult, days int) []pkgmetrics.CycleTimeResult {
+	cutoff := time.Now().AddDate(0, 0, -days)
+	filtered := make([]pkgmetrics.CycleTimeResult, 0, len(results))
+	for _, r := range results {
+		if !r.EndDate.Before(cutoff) {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered
 }
 
