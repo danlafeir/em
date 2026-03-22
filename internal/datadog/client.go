@@ -120,6 +120,29 @@ func (c *Client) TestConnection(ctx context.Context) error {
 	return err
 }
 
+// ListMonitors lists monitors filtered by a team tag, e.g. "team:my-team".
+// Pass an empty string to list all monitors.
+func (c *Client) ListMonitors(ctx context.Context, teamTag string) ([]Monitor, error) {
+	query := url.Values{}
+	if teamTag != "" {
+		query.Set("tag", teamTag)
+	}
+	query.Set("page", "0")
+	query.Set("page_size", "1000")
+
+	body, err := c.doRequest(ctx, "GET", c.credentials.BaseURL(), "/api/v1/monitor", query)
+	if err != nil {
+		return nil, fmt.Errorf("listing monitors: %w", err)
+	}
+
+	var monitors []Monitor
+	if err := json.Unmarshal(body, &monitors); err != nil {
+		return nil, fmt.Errorf("parsing monitors: %w", err)
+	}
+
+	return monitors, nil
+}
+
 // ListMonitorEvents fetches monitor alert events from the Events v2 API.
 // It returns events where a monitor transitioned to Alert (or Warn/No Data).
 // Pass a non-empty tagsQuery to filter by team tag, e.g. "team:my-team".

@@ -57,6 +57,15 @@ type sloHistoryResponse struct {
 	} `json:"data"`
 }
 
+// Monitor represents a Datadog monitor definition.
+type Monitor struct {
+	ID           int64    `json:"id"`
+	Name         string   `json:"name"`
+	Type         string   `json:"type"`
+	Tags         []string `json:"tags"`
+	OverallState string   `json:"overall_state"` // "Alert", "Warn", "No Data", "OK", "Ignored", "Skipped", "Unknown"
+}
+
 // MonitorEvent represents a monitor alert event from the Events v2 API.
 type MonitorEvent struct {
 	ID          string

@@ -5,7 +5,9 @@ import (
 	"encoding/csv"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -15,16 +17,14 @@ import (
 
 var datadogMonitorsCmd = &cobra.Command{
 	Use:   "monitors",
-	Short: "Monitor alert frequency and MTTF metrics",
-	Long: `List monitors that have fired, with alert frequency and mean time to recovery.
-
-Filters to monitors that transitioned to Alert, Warn, or No Data within the date range.
-Use --team to filter by a Datadog team tag.
+	Short: "List monitors for a team and whether they have recently triggered",
+	Long: `List all monitors for a team, showing current state and whether each
+monitor triggered in the last 2 weeks (or the specified date range).
 
 Examples:
   devctl-em metrics datadog monitors
-  devctl-em metrics datadog monitors --from 2025-01-01 --to 2025-06-30
   devctl-em metrics datadog monitors --team my-team
+  devctl-em metrics datadog monitors --from 2025-01-01 --to 2025-06-30
   devctl-em metrics datadog monitors -f csv -o monitors.csv`,
 	RunE: runDatadogMonitors,
 }
@@ -41,105 +41,134 @@ func runDatadogMonitors(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Println("Testing Datadog connection...")
 	if err := client.TestConnection(ctx); err != nil {
 		return fmt.Errorf("failed to connect to Datadog: %w", err)
 	}
 
+	// Default to last 14 days if no range specified.
 	from, to, err := getDatadogDateRange()
 	if err != nil {
 		return err
 	}
-
-	team := getDatadogTeam()
-	tagsQuery := ""
-	if team != "" {
-		tagsQuery = "tags:team:" + team
+	if ddFromFlag == "" {
+		from = time.Now().AddDate(0, 0, -14)
 	}
 
-	fmt.Printf("Fetching monitor alerts (%s to %s)...\n", from.Format("2006-01-02"), to.Format("2006-01-02"))
+	team := getDatadogTeam()
+	if team == "" {
+		return fmt.Errorf("Datadog team not configured. Use --team or run: devctl-em metrics datadog config")
+	}
+	teamTag := "team:" + team
 
-	events, err := client.ListMonitorEvents(ctx, tagsQuery, from, to)
+	fmt.Printf("Fetching monitors for team %q...\n", team)
+	monitors, err := client.ListMonitors(ctx, teamTag)
+	if err != nil {
+		return fmt.Errorf("failed to list monitors: %w", err)
+	}
+	if len(monitors) == 0 {
+		fmt.Printf("No monitors found for team %q.\n", team)
+		return nil
+	}
+
+	fmt.Printf("Fetching alert events (%s to %s)...\n",
+		from.Format("2006-01-02"), to.Format("2006-01-02"))
+	events, err := client.ListMonitorEvents(ctx, "tags:"+teamTag, from, to)
 	if err != nil {
 		return fmt.Errorf("failed to list monitor events: %w", err)
 	}
 
-	if len(events) == 0 {
-		fmt.Println("\nNo monitor alerts found in the specified date range.")
-		return nil
+	// Build map: monitor ID → events
+	eventsByID := make(map[int64][]datadog.MonitorEvent)
+	for _, e := range events {
+		id := monitorIDFromTags(e.Tags)
+		if id > 0 {
+			eventsByID[id] = append(eventsByID[id], e)
+		}
 	}
 
-	// Sort by timestamp descending
-	sort.Slice(events, func(i, j int) bool {
-		return events[i].Timestamp.After(events[j].Timestamp)
+	rows := make([]monitorRow, len(monitors))
+	for i, m := range monitors {
+		evts := eventsByID[m.ID]
+		var last time.Time
+		for _, e := range evts {
+			if e.Timestamp.After(last) {
+				last = e.Timestamp
+			}
+		}
+		rows[i] = monitorRow{monitor: m, fireCount: len(evts), lastFired: last}
+	}
+
+	// Sort: triggered first (by count desc), then alphabetically
+	sort.Slice(rows, func(i, j int) bool {
+		if rows[i].fireCount != rows[j].fireCount {
+			return rows[i].fireCount > rows[j].fireCount
+		}
+		return rows[i].monitor.Name < rows[j].monitor.Name
 	})
 
-	// CSV export
 	if getDatadogOutputFormat("table") == "csv" {
 		outputPath := getDatadogOutputPath("monitors", "csv")
-		if err := exportMonitorsCSV(events, outputPath); err != nil {
+		if err := exportMonitorsCSV(rows, outputPath); err != nil {
 			return fmt.Errorf("failed to export CSV: %w", err)
 		}
 		fmt.Printf("Exported to %s\n", outputPath)
 		return nil
 	}
 
-	// Count alerts per monitor
-	type monitorStats struct {
-		name  string
-		count int
-		last  string
-	}
-	byMonitor := make(map[string]*monitorStats)
-	for _, e := range events {
-		name := e.MonitorName
-		if s, ok := byMonitor[name]; ok {
-			s.count++
-		} else {
-			byMonitor[name] = &monitorStats{
-				name:  name,
-				count: 1,
-				last:  e.Timestamp.Format("2006-01-02"),
-			}
-		}
-	}
-
-	sorted := make([]*monitorStats, 0, len(byMonitor))
-	for _, s := range byMonitor {
-		sorted = append(sorted, s)
-	}
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].count > sorted[j].count
-	})
-
 	// Print table
-	fmt.Printf("\nMonitor Alerts (%d events, %d unique monitors)\n", len(events), len(sorted))
-	fmt.Printf("================================================\n\n")
-
-	nameW := 12
-	for _, s := range sorted {
-		t := truncateStr(s.name, 60)
-		if len(t) > nameW {
-			nameW = len(t)
+	triggered := 0
+	for _, r := range rows {
+		if r.fireCount > 0 {
+			triggered++
 		}
 	}
 
-	fmt.Printf("| %-*s | %6s | %-10s |\n", nameW, "Monitor", "Alerts", "Last Fired")
-	fmt.Printf("|%s|%s|%s|\n",
+	fmt.Printf("\nMonitors for %q (%s to %s)\n", team,
+		from.Format("2006-01-02"), to.Format("2006-01-02"))
+	fmt.Printf("%d monitors, %d triggered\n\n", len(rows), triggered)
+
+	nameW := 7 // "Monitor"
+	for _, r := range rows {
+		n := len(truncateStr(r.monitor.Name, 60))
+		if n > nameW {
+			nameW = n
+		}
+	}
+	stateW := 8 // "State"
+
+	fmt.Printf("| %-*s | %-*s | %6s | %-10s |\n",
+		nameW, "Monitor", stateW, "State", "Fires", "Last Fired")
+	fmt.Printf("|%s|%s|%s|%s|\n",
 		strings.Repeat("-", nameW+2),
+		strings.Repeat("-", stateW+2),
 		strings.Repeat("-", 8),
 		strings.Repeat("-", 12))
 
-	for _, s := range sorted {
-		fmt.Printf("| %-*s | %6d | %-10s |\n",
-			nameW, truncateStr(s.name, nameW),
-			s.count,
-			s.last)
+	for _, r := range rows {
+		lastFired := ""
+		if !r.lastFired.IsZero() {
+			lastFired = r.lastFired.Format("2006-01-02")
+		}
+		fmt.Printf("| %-*s | %-*s | %6d | %-10s |\n",
+			nameW, truncateStr(r.monitor.Name, nameW),
+			stateW, truncateStr(r.monitor.OverallState, stateW),
+			r.fireCount,
+			lastFired)
 	}
 
-	fmt.Printf("\nTotal alert events: %d\n", len(events))
-
 	return nil
+}
+
+// monitorIDFromTags extracts the monitor ID from event tags (e.g. "monitor_id:12345").
+func monitorIDFromTags(tags []string) int64 {
+	for _, t := range tags {
+		if after, ok := strings.CutPrefix(t, "monitor_id:"); ok {
+			if id, err := strconv.ParseInt(after, 10, 64); err == nil {
+				return id
+			}
+		}
+	}
+	return 0
 }
 
 // truncateStr shortens a string to maxLen, adding "..." if truncated.
@@ -150,7 +179,13 @@ func truncateStr(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
-func exportMonitorsCSV(events []datadog.MonitorEvent, path string) error {
+type monitorRow struct {
+	monitor   datadog.Monitor
+	fireCount int
+	lastFired time.Time
+}
+
+func exportMonitorsCSV(rows []monitorRow, path string) error {
 	file, err := output.Create(path)
 	if err != nil {
 		return err
@@ -160,18 +195,23 @@ func exportMonitorsCSV(events []datadog.MonitorEvent, path string) error {
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
-	header := []string{"Timestamp", "Monitor", "Status", "Priority", "Tags"}
+	header := []string{"Monitor", "Type", "Current State", "Fires", "Last Fired", "Tags"}
 	if err := writer.Write(header); err != nil {
 		return err
 	}
 
-	for _, e := range events {
+	for _, r := range rows {
+		lastFired := ""
+		if !r.lastFired.IsZero() {
+			lastFired = r.lastFired.Format("2006-01-02")
+		}
 		row := []string{
-			e.Timestamp.Format("2006-01-02T15:04:05Z"),
-			e.MonitorName,
-			e.Status,
-			e.Priority,
-			strings.Join(e.Tags, ", "),
+			r.monitor.Name,
+			r.monitor.Type,
+			r.monitor.OverallState,
+			strconv.Itoa(r.fireCount),
+			lastFired,
+			strings.Join(r.monitor.Tags, ", "),
 		}
 		if err := writer.Write(row); err != nil {
 			return err
