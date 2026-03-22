@@ -38,6 +38,9 @@ func savedJiraForecastPath(team string) string {
 func savedSnykIssuesPath() string            { return output.Path("snyk-issues-data.csv") }
 func savedSnykResolvedPath() string          { return output.Path("snyk-resolved-data.csv") }
 func savedSnykOpenCountsPath() string        { return output.Path("snyk-open-counts.csv") }
+func savedDatadogSLOPath(team string) string {
+	return output.Path(teamOutputName("datadog-slo-data", team) + ".csv")
+}
 func savedJiraForecastThroughputPath(team string) string {
 	return output.Path(teamOutputName("jira-forecast-throughput", team) + ".csv")
 }
@@ -482,5 +485,76 @@ func fetchOrLoadSnykData(ctx context.Context, client *snykpkg.Client, from, to t
 	}
 
 	return issues, resolved, counts, nil
+}
+
+// ---- Datadog SLO data ----
+// CSV: slo_id,app,name,type,target,current,budget,violated,event_count
+
+func saveDatadogSLOData(results []sloResult, eventCountByID map[string]int, team string) error {
+	f, err := output.Create(savedDatadogSLOPath(team))
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+	w := csv.NewWriter(f)
+	defer w.Flush()
+	if err := w.Write([]string{"slo_id", "app", "name", "type", "target", "current", "budget", "violated", "event_count"}); err != nil {
+		return err
+	}
+	for _, r := range results {
+		if err := w.Write([]string{
+			r.SLOID,
+			r.App,
+			r.Name,
+			r.Type,
+			strconv.FormatFloat(r.Target, 'f', 4, 64),
+			strconv.FormatFloat(r.Current, 'f', 4, 64),
+			strconv.FormatFloat(r.Budget, 'f', 4, 64),
+			strconv.FormatBool(r.Violated),
+			strconv.Itoa(eventCountByID[r.SLOID]),
+		}); err != nil {
+			return err
+		}
+	}
+	return w.Error()
+}
+
+func loadDatadogSLOData(team string) ([]sloResult, map[string]int, error) {
+	f, err := os.Open(savedDatadogSLOPath(team))
+	if err != nil {
+		return nil, nil, fmt.Errorf("no saved Datadog SLO data: %w", err)
+	}
+	defer f.Close()
+	rows, err := csv.NewReader(f).ReadAll()
+	if err != nil {
+		return nil, nil, err
+	}
+	var results []sloResult
+	eventCountByID := make(map[string]int)
+	for _, row := range rows[1:] {
+		if len(row) < 9 {
+			continue
+		}
+		target, _ := strconv.ParseFloat(row[4], 64)
+		current, _ := strconv.ParseFloat(row[5], 64)
+		budget, _ := strconv.ParseFloat(row[6], 64)
+		violated, _ := strconv.ParseBool(row[7])
+		count, _ := strconv.Atoi(row[8])
+		r := sloResult{
+			SLOID:    row[0],
+			App:      row[1],
+			Name:     row[2],
+			Type:     row[3],
+			Target:   target,
+			Current:  current,
+			Budget:   budget,
+			Violated: violated,
+		}
+		results = append(results, r)
+		if count > 0 {
+			eventCountByID[r.SLOID] = count
+		}
+	}
+	return results, eventCountByID, nil
 }
 

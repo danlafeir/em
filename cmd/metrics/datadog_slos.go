@@ -45,7 +45,16 @@ type sloResult struct {
 
 // fetchSLORawData lists SLOs for the team and fetches their history over the given window.
 // Returns all results and a per-SLO violation event count. Prints warnings when verbose is true.
+// Respects the global useSavedDataFlag and saveRawDataFlag.
 func fetchSLORawData(ctx context.Context, client *datadog.Client, team string, from, to time.Time, verbose bool) ([]sloResult, map[string]int, error) {
+	if useSavedDataFlag {
+		results, eventCountByID, err := loadDatadogSLOData(team)
+		if err != nil {
+			return nil, nil, fmt.Errorf("--use-saved-data: %w", err)
+		}
+		return results, eventCountByID, nil
+	}
+
 	tagsQuery := "team:" + team
 	slos, err := client.ListSLOs(ctx, tagsQuery)
 	if err != nil {
@@ -95,6 +104,15 @@ func fetchSLORawData(ctx context.Context, client *datadog.Client, team string, f
 			Violated: current < target,
 		})
 	}
+
+	if saveRawDataFlag {
+		if err := saveDatadogSLOData(allResults, eventCountByID, team); err != nil {
+			fmt.Printf("  Warning: could not save Datadog SLO data: %v\n", err)
+		} else if verbose {
+			fmt.Printf("Raw data saved to: %s\n", savedDatadogSLOPath(team))
+		}
+	}
+
 	return allResults, eventCountByID, nil
 }
 
