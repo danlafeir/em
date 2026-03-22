@@ -220,9 +220,10 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 		from.Format("Jan 2"), to.Format("Jan 2"), len(allResults), len(violated))
 	outputPath := getDatadogOutputPath("slos", "html")
 	if err := charts.WidgetPage(charts.WidgetPageData{
-		Title:    "SLOs · " + team,
-		Subtitle: subtitle,
-		Widgets:  widgets,
+		Title:       "SLOs · " + team,
+		Subtitle:    subtitle,
+		Widgets:     widgets,
+		WidgetStyle: "compact",
 	}, outputPath); err != nil {
 		return fmt.Errorf("failed to generate HTML: %w", err)
 	}

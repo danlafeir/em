@@ -438,9 +438,10 @@ type Widget struct {
 
 // WidgetPageData holds the data for a full widget grid HTML page.
 type WidgetPageData struct {
-	Title    string
-	Subtitle string
-	Widgets  []Widget
+	Title      string
+	Subtitle   string
+	Widgets    []Widget
+	WidgetStyle string // "" for default (centered value) or "compact" (value below title)
 }
 
 // WidgetPage writes an HTML page of square status widgets to path.
