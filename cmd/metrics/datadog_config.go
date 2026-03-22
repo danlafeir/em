@@ -25,6 +25,7 @@ var datadogConfigCmd = &cobra.Command{
 Prompts for:
   - Datadog site (optional, defaults to datadoghq.com)
   - API key (stored in system keychain)
+  - App key (stored in system keychain)
   - Team name (used to filter pages and SLOs)
 
 Existing values are shown and can be kept by pressing Enter.
@@ -78,6 +79,23 @@ func runDatadogConfig(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// 3. App key (keychain)
+	existingAppKey, _ := secrets.Read("datadog", "app_key")
+	if existingAppKey != "" {
+		fmt.Println("App key: configured")
+		fmt.Print("Re-enter App key? [y/N]: ")
+		input, _ := reader.ReadString('\n')
+		if strings.TrimSpace(strings.ToLower(input)) == "y" {
+			if err := promptAndStoreDatadogKey("app_key", "App key"); err != nil {
+				return err
+			}
+		}
+	} else {
+		if err := promptAndStoreDatadogKey("app_key", "App key"); err != nil {
+			return err
+		}
+	}
+
 	// Save site before testing
 	if err := config.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
@@ -88,8 +106,13 @@ func runDatadogConfig(cmd *cobra.Command, args []string) error {
 	if apiKey == "" {
 		apiKey = os.Getenv("DD_API_KEY")
 	}
+	appKey, _ := secrets.Read("datadog", "app_key")
+	if appKey == "" {
+		appKey = os.Getenv("DD_APP_KEY")
+	}
 	creds := datadog.Credentials{
 		APIKey: apiKey,
+		AppKey: appKey,
 		Site:   siteInput,
 	}
 	client := datadog.NewClient(creds)
