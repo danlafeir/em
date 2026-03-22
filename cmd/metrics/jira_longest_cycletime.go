@@ -15,6 +15,9 @@ import (
 	"devctl-em/internal/workflow"
 )
 
+const defaultLongestCTLimit = 10
+const reportLongestCTLimit = 5
+
 var longestCycleTimeCmd = &cobra.Command{
 	Use:   "longest-cycle-time",
 	Short: "List issues with the longest cycle times",
@@ -97,24 +100,15 @@ func generateLongestCycleTime(ctx context.Context, client *jira.Client, team, jq
 	if len(outliers) > 0 {
 		fmt.Printf("Removed %d outlier(s) (beyond 2σ from mean)\n", len(outliers))
 	}
-	results = kept
 
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].CycleTime > results[j].CycleTime
-	})
+	rows := buildLongestCTRows(kept, nil, defaultLongestCTLimit)
 
-	limit := 10
-	if len(results) < limit {
-		limit = len(results)
-	}
-	top := results[:limit]
-
-	fmt.Printf("\nTop %d Longest Cycle Times\n", limit)
+	fmt.Printf("\nTop %d Longest Cycle Times\n", len(rows))
 	fmt.Printf("=========================\n\n")
 
 	titleWidth := 50
 	fmt.Printf("| %-16s | %-*s | %-10s | %-10s | %-10s |\n",
-		"Epic", titleWidth, "Title", "Cycle Time", "Started", "Completed")
+		"Key", titleWidth, "Title", "Cycle Time", "Started", "Completed")
 	fmt.Printf("|%s|%s|%s|%s|%s|\n",
 		strings.Repeat("_", 18),
 		strings.Repeat("_", titleWidth+2),
@@ -122,16 +116,12 @@ func generateLongestCycleTime(ctx context.Context, client *jira.Client, team, jq
 		strings.Repeat("_", 12),
 		strings.Repeat("_", 12))
 
-	for _, r := range top {
+	for _, r := range rows {
 		lines := wrapString(r.Summary, titleWidth)
 		for l, line := range lines {
 			if l == 0 {
 				fmt.Printf("| %-16s | %-*s | %-10s | %-10s | %-10s |\n",
-					r.IssueKey,
-					titleWidth, line,
-					fmt.Sprintf("%.1f d", r.CycleTimeDays()),
-					r.StartDate.Format("Jan 02"),
-					r.EndDate.Format("Jan 02"))
+					r.Key, titleWidth, line, r.Days+" d", r.Started, r.Completed)
 			} else {
 				fmt.Printf("| %-16s | %-*s | %-10s | %-10s | %-10s |\n",
 					"", titleWidth, line, "", "", "")
@@ -142,16 +132,6 @@ func generateLongestCycleTime(ctx context.Context, client *jira.Client, team, jq
 	outputName := teamOutputName("longest-cycle-time", team)
 	outputFormat := getOutputFormat("html")
 	if outputFormat == "html" {
-		var rows []charts.LongestCycleTimeRow
-		for _, r := range top {
-			rows = append(rows, charts.LongestCycleTimeRow{
-				Key:       r.IssueKey,
-				Summary:   r.Summary,
-				Days:      fmt.Sprintf("%.1f", r.CycleTimeDays()),
-				Started:   r.StartDate.Format("Jan 02"),
-				Completed: r.EndDate.Format("Jan 02"),
-			})
-		}
 		title := fmt.Sprintf("Longest Cycle Times — %s to %s", from.Format("Jan 02"), to.Format("Jan 02"))
 		outputPath := getOutputPath(outputName, "html")
 		if err := charts.LongestCycleTimeTable(rows, title, client.BaseURL(), outputPath); err != nil {
@@ -162,4 +142,32 @@ func generateLongestCycleTime(ctx context.Context, client *jira.Client, team, jq
 	}
 
 	return nil
+}
+
+// buildLongestCTRows sorts results by cycle time descending, drops epics, and
+// returns up to limit rows as chart-ready structs. Pass a non-nil outlierKeys
+// map to mark outliers visually (they are still included). Pass nil to omit marking.
+func buildLongestCTRows(results []metrics.CycleTimeResult, outlierKeys map[string]bool, limit int) []charts.LongestCycleTimeRow {
+	filtered := make([]metrics.CycleTimeResult, 0, len(results))
+	for _, r := range results {
+		if r.IssueType != "Epic" {
+			filtered = append(filtered, r)
+		}
+	}
+	sort.Slice(filtered, func(i, j int) bool {
+		return filtered[i].CycleTime > filtered[j].CycleTime
+	})
+	n := min(len(filtered), limit)
+	rows := make([]charts.LongestCycleTimeRow, 0, n)
+	for _, r := range filtered[:n] {
+		rows = append(rows, charts.LongestCycleTimeRow{
+			Key:       r.IssueKey,
+			Summary:   r.Summary,
+			Days:      fmt.Sprintf("%.1f", r.CycleTimeDays()),
+			Started:   r.StartDate.Format("Jan 02"),
+			Completed: r.EndDate.Format("Jan 02"),
+			Outlier:   outlierKeys[r.IssueKey],
+		})
+	}
+	return rows
 }

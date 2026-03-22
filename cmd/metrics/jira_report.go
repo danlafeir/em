@@ -3,7 +3,6 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -123,33 +122,11 @@ func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql 
 	throughputResult := throughputCalc.Calculate(completedHistories, from, to)
 
 	// Longest Cycle Time table
-	var ctRows []charts.LongestCycleTimeRow
-	if len(cycleResults) > 0 {
-		outlierKeys := make(map[string]bool, len(outlierResults))
-		for _, r := range outlierResults {
-			outlierKeys[r.IssueKey] = true
-		}
-		sorted := make([]pkgmetrics.CycleTimeResult, 0, len(cycleResults))
-		for _, r := range cycleResults {
-			if r.IssueType != "Epic" {
-				sorted = append(sorted, r)
-			}
-		}
-		sort.Slice(sorted, func(i, j int) bool {
-			return sorted[i].CycleTime > sorted[j].CycleTime
-		})
-		n := min(len(sorted), 5)
-		for _, r := range sorted[:n] {
-			ctRows = append(ctRows, charts.LongestCycleTimeRow{
-				Key:       r.IssueKey,
-				Summary:   r.Summary,
-				Days:      fmt.Sprintf("%.1f", r.CycleTimeDays()),
-				Started:   r.StartDate.Format("Jan 02"),
-				Completed: r.EndDate.Format("Jan 02"),
-				Outlier:   outlierKeys[r.IssueKey],
-			})
-		}
+	outlierKeys := make(map[string]bool, len(outlierResults))
+	for _, r := range outlierResults {
+		outlierKeys[r.IssueKey] = true
 	}
+	ctRows := buildLongestCTRows(cycleResults, outlierKeys, reportLongestCTLimit)
 
 	// Forecast — use 90-day throughput window for Monte Carlo
 	var forecastRows []charts.ForecastRow
@@ -253,10 +230,6 @@ func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql 
 	summary.ActiveEpics = countActiveEpics(ctx, client, jql)
 
 	// Save data for future --use-saved-data runs (best effort).
-	outlierKeys := make(map[string]bool, len(outlierResults))
-	for _, r := range outlierResults {
-		outlierKeys[r.IssueKey] = true
-	}
 	_ = saveJiraCycleTimeData(cycleResults, outlierKeys, team)
 	_ = saveJiraThroughputData(throughputResult, team)
 	_ = saveJiraForecastData(forecastRows, team)
@@ -285,7 +258,7 @@ func loadJIRAMetricsData(team string, client *jira.Client) (jiraMetricsData, err
 	}
 	forecastRows, _ := loadJiraForecastData(team) // optional
 
-	ctRows := buildLongestCTRows(ct.all, ct.outlierKeys)
+	ctRows := buildLongestCTRows(ct.all, ct.outlierKeys, reportLongestCTLimit)
 	summary := buildSummary(ct.kept, throughputResult)
 
 	baseURL := ""

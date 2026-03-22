@@ -5,7 +5,6 @@ import (
 	"encoding/csv"
 	"fmt"
 	"os"
-	"sort"
 	"strconv"
 	"time"
 
@@ -485,29 +484,3 @@ func fetchOrLoadSnykData(ctx context.Context, client *snykpkg.Client, from, to t
 	return issues, resolved, counts, nil
 }
 
-// ---- buildLongestCTRows reconstructs the longest cycle time table from saved data ----
-
-func buildLongestCTRows(allResults []pkgmetrics.CycleTimeResult, outlierKeys map[string]bool) []charts.LongestCycleTimeRow {
-	sorted := make([]pkgmetrics.CycleTimeResult, 0, len(allResults))
-	for _, r := range allResults {
-		if r.IssueType != "Epic" {
-			sorted = append(sorted, r)
-		}
-	}
-	sort.Slice(sorted, func(i, j int) bool {
-		return sorted[i].CycleTime > sorted[j].CycleTime
-	})
-	n := min(len(sorted), 5)
-	var rows []charts.LongestCycleTimeRow
-	for _, r := range sorted[:n] {
-		rows = append(rows, charts.LongestCycleTimeRow{
-			Key:       r.IssueKey,
-			Summary:   r.Summary,
-			Days:      fmt.Sprintf("%.1f", r.CycleTimeDays()),
-			Started:   r.StartDate.Format("Jan 02"),
-			Completed: r.EndDate.Format("Jan 02"),
-			Outlier:   outlierKeys[r.IssueKey],
-		})
-	}
-	return rows
-}
