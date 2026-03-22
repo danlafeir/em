@@ -122,7 +122,7 @@ func (c *Client) TestConnection(ctx context.Context) error {
 
 // ListPages lists on-call pages for a team within a date range.
 func (c *Client) ListPages(ctx context.Context, team string, from, to time.Time) ([]Page, error) {
-	baseURL := c.credentials.OnCallBaseURL()
+	baseURL := c.credentials.BaseURL()
 	var allPages []Page
 	offset := 0
 	pageSize := 100
@@ -178,6 +178,58 @@ func (c *Client) ListPages(ctx context.Context, team string, from, to time.Time)
 	}
 
 	return allPages, nil
+}
+
+// ListMonitorEvents fetches monitor alert events from the Events v2 API.
+// It returns events where a monitor transitioned to Alert (or Warn/No Data).
+// Pass a non-empty tagsQuery to filter by team tag, e.g. "team:my-team".
+func (c *Client) ListMonitorEvents(ctx context.Context, tagsQuery string, from, to time.Time) ([]MonitorEvent, error) {
+	var all []MonitorEvent
+	var cursor string
+
+	filterQuery := "sources:monitor alert_transition:(alert OR warn OR \"no data\")"
+	if tagsQuery != "" {
+		filterQuery += " " + tagsQuery
+	}
+
+	for {
+		query := url.Values{}
+		query.Set("filter[query]", filterQuery)
+		query.Set("filter[from]", from.UTC().Format(time.RFC3339))
+		query.Set("filter[to]", to.UTC().Format(time.RFC3339))
+		query.Set("page[limit]", "1000")
+		if cursor != "" {
+			query.Set("page[cursor]", cursor)
+		}
+
+		body, err := c.doRequest(ctx, "GET", c.credentials.BaseURL(), "/api/v2/events", query)
+		if err != nil {
+			return nil, fmt.Errorf("listing monitor events: %w", err)
+		}
+
+		var resp monitorEventListResponse
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return nil, fmt.Errorf("parsing monitor events: %w", err)
+		}
+
+		for _, d := range resp.Data {
+			all = append(all, MonitorEvent{
+				ID:          d.ID,
+				MonitorName: d.Attributes.Title,
+				Status:      d.Attributes.Status,
+				Priority:    d.Attributes.Priority,
+				Timestamp:   d.Attributes.Timestamp.Time,
+				Tags:        d.Attributes.Tags,
+			})
+		}
+
+		cursor = resp.Meta.Page.After
+		if cursor == "" || len(resp.Data) == 0 {
+			break
+		}
+	}
+
+	return all, nil
 }
 
 // ListSLOs lists SLOs filtered by a tags query string.

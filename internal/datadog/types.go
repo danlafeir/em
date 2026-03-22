@@ -1,7 +1,10 @@
 // Package datadog provides a client for the Datadog API.
 package datadog
 
-import "time"
+import (
+	"strconv"
+	"time"
+)
 
 // Credentials holds Datadog authentication details.
 type Credentials struct {
@@ -19,14 +22,6 @@ func (c *Credentials) BaseURL() string {
 	return "https://api." + site
 }
 
-// OnCallBaseURL returns the on-call API base URL.
-func (c *Credentials) OnCallBaseURL() string {
-	site := c.Site
-	if site == "" {
-		site = "datadoghq.com"
-	}
-	return "https://navy.oncall." + site
-}
 
 // Page represents a single on-call page/incident.
 type Page struct {
@@ -99,4 +94,67 @@ type sloHistoryResponse struct {
 	Data struct {
 		Overall SLOHistorySLIData `json:"overall"`
 	} `json:"data"`
+}
+
+// MonitorEvent represents a monitor alert event from the Events v2 API.
+type MonitorEvent struct {
+	ID          string
+	MonitorName string
+	Status      string // "Alert", "Warn", "No Data", "Recovered", etc.
+	Priority    string
+	Timestamp   time.Time
+	Tags        []string
+}
+
+// eventV2Timestamp is a Unix timestamp that may be an integer or string in the API response.
+type eventV2Timestamp struct {
+	time.Time
+}
+
+func (t *eventV2Timestamp) UnmarshalJSON(data []byte) error {
+	// Try numeric first
+	s := string(data)
+	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+		t.Time = time.Unix(n, 0).UTC()
+		return nil
+	}
+	// Try quoted string
+	if len(s) >= 2 && s[0] == '"' {
+		s = s[1 : len(s)-1]
+	}
+	if n, err := strconv.ParseInt(s, 10, 64); err == nil {
+		t.Time = time.Unix(n, 0).UTC()
+		return nil
+	}
+	parsed, err := time.Parse(time.RFC3339, s)
+	if err != nil {
+		return err
+	}
+	t.Time = parsed
+	return nil
+}
+
+// monitorEventAttributes holds raw attributes from the Events v2 API.
+type monitorEventAttributes struct {
+	Title     string           `json:"title"`
+	Status    string           `json:"status"`
+	Priority  string           `json:"priority"`
+	Timestamp eventV2Timestamp `json:"timestamp"`
+	Tags      []string         `json:"tags"`
+}
+
+// monitorEventData is a single item in the Events v2 response.
+type monitorEventData struct {
+	ID         string                 `json:"id"`
+	Attributes monitorEventAttributes `json:"attributes"`
+}
+
+// monitorEventListResponse is the raw Events v2 API list response.
+type monitorEventListResponse struct {
+	Data []monitorEventData `json:"data"`
+	Meta struct {
+		Page struct {
+			After string `json:"after"`
+		} `json:"page"`
+	} `json:"meta"`
 }
