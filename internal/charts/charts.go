@@ -437,12 +437,19 @@ type Widget struct {
 	StateClass string // "widget-alerted" (red) or "widget-ok" (green)
 }
 
+// WidgetSection is a labeled group of widgets within a widget page.
+type WidgetSection struct {
+	Title   string
+	Widgets []Widget
+}
+
 // WidgetPageData holds the data for a full widget grid HTML page.
+// Use Sections to group widgets under service/app headings; use Widgets for a flat list.
 type WidgetPageData struct {
-	Title      string
-	Subtitle   string
-	Widgets    []Widget
-	WidgetStyle string // "" for default (centered value) or "compact" (value below title)
+	Title    string
+	Subtitle string
+	Sections []WidgetSection // optional grouped layout
+	Widgets  []Widget        // flat layout (used when Sections is empty)
 }
 
 // WidgetPage writes an HTML page of square status widgets to path.

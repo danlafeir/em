@@ -10,7 +10,9 @@ body{margin:0;padding:24px;background:#f5f5f5;font-family:-apple-system,BlinkMac
 .page-header{max-width:1400px;margin:0 auto 20px}
 .page-title{font-size:1.1rem;font-weight:600;color:#1a1a1a}
 .page-sub{font-size:.8rem;color:#888;margin-top:4px}
-.widget-grid{max-width:1400px;margin:0 auto;display:flex;flex-wrap:wrap;gap:16px}
+.section{max-width:1400px;margin:0 auto 32px}
+.section-title{font-size:.85rem;font-weight:600;color:#444;margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid #ddd}
+.widget-grid{display:flex;flex-wrap:wrap;gap:16px}
 .widget{width:220px;height:220px;background:#fff;border-radius:12px;padding:16px;display:flex;flex-direction:column;justify-content:space-between;box-shadow:0 1px 4px rgba(0,0,0,.08)}
 .widget-alerted{border-top:4px solid #e53935}
 .widget-ok{border-top:4px solid #43a047}
@@ -27,15 +29,35 @@ body{margin:0;padding:24px;background:#f5f5f5;font-family:-apple-system,BlinkMac
   <div class="page-title">{{.Title}}</div>
   {{if .Subtitle}}<div class="page-sub">{{.Subtitle}}</div>{{end}}
 </div>
-<div class="widget-grid">
-{{range .Widgets}}
-<div class="widget {{.StateClass}}">
-  <div class="widget-name">{{.Name}}</div>
-  {{if .Definition}}<div class="widget-definition">{{.Definition}}</div>{{end}}
-  <div class="widget-value">{{.Value}}</div>
-  <div class="widget-label">{{.Label}}</div>
+{{if .Sections}}
+{{range .Sections}}
+<div class="section">
+  <div class="section-title">{{.Title}}</div>
+  <div class="widget-grid">
+  {{range .Widgets}}
+  <div class="widget {{.StateClass}}">
+    <div class="widget-name">{{.Name}}</div>
+    {{if .Definition}}<div class="widget-definition">{{.Definition}}</div>{{end}}
+    <div class="widget-value">{{.Value}}</div>
+    <div class="widget-label">{{.Label}}</div>
+  </div>
+  {{end}}
+  </div>
 </div>
 {{end}}
+{{else}}
+<div class="section">
+  <div class="widget-grid">
+  {{range .Widgets}}
+  <div class="widget {{.StateClass}}">
+    <div class="widget-name">{{.Name}}</div>
+    {{if .Definition}}<div class="widget-definition">{{.Definition}}</div>{{end}}
+    <div class="widget-value">{{.Value}}</div>
+    <div class="widget-label">{{.Label}}</div>
+  </div>
+  {{end}}
+  </div>
 </div>
+{{end}}
 </body>
 </html>

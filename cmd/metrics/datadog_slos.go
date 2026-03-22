@@ -212,19 +212,8 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 	fmt.Printf("SLOs checked: %d\n", len(allResults))
 	fmt.Printf("Violated: %d (across %d apps)\n", len(violated), len(grouped))
 
-	// Generate HTML widget page — show all SLOs, violated ones first
-	sort.Slice(allResults, func(i, j int) bool {
-		ci, cj := eventCountByID[allResults[i].SLOID], eventCountByID[allResults[j].SLOID]
-		if ci != cj {
-			return ci > cj
-		}
-		if allResults[i].Violated != allResults[j].Violated {
-			return allResults[i].Violated
-		}
-		return allResults[i].Name < allResults[j].Name
-	})
-	widgets := make([]charts.Widget, len(allResults))
-	for i, r := range allResults {
+	// Generate HTML widget page — group by app, violated SLOs first within each group.
+	toWidget := func(r sloResult) charts.Widget {
 		count := eventCountByID[r.SLOID]
 		stateClass := "widget-ok"
 		if r.Violated || count > 0 {
@@ -235,22 +224,53 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 		if count == 1 {
 			label = "violation"
 		}
-		definition := fmt.Sprintf("SLI %.2f%% · target %.2f%%", r.Current, r.Target)
-		widgets[i] = charts.Widget{
+		return charts.Widget{
 			Name:       r.Name,
-			Definition: definition,
+			Definition: fmt.Sprintf("SLI %.2f%% · target %.2f%%", r.Current, r.Target),
 			Value:      value,
 			Label:      label,
 			StateClass: stateClass,
 		}
 	}
+
+	byApp := groupSLOsByApp(allResults)
+	appNames := make([]string, 0, len(byApp))
+	for app := range byApp {
+		appNames = append(appNames, app)
+	}
+	sort.Strings(appNames)
+
+	sections := make([]charts.WidgetSection, 0, len(byApp))
+	for _, app := range appNames {
+		results := byApp[app]
+		sort.Slice(results, func(i, j int) bool {
+			ci, cj := eventCountByID[results[i].SLOID], eventCountByID[results[j].SLOID]
+			if ci != cj {
+				return ci > cj
+			}
+			if results[i].Violated != results[j].Violated {
+				return results[i].Violated
+			}
+			return results[i].Name < results[j].Name
+		})
+		title := app
+		if title == "" {
+			title = "(untagged)"
+		}
+		widgets := make([]charts.Widget, len(results))
+		for i, r := range results {
+			widgets[i] = toWidget(r)
+		}
+		sections = append(sections, charts.WidgetSection{Title: title, Widgets: widgets})
+	}
+
 	subtitle := fmt.Sprintf("%s to %s · %d SLOs, %d violated",
 		from.Format("Jan 2"), to.Format("Jan 2"), len(allResults), len(violated))
 	outputPath := getDatadogOutputPath("slos", "html")
 	if err := charts.WidgetPage(charts.WidgetPageData{
 		Title:    "SLOs · " + team,
 		Subtitle: subtitle,
-		Widgets:  widgets,
+		Sections: sections,
 	}, outputPath); err != nil {
 		return fmt.Errorf("failed to generate HTML: %w", err)
 	}
