@@ -99,14 +99,6 @@ func runDatadogMonitors(cmd *cobra.Command, args []string) error {
 		rows[i] = monitorRow{monitor: m, fireCount: len(evts), lastFired: last}
 	}
 
-	// Sort: triggered first (by count desc), then alphabetically
-	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].fireCount != rows[j].fireCount {
-			return rows[i].fireCount > rows[j].fireCount
-		}
-		return rows[i].monitor.Name < rows[j].monitor.Name
-	})
-
 	if getDatadogOutputFormat("table") == "csv" {
 		outputPath := getDatadogOutputPath("monitors", "csv")
 		if err := exportMonitorsCSV(rows, outputPath); err != nil {
@@ -116,10 +108,32 @@ func runDatadogMonitors(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
+	// A monitor is considered "alerted" if it fired recently OR is currently in a non-OK state
+	// (e.g. went into Alert before the window and is still there).
+	isAlerted := func(r monitorRow) bool {
+		if r.fireCount > 0 {
+			return true
+		}
+		s := r.monitor.OverallState
+		return s == "Alert" || s == "No Data"
+	}
+
+	// Sort: alerted first, then by fire count desc, then alphabetically.
+	sort.Slice(rows, func(i, j int) bool {
+		ai, aj := isAlerted(rows[i]), isAlerted(rows[j])
+		if ai != aj {
+			return ai
+		}
+		if rows[i].fireCount != rows[j].fireCount {
+			return rows[i].fireCount > rows[j].fireCount
+		}
+		return rows[i].monitor.Name < rows[j].monitor.Name
+	})
+
 	// Print table
 	triggered := 0
 	for _, r := range rows {
-		if r.fireCount > 0 {
+		if isAlerted(r) {
 			triggered++
 		}
 	}
@@ -168,7 +182,7 @@ func runDatadogMonitors(cmd *cobra.Command, args []string) error {
 			label += " · last " + r.lastFired.Format("Jan 2")
 		}
 		stateClass := "widget-ok"
-		if r.fireCount > 0 {
+		if isAlerted(r) {
 			stateClass = "widget-alerted"
 		}
 		widgets[i] = charts.Widget{
