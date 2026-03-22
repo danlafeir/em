@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -176,8 +177,14 @@ func (c *Client) ListMonitorEvents(ctx context.Context, tagsQuery string, from, 
 		}
 
 		for _, d := range resp.Data {
+			// Prefer monitor ID from the nested attributes object; fall back to tags.
+			monitorID := d.Attributes.Attributes.Monitor.ID
+			if monitorID == 0 {
+				monitorID = monitorIDFromEventTags(d.Attributes.Tags)
+			}
 			all = append(all, MonitorEvent{
 				ID:          d.ID,
+				MonitorID:   monitorID,
 				MonitorName: d.Attributes.Title,
 				Status:      d.Attributes.Status,
 				Priority:    d.Attributes.Priority,
@@ -193,6 +200,18 @@ func (c *Client) ListMonitorEvents(ctx context.Context, tagsQuery string, from, 
 	}
 
 	return all, nil
+}
+
+// monitorIDFromEventTags extracts a monitor ID from event tags like "monitor_id:12345".
+func monitorIDFromEventTags(tags []string) int64 {
+	for _, t := range tags {
+		if after, ok := strings.CutPrefix(t, "monitor_id:"); ok {
+			if id, err := strconv.ParseInt(after, 10, 64); err == nil {
+				return id
+			}
+		}
+	}
+	return 0
 }
 
 // ListSLOs lists SLOs filtered by a tags query string.

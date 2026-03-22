@@ -69,6 +69,7 @@ type Monitor struct {
 // MonitorEvent represents a monitor alert event from the Events v2 API.
 type MonitorEvent struct {
 	ID          string
+	MonitorID   int64 // extracted from nested attributes or tags
 	MonitorName string
 	Status      string // "Alert", "Warn", "No Data", "Recovered", etc.
 	Priority    string
@@ -104,13 +105,21 @@ func (t *eventV2Timestamp) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// monitorEventInnerAttrs holds the nested monitor object inside event attributes.
+type monitorEventInnerAttrs struct {
+	Monitor struct {
+		ID int64 `json:"id"`
+	} `json:"monitor"`
+}
+
 // monitorEventAttributes holds raw attributes from the Events v2 API.
 type monitorEventAttributes struct {
-	Title     string           `json:"title"`
-	Status    string           `json:"status"`
-	Priority  string           `json:"priority"`
-	Timestamp eventV2Timestamp `json:"timestamp"`
-	Tags      []string         `json:"tags"`
+	Title      string                 `json:"title"`
+	Status     string                 `json:"status"`
+	Priority   string                 `json:"priority"`
+	Timestamp  eventV2Timestamp       `json:"timestamp"`
+	Tags       []string               `json:"tags"`
+	Attributes monitorEventInnerAttrs `json:"attributes"` // nested attributes.monitor.id
 }
 
 // monitorEventData is a single item in the Events v2 response.

@@ -82,9 +82,8 @@ func runDatadogMonitors(cmd *cobra.Command, args []string) error {
 	// Build map: monitor ID → events
 	eventsByID := make(map[int64][]datadog.MonitorEvent)
 	for _, e := range events {
-		id := monitorIDFromTags(e.Tags)
-		if id > 0 {
-			eventsByID[id] = append(eventsByID[id], e)
+		if e.MonitorID > 0 {
+			eventsByID[e.MonitorID] = append(eventsByID[e.MonitorID], e)
 		}
 	}
 
@@ -195,17 +194,6 @@ func runDatadogMonitors(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-// monitorIDFromTags extracts the monitor ID from event tags (e.g. "monitor_id:12345").
-func monitorIDFromTags(tags []string) int64 {
-	for _, t := range tags {
-		if after, ok := strings.CutPrefix(t, "monitor_id:"); ok {
-			if id, err := strconv.ParseInt(after, 10, 64); err == nil {
-				return id
-			}
-		}
-	}
-	return 0
-}
 
 // truncateStr shortens a string to maxLen, adding "..." if truncated.
 func truncateStr(s string, maxLen int) string {
