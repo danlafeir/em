@@ -3,6 +3,7 @@ package metrics
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -37,33 +38,94 @@ func runMetricsReport(cmd *cobra.Command, args []string) error {
 	skipBrowserOpen = true
 	defer func() { skipBrowserOpen = false }()
 
-	if err := runDeploymentFrequency(cmd, args); err != nil {
-		fmt.Printf("Warning: GitHub report skipped: %v\n", err)
+	jiraOK := isJiraConfigured()
+	githubOK := isGithubConfigured()
+	snykOK := isSnykConfigured()
+	datadogOK := isDatadogConfigured()
+
+	var unconfigured []string
+	if !jiraOK {
+		unconfigured = append(unconfigured, "JIRA")
+	}
+	if !githubOK {
+		unconfigured = append(unconfigured, "GitHub")
+	}
+	if !snykOK {
+		unconfigured = append(unconfigured, "Snyk")
+	}
+	if !datadogOK {
+		unconfigured = append(unconfigured, "Datadog")
+	}
+	if len(unconfigured) > 0 {
+		fmt.Printf("Skipping unconfigured: %s\n", strings.Join(unconfigured, ", "))
+		fmt.Println("Run `devctl-em metrics config` to set them up.")
+		fmt.Println()
 	}
 
-	fmt.Println()
-	fmt.Println(sectionDivider)
-	fmt.Println()
-	if err := runReport(cmd, args); err != nil {
-		fmt.Printf("Warning: JIRA report skipped: %v\n", err)
+	first := true
+	sep := func() {
+		if !first {
+			fmt.Println()
+			fmt.Println(sectionDivider)
+			fmt.Println()
+		}
+		first = false
 	}
 
-	fmt.Println()
-	fmt.Println(sectionDivider)
-	fmt.Println()
-	if err := runSnykReport(cmd, args); err != nil {
-		fmt.Printf("Warning: Snyk report skipped: %v\n", err)
+	if githubOK {
+		sep()
+		if err := runDeploymentFrequency(cmd, args); err != nil {
+			fmt.Printf("Warning: GitHub report failed: %v\n", err)
+		}
 	}
 
-	fmt.Println()
-	fmt.Println(sectionDivider)
-	fmt.Println()
-	skipBrowserOpen = false
-	if err := generateCombinedTeamReport(); err != nil {
-		fmt.Printf("Warning: combined report skipped: %v\n", err)
+	if jiraOK {
+		sep()
+		if err := runReport(cmd, args); err != nil {
+			fmt.Printf("Warning: JIRA report failed: %v\n", err)
+		}
+	}
+
+	if snykOK {
+		sep()
+		if err := runSnykReport(cmd, args); err != nil {
+			fmt.Printf("Warning: Snyk report failed: %v\n", err)
+		}
+	}
+
+	if jiraOK || githubOK || snykOK || datadogOK {
+		sep()
+		skipBrowserOpen = false
+		if err := generateCombinedTeamReport(); err != nil {
+			fmt.Printf("Warning: combined report skipped: %v\n", err)
+		}
 	}
 
 	return nil
+}
+
+// isJiraConfigured returns true if the minimum JIRA credentials are present.
+func isJiraConfigured() bool {
+	_, err := getJiraClient()
+	return err == nil
+}
+
+// isGithubConfigured returns true if a GitHub token and org are present.
+func isGithubConfigured() bool {
+	_, err := getGithubClient()
+	return err == nil && getGithubOrg() != ""
+}
+
+// isSnykConfigured returns true if the minimum Snyk credentials are present.
+func isSnykConfigured() bool {
+	_, err := getSnykClient()
+	return err == nil
+}
+
+// isDatadogConfigured returns true if Datadog API/app keys and a team are present.
+func isDatadogConfigured() bool {
+	_, err := getDatadogClient()
+	return err == nil && getDatadogTeam() != ""
 }
 
 // generateCombinedTeamReport fetches JIRA and GitHub data for the selected team
