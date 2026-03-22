@@ -125,7 +125,7 @@ func (c *Client) TestConnection(ctx context.Context) error {
 func (c *Client) ListMonitors(ctx context.Context, teamTag string) ([]Monitor, error) {
 	query := url.Values{}
 	if teamTag != "" {
-		query.Set("tag", teamTag)
+		query.Set("tags", teamTag)
 	}
 	query.Set("page", "0")
 	query.Set("page_size", "1000")
