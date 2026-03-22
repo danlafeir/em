@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"testing"
 	"time"
+
+	"devctl-em/internal/httputil"
 )
 
 func TestExtractStatusTransitions(t *testing.T) {
@@ -100,37 +102,26 @@ func TestExtractStatusTransitions_MultipleItemsPerEntry(t *testing.T) {
 }
 
 func TestCalculateBackoff(t *testing.T) {
-	client := &Client{
-		rateLimiter: &RateLimiter{
-			BaseDelay:  2 * time.Second,
-			MaxDelay:   30 * time.Second,
-			MaxRetries: 5,
-		},
+	// Backoff logic lives in httputil; verify it works via the shared package.
+	r := &httputil.RateLimiter{
+		BaseDelay:  2 * time.Second,
+		MaxDelay:   30 * time.Second,
+		MaxRetries: 5,
 	}
 
-	// Test with Retry-After header
-	delay := client.calculateBackoff(0, "5")
-	if delay != 5*time.Second {
+	if delay := r.Backoff(0, "5"); delay != 5*time.Second {
 		t.Errorf("With Retry-After=5, expected 5s, got %v", delay)
 	}
 
-	// Test without Retry-After header (exponential backoff)
-	// Attempt 0: base * 2^0 = 2s (with jitter 0.7-1.3)
-	delay = client.calculateBackoff(0, "")
-	if delay < 1400*time.Millisecond || delay > 2600*time.Millisecond {
+	if delay := r.Backoff(0, ""); delay < 1400*time.Millisecond || delay > 2600*time.Millisecond {
 		t.Errorf("Attempt 0: expected ~2s with jitter, got %v", delay)
 	}
 
-	// Attempt 2: base * 2^2 = 8s (with jitter 0.7-1.3)
-	delay = client.calculateBackoff(2, "")
-	if delay < 5600*time.Millisecond || delay > 10400*time.Millisecond {
+	if delay := r.Backoff(2, ""); delay < 5600*time.Millisecond || delay > 10400*time.Millisecond {
 		t.Errorf("Attempt 2: expected ~8s with jitter, got %v", delay)
 	}
 
-	// Test max delay cap
-	// Attempt 10: would be 2 * 2^10 = 2048s, but capped at 30s
-	delay = client.calculateBackoff(10, "")
-	if delay > 30*time.Second {
+	if delay := r.Backoff(10, ""); delay > 30*time.Second {
 		t.Errorf("Expected delay capped at 30s, got %v", delay)
 	}
 }

@@ -491,7 +491,11 @@ func fetchOrLoadSnykData(ctx context.Context, client *snykpkg.Client, from, to t
 // CSV: slo_id,app,name,type,target,current,budget,violated,event_count
 
 func saveDatadogSLOData(results []sloResult, eventCountByID map[string]int, team string) error {
-	f, err := output.Create(savedDatadogSLOPath(team))
+	return saveDatadogSLODataToPath(results, eventCountByID, savedDatadogSLOPath(team))
+}
+
+func saveDatadogSLODataToPath(results []sloResult, eventCountByID map[string]int, path string) error {
+	f, err := output.Create(path)
 	if err != nil {
 		return err
 	}
@@ -520,9 +524,17 @@ func saveDatadogSLOData(results []sloResult, eventCountByID map[string]int, team
 }
 
 func loadDatadogSLOData(team string) ([]sloResult, map[string]int, error) {
-	f, err := os.Open(savedDatadogSLOPath(team))
+	results, counts, err := loadDatadogSLODataFromPath(savedDatadogSLOPath(team))
 	if err != nil {
 		return nil, nil, fmt.Errorf("no saved Datadog SLO data: %w", err)
+	}
+	return results, counts, nil
+}
+
+func loadDatadogSLODataFromPath(path string) ([]sloResult, map[string]int, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, nil, err
 	}
 	defer f.Close()
 	rows, err := csv.NewReader(f).ReadAll()

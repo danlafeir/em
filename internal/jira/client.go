@@ -6,41 +6,28 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
-	"math/rand"
 	"net/http"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
+
+	"devctl-em/internal/httputil"
 )
 
 // Client is the main JIRA Cloud API client.
 type Client struct {
-	httpClient  *http.Client
+	httpClient  httputil.HTTPDoer
 	credentials Credentials
-	rateLimiter *RateLimiter
-}
-
-// RateLimiter implements exponential backoff with jitter.
-type RateLimiter struct {
-	BaseDelay  time.Duration
-	MaxDelay   time.Duration
-	MaxRetries int
+	rateLimiter *httputil.RateLimiter
 }
 
 // NewClient creates a new JIRA Cloud API client.
 func NewClient(creds Credentials) *Client {
 	return &Client{
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		httpClient:  &http.Client{Timeout: 30 * time.Second},
 		credentials: creds,
-		rateLimiter: &RateLimiter{
-			BaseDelay:  2 * time.Second,
-			MaxDelay:   30 * time.Second,
-			MaxRetries: 5,
-		},
+		rateLimiter: httputil.Default(),
 	}
 }
 
@@ -88,7 +75,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, query url.V
 
 		// Handle rate limiting (429)
 		if resp.StatusCode == 429 {
-			delay := c.calculateBackoff(attempt, resp.Header.Get("Retry-After"))
+			delay := c.rateLimiter.Backoff(attempt, resp.Header.Get("Retry-After"))
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
@@ -119,29 +106,6 @@ func (c *Client) doRequest(ctx context.Context, method, path string, query url.V
 	return nil, fmt.Errorf("max retries exceeded")
 }
 
-// calculateBackoff computes delay with exponential backoff and jitter.
-func (c *Client) calculateBackoff(attempt int, retryAfter string) time.Duration {
-	// Use Retry-After header if provided
-	if retryAfter != "" {
-		if seconds, err := strconv.Atoi(retryAfter); err == nil {
-			return time.Duration(seconds) * time.Second
-		}
-	}
-
-	// Exponential backoff: base * 2^attempt
-	delay := float64(c.rateLimiter.BaseDelay) * math.Pow(2, float64(attempt))
-
-	// Add jitter (0.7 to 1.3 multiplier)
-	jitter := 0.7 + rand.Float64()*0.6
-	delay *= jitter
-
-	// Cap at maximum
-	if delay > float64(c.rateLimiter.MaxDelay) {
-		delay = float64(c.rateLimiter.MaxDelay)
-	}
-
-	return time.Duration(delay)
-}
 
 // SearchIssues performs a JQL search with pagination.
 func (c *Client) SearchIssues(ctx context.Context, jql string, opts SearchOptions) (*SearchResult, error) {

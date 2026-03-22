@@ -5,29 +5,21 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"math"
-	"math/rand"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"time"
+
+	"devctl-em/internal/httputil"
 )
 
 const apiVersion = "2025-11-05"
 
 // Client is the main Snyk API client.
 type Client struct {
-	httpClient  *http.Client
+	httpClient  httputil.HTTPDoer
 	credentials Credentials
-	rateLimiter *RateLimiter
-}
-
-// RateLimiter implements exponential backoff with jitter.
-type RateLimiter struct {
-	BaseDelay  time.Duration
-	MaxDelay   time.Duration
-	MaxRetries int
+	rateLimiter *httputil.RateLimiter
 }
 
 // NewAuthClient creates a Snyk client with only token and site — no OrgID required.
@@ -39,15 +31,9 @@ func NewAuthClient(token, site string) *Client {
 // NewClient creates a new Snyk API client.
 func NewClient(creds Credentials) *Client {
 	return &Client{
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		httpClient:  &http.Client{Timeout: 30 * time.Second},
 		credentials: creds,
-		rateLimiter: &RateLimiter{
-			BaseDelay:  2 * time.Second,
-			MaxDelay:   30 * time.Second,
-			MaxRetries: 5,
-		},
+		rateLimiter: httputil.Default(),
 	}
 }
 
@@ -88,7 +74,7 @@ func (c *Client) doRequest(ctx context.Context, method, path string, query url.V
 
 		if resp.StatusCode == 429 {
 			lastErr = fmt.Errorf("rate limited (HTTP 429)")
-			delay := c.calculateBackoff(attempt, resp.Header.Get("Retry-After"))
+			delay := c.rateLimiter.Backoff(attempt, resp.Header.Get("Retry-After"))
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
@@ -110,24 +96,6 @@ func (c *Client) doRequest(ctx context.Context, method, path string, query url.V
 	return nil, fmt.Errorf("max retries exceeded")
 }
 
-// calculateBackoff computes delay with exponential backoff and jitter.
-func (c *Client) calculateBackoff(attempt int, retryAfter string) time.Duration {
-	if retryAfter != "" {
-		if seconds, err := strconv.Atoi(retryAfter); err == nil {
-			return time.Duration(seconds) * time.Second
-		}
-	}
-
-	delay := float64(c.rateLimiter.BaseDelay) * math.Pow(2, float64(attempt))
-	jitter := 0.7 + rand.Float64()*0.6
-	delay *= jitter
-
-	if delay > float64(c.rateLimiter.MaxDelay) {
-		delay = float64(c.rateLimiter.MaxDelay)
-	}
-
-	return time.Duration(delay)
-}
 
 // isFixable returns true if any coordinate has a fix available.
 func isFixable(coords []coordinate) bool {
