@@ -428,6 +428,26 @@ func ThroughputLine(data metrics.ThroughputResult, cfg Config, path string) erro
 	return writePageHTML(path, title, content)
 }
 
+// Widget is a single square status tile in a widget grid page.
+type Widget struct {
+	Name       string // displayed at the top of the widget
+	Value      string // large number or short status text in the center
+	Label      string // small descriptive label at the bottom
+	StateClass string // "widget-alerted" (red) or "widget-ok" (green)
+}
+
+// WidgetPageData holds the data for a full widget grid HTML page.
+type WidgetPageData struct {
+	Title    string
+	Subtitle string
+	Widgets  []Widget
+}
+
+// WidgetPage writes an HTML page of square status widgets to path.
+func WidgetPage(data WidgetPageData, path string) error {
+	return writeHTML(path, "widgets.html.tmpl", data)
+}
+
 // LongestCycleTimeTable creates an HTML table of longest cycle times.
 func LongestCycleTimeTable(rows []LongestCycleTimeRow, title, jiraBaseURL, path string) error {
 	content, err := LongestCycleTimeTableHTML(rows, title, jiraBaseURL)

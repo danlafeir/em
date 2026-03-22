@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"devctl-em/internal/charts"
 	"devctl-em/internal/datadog"
 	"devctl-em/internal/output"
 )
@@ -155,6 +156,40 @@ func runDatadogMonitors(cmd *cobra.Command, args []string) error {
 			r.fireCount,
 			lastFired)
 	}
+
+	// Generate HTML widget page
+	widgets := make([]charts.Widget, len(rows))
+	for i, r := range rows {
+		label := "alerts"
+		if r.fireCount == 1 {
+			label = "alert"
+		}
+		if !r.lastFired.IsZero() {
+			label += " · last " + r.lastFired.Format("Jan 2")
+		}
+		stateClass := "widget-ok"
+		if r.fireCount > 0 {
+			stateClass = "widget-alerted"
+		}
+		widgets[i] = charts.Widget{
+			Name:       r.monitor.Name,
+			Value:      strconv.Itoa(r.fireCount),
+			Label:      label,
+			StateClass: stateClass,
+		}
+	}
+	subtitle := fmt.Sprintf("%s to %s · %d monitors, %d triggered",
+		from.Format("Jan 2"), to.Format("Jan 2"), len(rows), triggered)
+	outputPath := getDatadogOutputPath("monitors", "html")
+	if err := charts.WidgetPage(charts.WidgetPageData{
+		Title:    "Monitors · " + team,
+		Subtitle: subtitle,
+		Widgets:  widgets,
+	}, outputPath); err != nil {
+		return fmt.Errorf("failed to generate HTML: %w", err)
+	}
+	fmt.Printf("\nReport saved to %s\n", outputPath)
+	charts.OpenBrowser(outputPath)
 
 	return nil
 }

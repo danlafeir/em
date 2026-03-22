@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"devctl-em/internal/charts"
 	"devctl-em/internal/output"
 )
 
@@ -31,12 +32,13 @@ func init() {
 }
 
 type sloResult struct {
-	App     string
-	Name    string
-	Type    string
-	Target  float64
-	Current float64
-	Budget  float64
+	App      string
+	Name     string
+	Type     string
+	Target   float64
+	Current  float64
+	Budget   float64
+	Violated bool
 }
 
 func runDatadogSLOs(cmd *cobra.Command, args []string) error {
@@ -78,8 +80,8 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Checking %d SLOs...\n", len(slos))
 
+	var allResults []sloResult
 	var violated []sloResult
-	var totalChecked int
 
 	for _, slo := range slos {
 		history, err := client.GetSLOHistory(ctx, slo.ID, from, to)
@@ -87,7 +89,6 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 			fmt.Printf("  Warning: could not fetch history for %q: %v\n", slo.Name, err)
 			continue
 		}
-		totalChecked++
 
 		// Find the primary target (first threshold)
 		target := 99.9
@@ -96,15 +97,19 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 		}
 
 		current := history.SLIValue * 100 // API returns as decimal
-		if current < target {
-			violated = append(violated, sloResult{
-				App:     extractSLOApp(slo.Tags),
-				Name:    slo.Name,
-				Type:    slo.Type,
-				Target:  target,
-				Current: current,
-				Budget:  history.ErrorBudgetRemaining * 100,
-			})
+		isViolated := current < target
+		r := sloResult{
+			App:      extractSLOApp(slo.Tags),
+			Name:     slo.Name,
+			Type:     slo.Type,
+			Target:   target,
+			Current:  current,
+			Budget:   history.ErrorBudgetRemaining * 100,
+			Violated: isViolated,
+		}
+		allResults = append(allResults, r)
+		if isViolated {
+			violated = append(violated, r)
 		}
 	}
 
@@ -123,8 +128,7 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 	fmt.Printf("==============\n\n")
 
 	if len(violated) == 0 {
-		fmt.Printf("No SLO violations found. All %d SLOs are meeting their targets.\n", totalChecked)
-		return nil
+		fmt.Printf("No SLO violations found. All %d SLOs are meeting their targets.\n", len(allResults))
 	}
 
 	// Group by application
@@ -187,8 +191,43 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 	// Summary
 	fmt.Printf("Summary\n")
 	fmt.Printf("-------\n")
-	fmt.Printf("SLOs checked: %d\n", totalChecked)
+	fmt.Printf("SLOs checked: %d\n", len(allResults))
 	fmt.Printf("Violated: %d (across %d apps)\n", len(violated), len(grouped))
+
+	// Generate HTML widget page — show all SLOs, violated ones first
+	sort.Slice(allResults, func(i, j int) bool {
+		if allResults[i].Violated != allResults[j].Violated {
+			return allResults[i].Violated
+		}
+		return allResults[i].Name < allResults[j].Name
+	})
+	widgets := make([]charts.Widget, len(allResults))
+	for i, r := range allResults {
+		stateClass := "widget-ok"
+		value := "OK"
+		if r.Violated {
+			stateClass = "widget-alerted"
+			value = "VIOLATED"
+		}
+		widgets[i] = charts.Widget{
+			Name:       r.Name,
+			Value:      value,
+			Label:      fmt.Sprintf("%.2f%% SLI · target %.2f%%", r.Current, r.Target),
+			StateClass: stateClass,
+		}
+	}
+	subtitle := fmt.Sprintf("%s to %s · %d SLOs, %d violated",
+		from.Format("Jan 2"), to.Format("Jan 2"), len(allResults), len(violated))
+	outputPath := getDatadogOutputPath("slos", "html")
+	if err := charts.WidgetPage(charts.WidgetPageData{
+		Title:    "SLOs · " + team,
+		Subtitle: subtitle,
+		Widgets:  widgets,
+	}, outputPath); err != nil {
+		return fmt.Errorf("failed to generate HTML: %w", err)
+	}
+	fmt.Printf("\nReport saved to %s\n", outputPath)
+	charts.OpenBrowser(outputPath)
 
 	return nil
 }
