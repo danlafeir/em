@@ -34,6 +34,11 @@ hr.divider{border:none;border-top:2px solid #eee;margin:32px 0}
   {{.SnykSummaryHTML}}
   {{.SnykChartHTML}}
   {{end}}
+  {{if .DatadogHTML}}
+  <hr class="divider">
+  <h2>Datadog</h2>
+  {{.DatadogHTML}}
+  {{end}}
 </div>
 </body>
 </html>

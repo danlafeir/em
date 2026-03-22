@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"devctl-em/internal/charts"
+	"devctl-em/internal/datadog"
 	"devctl-em/internal/output"
 )
 
@@ -40,6 +41,112 @@ type sloResult struct {
 	Current  float64
 	Budget   float64
 	Violated bool
+}
+
+// fetchSLORawData lists SLOs for the team and fetches their history over the given window.
+// Returns all results and a per-SLO violation event count. Prints warnings when verbose is true.
+func fetchSLORawData(ctx context.Context, client *datadog.Client, team string, from, to time.Time, verbose bool) ([]sloResult, map[string]int, error) {
+	tagsQuery := "team:" + team
+	slos, err := client.ListSLOs(ctx, tagsQuery)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to list SLOs: %w", err)
+	}
+	if len(slos) == 0 {
+		return nil, nil, nil
+	}
+
+	sloEvents, err := client.ListSLOEvents(ctx, from, to)
+	if err != nil && verbose {
+		fmt.Printf("  Warning: could not fetch SLO events: %v\n", err)
+	}
+	eventCountByID := make(map[string]int)
+	for _, e := range sloEvents {
+		if e.SLOID != "" {
+			eventCountByID[e.SLOID]++
+		}
+	}
+
+	if verbose {
+		fmt.Printf("Checking %d SLOs...\n", len(slos))
+	}
+
+	var allResults []sloResult
+	for _, slo := range slos {
+		history, err := client.GetSLOHistory(ctx, slo.ID, from, to)
+		if err != nil {
+			if verbose {
+				fmt.Printf("  Warning: could not fetch history for %q: %v\n", slo.Name, err)
+			}
+			continue
+		}
+		target := 99.9
+		if len(slo.Thresholds) > 0 {
+			target = slo.Thresholds[0].Target
+		}
+		current := history.SLIValue
+		allResults = append(allResults, sloResult{
+			SLOID:    slo.ID,
+			App:      extractSLOApp(slo.Tags),
+			Name:     slo.Name,
+			Type:     slo.Type,
+			Target:   target,
+			Current:  current,
+			Budget:   float64(history.ErrorBudgetRemaining),
+			Violated: current < target,
+		})
+	}
+	return allResults, eventCountByID, nil
+}
+
+// sloResultsToWidgetSections groups results by app and returns widget sections sorted alphabetically,
+// with violated / most-events SLOs first within each section.
+func sloResultsToWidgetSections(allResults []sloResult, eventCountByID map[string]int) []charts.WidgetSection {
+	byApp := groupSLOsByApp(allResults)
+	appNames := make([]string, 0, len(byApp))
+	for app := range byApp {
+		appNames = append(appNames, app)
+	}
+	sort.Strings(appNames)
+
+	sections := make([]charts.WidgetSection, 0, len(byApp))
+	for _, app := range appNames {
+		results := byApp[app]
+		sort.Slice(results, func(i, j int) bool {
+			ci, cj := eventCountByID[results[i].SLOID], eventCountByID[results[j].SLOID]
+			if ci != cj {
+				return ci > cj
+			}
+			if results[i].Violated != results[j].Violated {
+				return results[i].Violated
+			}
+			return results[i].Name < results[j].Name
+		})
+		title := app
+		if title == "" {
+			title = "(untagged)"
+		}
+		widgets := make([]charts.Widget, len(results))
+		for i, r := range results {
+			count := eventCountByID[r.SLOID]
+			stateClass := "widget-ok"
+			if r.Violated || count > 0 {
+				stateClass = "widget-alerted"
+			}
+			label := "violations"
+			if count == 1 {
+				label = "violation"
+			}
+			widgets[i] = charts.Widget{
+				Name:       r.Name,
+				Definition: fmt.Sprintf("SLI %.2f%% · target %.2f%%", r.Current, r.Target),
+				Value:      strconv.Itoa(count),
+				Label:      label,
+				StateClass: stateClass,
+			}
+		}
+		sections = append(sections, charts.WidgetSection{Title: title, Widgets: widgets})
+	}
+	return sections
 }
 
 func runDatadogSLOs(cmd *cobra.Command, args []string) error {
@@ -71,62 +178,18 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Fetching SLOs for team %q (%s to %s)...\n",
 		team, from.Format("2006-01-02"), to.Format("2006-01-02"))
 
-	tagsQuery := "team:" + team
-	slos, err := client.ListSLOs(ctx, tagsQuery)
+	allResults, eventCountByID, err := fetchSLORawData(ctx, client, team, from, to, true)
 	if err != nil {
-		return fmt.Errorf("failed to list SLOs: %w", err)
+		return err
 	}
-
-	if len(slos) == 0 {
+	if len(allResults) == 0 {
 		fmt.Println("\nNo SLOs found for the specified team.")
 		return nil
 	}
 
-	// Fetch SLO violation events and build a count per SLO ID.
-	sloEvents, err := client.ListSLOEvents(ctx, from, to)
-	if err != nil {
-		fmt.Printf("  Warning: could not fetch SLO events: %v\n", err)
-	}
-	eventCountByID := make(map[string]int)
-	for _, e := range sloEvents {
-		if e.SLOID != "" {
-			eventCountByID[e.SLOID]++
-		}
-	}
-
-	fmt.Printf("Checking %d SLOs...\n", len(slos))
-
-	var allResults []sloResult
 	var violated []sloResult
-
-	for _, slo := range slos {
-		history, err := client.GetSLOHistory(ctx, slo.ID, from, to)
-		if err != nil {
-			fmt.Printf("  Warning: could not fetch history for %q: %v\n", slo.Name, err)
-			continue
-		}
-
-		// Find the primary target (first threshold).
-		target := 99.9
-		if len(slo.Thresholds) > 0 {
-			target = slo.Thresholds[0].Target
-		}
-
-		current := history.SLIValue
-		isViolated := current < target
-
-		r := sloResult{
-			SLOID:    slo.ID,
-			App:      extractSLOApp(slo.Tags),
-			Name:     slo.Name,
-			Type:     slo.Type,
-			Target:   target,
-			Current:  current,
-			Budget:   float64(history.ErrorBudgetRemaining),
-			Violated: isViolated,
-		}
-		allResults = append(allResults, r)
-		if isViolated {
+	for _, r := range allResults {
+		if r.Violated {
 			violated = append(violated, r)
 		}
 	}
@@ -213,56 +276,7 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Violated: %d (across %d apps)\n", len(violated), len(grouped))
 
 	// Generate HTML widget page — group by app, violated SLOs first within each group.
-	toWidget := func(r sloResult) charts.Widget {
-		count := eventCountByID[r.SLOID]
-		stateClass := "widget-ok"
-		if r.Violated || count > 0 {
-			stateClass = "widget-alerted"
-		}
-		value := strconv.Itoa(count)
-		label := "violations"
-		if count == 1 {
-			label = "violation"
-		}
-		return charts.Widget{
-			Name:       r.Name,
-			Definition: fmt.Sprintf("SLI %.2f%% · target %.2f%%", r.Current, r.Target),
-			Value:      value,
-			Label:      label,
-			StateClass: stateClass,
-		}
-	}
-
-	byApp := groupSLOsByApp(allResults)
-	appNames := make([]string, 0, len(byApp))
-	for app := range byApp {
-		appNames = append(appNames, app)
-	}
-	sort.Strings(appNames)
-
-	sections := make([]charts.WidgetSection, 0, len(byApp))
-	for _, app := range appNames {
-		results := byApp[app]
-		sort.Slice(results, func(i, j int) bool {
-			ci, cj := eventCountByID[results[i].SLOID], eventCountByID[results[j].SLOID]
-			if ci != cj {
-				return ci > cj
-			}
-			if results[i].Violated != results[j].Violated {
-				return results[i].Violated
-			}
-			return results[i].Name < results[j].Name
-		})
-		title := app
-		if title == "" {
-			title = "(untagged)"
-		}
-		widgets := make([]charts.Widget, len(results))
-		for i, r := range results {
-			widgets[i] = toWidget(r)
-		}
-		sections = append(sections, charts.WidgetSection{Title: title, Widgets: widgets})
-	}
+	sections := sloResultsToWidgetSections(allResults, eventCountByID)
 
 	subtitle := fmt.Sprintf("%s to %s · %d SLOs, %d violated",
 		from.Format("Jan 2"), to.Format("Jan 2"), len(allResults), len(violated))

@@ -457,6 +457,11 @@ func WidgetPage(data WidgetPageData, path string) error {
 	return writeHTML(path, "widgets.html.tmpl", data)
 }
 
+// SLOWidgetSectionsHTML returns an embeddable HTML fragment of SLO widget sections.
+func SLOWidgetSectionsHTML(sections []WidgetSection) (template.HTML, error) {
+	return renderHTML("fragment_slo_widgets.html.tmpl", sections)
+}
+
 // LongestCycleTimeTable creates an HTML table of longest cycle times.
 func LongestCycleTimeTable(rows []LongestCycleTimeRow, title, jiraBaseURL, path string) error {
 	content, err := LongestCycleTimeTableHTML(rows, title, jiraBaseURL)
@@ -808,6 +813,7 @@ func CombinedTeamReport(
 	jiraBaseURL string,
 	snykSummary SnykSummary,
 	snykWeeks []SnykIssueWeek,
+	sloSections []WidgetSection,
 	path string,
 ) error {
 	var dfHTML template.HTML
@@ -849,6 +855,13 @@ func CombinedTeamReport(
 			return err
 		}
 	}
+	var sloHTML template.HTML
+	if len(sloSections) > 0 {
+		sloHTML, err = SLOWidgetSectionsHTML(sloSections)
+		if err != nil {
+			return err
+		}
+	}
 	return writeHTML(path, "team_report.html.tmpl", map[string]any{
 		"Title":           title,
 		"SummaryHTML":     summaryHTML,
@@ -859,6 +872,7 @@ func CombinedTeamReport(
 		"ForecastHTML":    forecastHTML,
 		"SnykSummaryHTML": snykSummaryHTML,
 		"SnykChartHTML":   snykChartHTML,
+		"DatadogHTML":     sloHTML,
 	})
 }
 

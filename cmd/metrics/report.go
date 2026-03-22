@@ -85,6 +85,7 @@ func generateCombinedTeamReport() error {
 	deployments := fetchGitHubDeploymentsForReport(ctx, team, from, to)
 
 	snykSummary, snykWeeks := fetchSnykDataForReport(ctx, from, to)
+	sloSections := fetchDatadogSLOsForReport(ctx, from, to)
 
 	title := "Engineering Report"
 	if team != "" {
@@ -104,6 +105,7 @@ func generateCombinedTeamReport() error {
 		jiraData.BaseURL,
 		snykSummary,
 		snykWeeks,
+		sloSections,
 		outputPath,
 	); err != nil {
 		return fmt.Errorf("render: %w", err)
@@ -189,4 +191,30 @@ func fetchSnykDataForReport(ctx context.Context, from, to time.Time) (charts.Sny
 	}
 	weeks := bucketByWeek(issues, resolved, openCounts.Total, openCounts.Fixable, openCounts.IgnoredFixable, openCounts.IgnoredUnfixable, from, to)
 	return summary, weeks
+}
+
+// fetchDatadogSLOsForReport fetches SLO data for the selected team and returns widget sections.
+// Returns nil silently if Datadog is not configured or data is unavailable.
+func fetchDatadogSLOsForReport(ctx context.Context, from, to time.Time) []charts.WidgetSection {
+	client, err := getDatadogClient()
+	if err != nil {
+		return nil
+	}
+	team := getDatadogTeam()
+	if team == "" {
+		return nil
+	}
+	if err := client.TestConnection(ctx); err != nil {
+		return nil
+	}
+	// Default SLO window to last 14 days when no explicit flag was set.
+	sloFrom := from
+	if ddFromFlag == "" {
+		sloFrom = time.Now().AddDate(0, 0, -14)
+	}
+	results, eventCountByID, err := fetchSLORawData(ctx, client, team, sloFrom, to, false)
+	if err != nil || len(results) == 0 {
+		return nil
+	}
+	return sloResultsToWidgetSections(results, eventCountByID)
 }
