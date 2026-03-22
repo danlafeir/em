@@ -52,7 +52,7 @@ func runDatadogMonitors(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	if ddFromFlag == "" {
-		from = time.Now().AddDate(0, 0, -14)
+		from = time.Now().AddDate(0, -1, 0)
 	}
 
 	team := getDatadogTeam()
