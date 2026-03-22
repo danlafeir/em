@@ -114,7 +114,7 @@ func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql 
 	throughputResult := computeThroughputFromHistories(completedHistories, mapper, pkgmetrics.FrequencyWeekly, from, to)
 
 	// Longest Cycle Time table
-	ctRows := buildLongestCTRows(cycleResults, outlierKeys, reportLongestCTLimit)
+	ctRows := buildLongestCTRows(keptResults, nil, reportLongestCTLimit)
 
 	// Forecast — use 90-day throughput window for Monte Carlo
 	var forecastRows []charts.ForecastRow
@@ -216,7 +216,7 @@ func loadJIRAMetricsData(team string, client *jira.Client) (jiraMetricsData, err
 	}
 	forecastRows, _ := loadJiraForecastData(team) // optional
 
-	ctRows := buildLongestCTRows(ct.all, ct.outlierKeys, reportLongestCTLimit)
+	ctRows := buildLongestCTRows(ct.kept, nil, reportLongestCTLimit)
 	summary := buildSummary(ct.kept, throughputResult)
 
 	baseURL := ""
