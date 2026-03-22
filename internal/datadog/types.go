@@ -160,3 +160,43 @@ type monitorEventListResponse struct {
 		} `json:"page"`
 	} `json:"meta"`
 }
+
+// SLOEvent represents an SLO violation event from the Events v2 API.
+type SLOEvent struct {
+	ID        string
+	SLOID     string // SLO ID, extracted from nested attributes or tags
+	Title     string
+	Timestamp time.Time
+	Tags      []string
+}
+
+// sloEventInnerAttrs holds the nested SLO object inside event attributes.
+type sloEventInnerAttrs struct {
+	SLO struct {
+		ID string `json:"id"`
+	} `json:"slo"`
+}
+
+// sloEventAttributes holds raw attributes from the Events v2 API for SLO events.
+type sloEventAttributes struct {
+	Title      string             `json:"title"`
+	Timestamp  eventV2Timestamp   `json:"timestamp"`
+	Tags       []string           `json:"tags"`
+	Attributes sloEventInnerAttrs `json:"attributes"`
+}
+
+// sloEventData is a single item in the Events v2 SLO response.
+type sloEventData struct {
+	ID         string             `json:"id"`
+	Attributes sloEventAttributes `json:"attributes"`
+}
+
+// sloEventListResponse is the raw Events v2 API list response for SLO events.
+type sloEventListResponse struct {
+	Data []sloEventData `json:"data"`
+	Meta struct {
+		Page struct {
+			After string `json:"after"`
+		} `json:"page"`
+	} `json:"meta"`
+}

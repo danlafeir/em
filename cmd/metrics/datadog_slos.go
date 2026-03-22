@@ -5,7 +5,9 @@ import (
 	"encoding/csv"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -32,6 +34,7 @@ func init() {
 }
 
 type sloResult struct {
+	SLOID    string
 	App      string
 	Name     string
 	Type     string
@@ -63,6 +66,9 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	if ddFromFlag == "" {
+		from = time.Now().AddDate(0, 0, -14)
+	}
 
 	fmt.Printf("Fetching SLOs for team %q (%s to %s)...\n",
 		team, from.Format("2006-01-02"), to.Format("2006-01-02"))
@@ -76,6 +82,18 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 	if len(slos) == 0 {
 		fmt.Println("\nNo SLOs found for the specified team.")
 		return nil
+	}
+
+	// Fetch SLO violation events and build a count per SLO ID.
+	sloEvents, err := client.ListSLOEvents(ctx, from, to)
+	if err != nil {
+		fmt.Printf("  Warning: could not fetch SLO events: %v\n", err)
+	}
+	eventCountByID := make(map[string]int)
+	for _, e := range sloEvents {
+		if e.SLOID != "" {
+			eventCountByID[e.SLOID]++
+		}
 	}
 
 	fmt.Printf("Checking %d SLOs...\n", len(slos))
@@ -99,6 +117,7 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 		current := history.SLIValue * 100 // API returns as decimal
 		isViolated := current < target
 		r := sloResult{
+			SLOID:    slo.ID,
 			App:      extractSLOApp(slo.Tags),
 			Name:     slo.Name,
 			Type:     slo.Type,
@@ -196,6 +215,10 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 
 	// Generate HTML widget page — show all SLOs, violated ones first
 	sort.Slice(allResults, func(i, j int) bool {
+		ci, cj := eventCountByID[allResults[i].SLOID], eventCountByID[allResults[j].SLOID]
+		if ci != cj {
+			return ci > cj
+		}
 		if allResults[i].Violated != allResults[j].Violated {
 			return allResults[i].Violated
 		}
@@ -203,16 +226,23 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 	})
 	widgets := make([]charts.Widget, len(allResults))
 	for i, r := range allResults {
+		count := eventCountByID[r.SLOID]
 		stateClass := "widget-ok"
-		value := "OK"
-		if r.Violated {
+		if r.Violated || count > 0 {
 			stateClass = "widget-alerted"
-			value = "VIOLATED"
+		}
+		value := strconv.Itoa(count)
+		label := "violations"
+		if count == 1 {
+			label = "violation"
+		}
+		if r.Current > 0 {
+			label += fmt.Sprintf(" · SLI %.2f%%", r.Current)
 		}
 		widgets[i] = charts.Widget{
 			Name:       r.Name,
 			Value:      value,
-			Label:      fmt.Sprintf("%.2f%% SLI · target %.2f%%", r.Current, r.Target),
+			Label:      label,
 			StateClass: stateClass,
 		}
 	}

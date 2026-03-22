@@ -214,6 +214,64 @@ func monitorIDFromEventTags(tags []string) int64 {
 	return 0
 }
 
+// ListSLOEvents fetches SLO violation events from the Events v2 API.
+func (c *Client) ListSLOEvents(ctx context.Context, from, to time.Time) ([]SLOEvent, error) {
+	var all []SLOEvent
+	var cursor string
+
+	for {
+		query := url.Values{}
+		query.Set("filter[query]", "sources:slo")
+		query.Set("filter[from]", from.UTC().Format(time.RFC3339))
+		query.Set("filter[to]", to.UTC().Format(time.RFC3339))
+		query.Set("page[limit]", "1000")
+		if cursor != "" {
+			query.Set("page[cursor]", cursor)
+		}
+
+		body, err := c.doRequest(ctx, "GET", c.credentials.BaseURL(), "/api/v2/events", query)
+		if err != nil {
+			return nil, fmt.Errorf("listing SLO events: %w", err)
+		}
+
+		var resp sloEventListResponse
+		if err := json.Unmarshal(body, &resp); err != nil {
+			return nil, fmt.Errorf("parsing SLO events: %w", err)
+		}
+
+		for _, d := range resp.Data {
+			sloID := d.Attributes.Attributes.SLO.ID
+			if sloID == "" {
+				sloID = sloIDFromEventTags(d.Attributes.Tags)
+			}
+			all = append(all, SLOEvent{
+				ID:        d.ID,
+				SLOID:     sloID,
+				Title:     d.Attributes.Title,
+				Timestamp: d.Attributes.Timestamp.Time,
+				Tags:      d.Attributes.Tags,
+			})
+		}
+
+		cursor = resp.Meta.Page.After
+		if cursor == "" || len(resp.Data) == 0 {
+			break
+		}
+	}
+
+	return all, nil
+}
+
+// sloIDFromEventTags extracts an SLO ID from event tags like "slo_id:abc123".
+func sloIDFromEventTags(tags []string) string {
+	for _, t := range tags {
+		if after, ok := strings.CutPrefix(t, "slo_id:"); ok {
+			return after
+		}
+	}
+	return ""
+}
+
 // ListSLOs lists SLOs filtered by a tags query string.
 func (c *Client) ListSLOs(ctx context.Context, tagsQuery string) ([]SLOData, error) {
 	query := url.Values{}
