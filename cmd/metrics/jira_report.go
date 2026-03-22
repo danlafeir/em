@@ -113,19 +113,13 @@ func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql 
 	}
 
 	log("Calculating cycle time metrics...\n")
-	cycleCalc := pkgmetrics.NewCycleTimeCalculator(mapper)
-	cycleResults := cycleCalc.Calculate(completedHistories)
-	keptResults, outlierResults := pkgmetrics.FilterCycleTimeOutliers(cycleResults, 2.0)
+	cycleResults, keptResults, outlierKeys := computeCycleTimeFromHistories(completedHistories, mapper)
 
 	log("Calculating throughput metrics...\n")
 	throughputCalc := pkgmetrics.NewThroughputCalculator(pkgmetrics.FrequencyWeekly, mapper)
 	throughputResult := throughputCalc.Calculate(completedHistories, from, to)
 
 	// Longest Cycle Time table
-	outlierKeys := make(map[string]bool, len(outlierResults))
-	for _, r := range outlierResults {
-		outlierKeys[r.IssueKey] = true
-	}
 	ctRows := buildLongestCTRows(cycleResults, outlierKeys, reportLongestCTLimit)
 
 	// Forecast — use 90-day throughput window for Monte Carlo

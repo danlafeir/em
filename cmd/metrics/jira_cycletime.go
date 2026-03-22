@@ -113,14 +113,8 @@ func generateCycleTime(ctx context.Context, client *jira.Client, team, jql strin
 			histories[i] = mapper.MapIssueHistory(issue)
 		}
 
-		calculator := metrics.NewCycleTimeCalculator(mapper)
-		results = calculator.Calculate(histories)
-
-		_, outlierResults := metrics.FilterCycleTimeOutliers(results, 2.0)
-		outlierKeys := make(map[string]bool, len(outlierResults))
-		for _, r := range outlierResults {
-			outlierKeys[r.IssueKey] = true
-		}
+		var outlierKeys map[string]bool
+		results, _, outlierKeys = computeCycleTimeFromHistories(histories, mapper)
 		if saveRawDataFlag {
 			if err := saveJiraCycleTimeData(results, outlierKeys, team); err == nil {
 				fmt.Printf("Raw data saved to: %s\n", savedJiraCycleTimePath(team))
@@ -206,6 +200,20 @@ func exportCycleTimeCSV(results []metrics.CycleTimeResult, path string) error {
 	}
 
 	return nil
+}
+
+// computeCycleTimeFromHistories calculates cycle times for all issues and splits
+// them into all results, outlier-filtered results, and an outlier key set.
+// The 2σ threshold is applied consistently across all callers.
+func computeCycleTimeFromHistories(histories []workflow.IssueHistory, mapper *workflow.Mapper) (all, kept []metrics.CycleTimeResult, outlierKeys map[string]bool) {
+	calculator := metrics.NewCycleTimeCalculator(mapper)
+	all = calculator.Calculate(histories)
+	kept, outliers := metrics.FilterCycleTimeOutliers(all, 2.0)
+	outlierKeys = make(map[string]bool, len(outliers))
+	for _, r := range outliers {
+		outlierKeys[r.IssueKey] = true
+	}
+	return
 }
 
 // formatDuration formats a duration as a human-readable string.
