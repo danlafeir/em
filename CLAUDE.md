@@ -48,3 +48,7 @@ Common flags across metrics commands: `--jql`, `--from`/`--to` (YYYY-MM-DD), `-o
 ## Go Module
 
 Module path: `devctl-em`, Go 1.24.3. Key dependencies: `github.com/danlafeir/devctl` (config/secrets/update), `spf13/cobra`, `gonum.org/v1/plot`, `xuri/excelize/v2`.
+
+## Testing Guidelines
+
+Use tests to indicate when we are breaking existing functionality. If that happens, prompt the user to ensure we are doing the right thing by changing the behavior intentionally.
