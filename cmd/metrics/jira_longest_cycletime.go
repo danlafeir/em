@@ -93,6 +93,12 @@ func generateLongestCycleTime(ctx context.Context, client *jira.Client, team, jq
 		return nil
 	}
 
+	kept, outliers := metrics.FilterCycleTimeOutliers(results, 2.0)
+	if len(outliers) > 0 {
+		fmt.Printf("Removed %d outlier(s) (beyond 2σ from mean)\n", len(outliers))
+	}
+	results = kept
+
 	sort.Slice(results, func(i, j int) bool {
 		return results[i].CycleTime > results[j].CycleTime
 	})
