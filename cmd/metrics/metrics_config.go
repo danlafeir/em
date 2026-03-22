@@ -14,7 +14,7 @@ var metricsConfigCmd = &cobra.Command{
 	Short: "Interactive configuration for all metrics services",
 	Long: `Runs the interactive configuration for each metrics service in sequence.
 
-Configures JIRA, GitHub, and Snyk in order. Each section can be skipped
+Configures JIRA, GitHub, Snyk, and Datadog in order. Each section can be skipped
 by pressing Ctrl+C, but errors are shown and configuration continues.
 
 Examples:
@@ -42,6 +42,12 @@ func runMetricsConfig(cmd *cobra.Command, args []string) error {
 	fmt.Println("=== Snyk ===")
 	if err := runSnykConfig(cmd, args); err != nil {
 		fmt.Printf("Warning: Snyk config failed: %v\n", err)
+	}
+
+	fmt.Println()
+	fmt.Println("=== Datadog ===")
+	if err := runDatadogConfig(cmd, args); err != nil {
+		fmt.Printf("Warning: Datadog config failed: %v\n", err)
 	}
 
 	fmt.Println()
