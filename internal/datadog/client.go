@@ -150,7 +150,7 @@ func (c *Client) ListMonitorEvents(ctx context.Context, tagsQuery string, from, 
 	var all []MonitorEvent
 	var cursor string
 
-	filterQuery := "sources:monitor alert_transition:(alert OR warn OR \"no data\")"
+	filterQuery := "sources:monitor alert_transition:(alert OR \"no data\")"
 	if tagsQuery != "" {
 		filterQuery += " " + tagsQuery
 	}
