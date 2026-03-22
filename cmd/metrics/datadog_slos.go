@@ -20,17 +20,21 @@ var datadogSLOsCmd = &cobra.Command{
 	Short: "SLO violation tracking",
 	Long: `Check SLOs for violations and display current status.
 
-Only violated SLOs (where current SLI value < target) are shown.
+Use --name to filter to a specific SLO by name substring and see raw API values.
 
 Examples:
   devctl-em metrics datadog slos
+  devctl-em metrics datadog slos --name "checkout latency"
   devctl-em metrics datadog slos --from 2025-01-01 --to 2025-06-30
   devctl-em metrics datadog slos -f csv -o slos.csv`,
 	RunE: runDatadogSLOs,
 }
 
+var ddSLONameFlag string
+
 func init() {
 	DatadogCmd.AddCommand(datadogSLOsCmd)
+	datadogSLOsCmd.Flags().StringVar(&ddSLONameFlag, "name", "", "Filter to SLOs whose name contains this substring")
 }
 
 type sloResult struct {
@@ -96,6 +100,21 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Filter by name if requested.
+	if ddSLONameFlag != "" {
+		filtered := slos[:0]
+		for _, s := range slos {
+			if strings.Contains(strings.ToLower(s.Name), strings.ToLower(ddSLONameFlag)) {
+				filtered = append(filtered, s)
+			}
+		}
+		slos = filtered
+		if len(slos) == 0 {
+			fmt.Printf("No SLOs found matching %q.\n", ddSLONameFlag)
+			return nil
+		}
+	}
+
 	fmt.Printf("Checking %d SLOs...\n", len(slos))
 
 	var allResults []sloResult
@@ -108,14 +127,33 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		// Find the primary target (first threshold)
+		// Find the primary target (first threshold).
 		target := 99.9
 		if len(slo.Thresholds) > 0 {
 			target = slo.Thresholds[0].Target
 		}
 
-		current := history.SLIValue * 100 // API returns as decimal
+		// The API returns sli_value as a decimal (0–1); multiply to get percentage.
+		current := history.SLIValue * 100
 		isViolated := current < target
+
+		if ddSLONameFlag != "" {
+			// Print raw API values for debugging when filtering to a specific SLO.
+			fmt.Printf("\nSLO: %s\n", slo.Name)
+			fmt.Printf("  ID:              %s\n", slo.ID)
+			fmt.Printf("  Type:            %s\n", slo.Type)
+			fmt.Printf("  raw sli_value:   %g\n", history.SLIValue)
+			fmt.Printf("  current SLI:     %.4f%%\n", current)
+			fmt.Printf("  target:          %.4f%%\n", target)
+			fmt.Printf("  error_budget:    %g (raw)\n", float64(history.ErrorBudgetRemaining))
+			fmt.Printf("  violation events: %d\n", eventCountByID[slo.ID])
+			if isViolated {
+				fmt.Printf("  status:          VIOLATED (%.4f%% < %.4f%%)\n", current, target)
+			} else {
+				fmt.Printf("  status:          OK\n")
+			}
+		}
+
 		r := sloResult{
 			SLOID:    slo.ID,
 			App:      extractSLOApp(slo.Tags),
