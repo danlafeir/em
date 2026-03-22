@@ -11,7 +11,6 @@ import (
 	"devctl-em/internal/charts"
 	"devctl-em/internal/jira"
 	pkgmetrics "devctl-em/internal/metrics"
-	"devctl-em/internal/workflow"
 )
 
 var reportCmd = &cobra.Command{
@@ -106,11 +105,7 @@ func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql 
 	}
 	log("\nFound %d completed issues\n\n", len(completedIssues))
 
-	mapper := getWorkflowMapper()
-	completedHistories := make([]workflow.IssueHistory, len(completedIssues))
-	for i, issue := range completedIssues {
-		completedHistories[i] = mapper.MapIssueHistory(issue)
-	}
+	completedHistories, mapper := mapIssuesToHistories(completedIssues)
 
 	log("Calculating cycle time metrics...\n")
 	cycleResults, keptResults, outlierKeys := computeCycleTimeFromHistories(completedHistories, mapper)
@@ -144,11 +139,8 @@ func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql 
 				if verbose {
 					fmt.Println()
 				}
-				forecastHistories := make([]workflow.IssueHistory, len(forecastIssues))
-				for i, issue := range forecastIssues {
-					forecastHistories[i] = mapper.MapIssueHistory(issue)
-				}
-				fcResult := computeThroughputFromHistories(forecastHistories, mapper, pkgmetrics.FrequencyWeekly, forecastFrom, time.Now())
+				forecastHistories, forecastMapper := mapIssuesToHistories(forecastIssues)
+				fcResult := computeThroughputFromHistories(forecastHistories, forecastMapper, pkgmetrics.FrequencyWeekly, forecastFrom, time.Now())
 				forecastThroughput = pkgmetrics.GetWeeklyThroughputValues(fcResult)
 			}
 		}

@@ -12,7 +12,6 @@ import (
 	"devctl-em/internal/charts"
 	"devctl-em/internal/jira"
 	"devctl-em/internal/metrics"
-	"devctl-em/internal/workflow"
 )
 
 const defaultLongestCTLimit = 10
@@ -68,37 +67,25 @@ func generateLongestCycleTime(ctx context.Context, client *jira.Client, team, jq
 	fmt.Printf("Fetching issues from JIRA...\n")
 	fmt.Printf("JQL: %s\n", jqlWithDates)
 
-	issues, err := client.FetchIssuesWithHistory(ctx, jqlWithDates, func(current, total int) {
-		fmt.Printf("\rProcessing issue %d/%d...", current, total)
-	})
+	histories, mapper, err := fetchAndMapIssues(ctx, client, jqlWithDates)
 	if err != nil {
 		return fmt.Errorf("failed to fetch issues: %w", err)
 	}
-	fmt.Println()
 
-	if len(issues) == 0 {
+	if len(histories) == 0 {
 		fmt.Println("No issues found matching the query.")
 		return nil
 	}
 
-	mapper := getWorkflowMapper()
+	all, kept, _ := computeCycleTimeFromHistories(histories, mapper)
 
-	histories := make([]workflow.IssueHistory, len(issues))
-	for i, issue := range issues {
-		histories[i] = mapper.MapIssueHistory(issue)
-	}
-
-	calculator := metrics.NewCycleTimeCalculator(mapper)
-	results := calculator.Calculate(histories)
-
-	if len(results) == 0 {
+	if len(all) == 0 {
 		fmt.Println("No completed issues found for cycle time calculation.")
 		return nil
 	}
 
-	kept, outliers := metrics.FilterCycleTimeOutliers(results, 2.0)
-	if len(outliers) > 0 {
-		fmt.Printf("Removed %d outlier(s) (beyond 2σ from mean)\n", len(outliers))
+	if outlierCount := len(all) - len(kept); outlierCount > 0 {
+		fmt.Printf("Removed %d outlier(s) (beyond 2σ from mean)\n", outlierCount)
 	}
 
 	rows := buildLongestCTRows(kept, nil, defaultLongestCTLimit)

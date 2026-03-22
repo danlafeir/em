@@ -315,6 +315,34 @@ func getDateRange() (time.Time, time.Time, error) {
 	return parseDateRange(fromFlag, toFlag)
 }
 
+// mapIssuesToHistories converts JIRA issues to workflow histories using the
+// configured mapper. Returns both the histories and the mapper so callers can
+// pass the mapper to compute functions.
+func mapIssuesToHistories(issues []jira.IssueWithHistory) ([]workflow.IssueHistory, *workflow.Mapper) {
+	mapper := getWorkflowMapper()
+	histories := make([]workflow.IssueHistory, len(issues))
+	for i, issue := range issues {
+		histories[i] = mapper.MapIssueHistory(issue)
+	}
+	return histories, mapper
+}
+
+// fetchAndMapIssues fetches issues with history for the given JQL, prints
+// standard progress to stdout, and maps them to workflow histories.
+// Use this in individual commands; for verbose/conditional output use
+// FetchIssuesWithHistory + mapIssuesToHistories directly.
+func fetchAndMapIssues(ctx context.Context, client *jira.Client, jql string) ([]workflow.IssueHistory, *workflow.Mapper, error) {
+	issues, err := client.FetchIssuesWithHistory(ctx, jql, func(current, total int) {
+		fmt.Printf("\rProcessing issue %d/%d...", current, total)
+	})
+	if err != nil {
+		return nil, nil, err
+	}
+	fmt.Println()
+	histories, mapper := mapIssuesToHistories(issues)
+	return histories, mapper, nil
+}
+
 // getWorkflowMapper creates a workflow mapper from configuration.
 func getWorkflowMapper() *workflow.Mapper {
 	// Check for custom workflow configuration

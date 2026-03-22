@@ -156,22 +156,13 @@ func loadWeeklyThroughput(ctx context.Context, client *jira.Client, throughputJQ
 	throughputJQL := jqlWithDateRange(throughputJQLBase, historyStart.Format("2006-01-02"), historyEnd.Format("2006-01-02"))
 
 	fmt.Println("Fetching historical throughput data...")
-	completedIssues, err := client.FetchIssuesWithHistory(ctx, throughputJQL, func(current, total int) {
-		fmt.Printf("\rProcessing: %d/%d issues...", current, total)
-	})
+	histories, mapper, err := fetchAndMapIssues(ctx, client, throughputJQL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch throughput data: %w", err)
 	}
-	fmt.Println()
 
-	if len(completedIssues) == 0 {
+	if len(histories) == 0 {
 		return nil, fmt.Errorf("no historical throughput data found - cannot forecast")
-	}
-
-	mapper := getWorkflowMapper()
-	histories := make([]workflow.IssueHistory, len(completedIssues))
-	for i, issue := range completedIssues {
-		histories[i] = mapper.MapIssueHistory(issue)
 	}
 
 	throughputResult := computeThroughputFromHistories(histories, mapper, metrics.FrequencyWeekly, historyStart, historyEnd)
@@ -701,23 +692,13 @@ func runManualForecast(ctx context.Context, client *jira.Client, throughputJQL s
 	fmt.Printf("\nFetching historical throughput data...\n")
 	fmt.Printf("JQL: %s\n", jqlWithDates)
 
-	issues, err := client.FetchIssuesWithHistory(ctx, jqlWithDates, func(current, total int) {
-		fmt.Printf("\rProcessing issue %d/%d...", current, total)
-	})
+	histories, mapper, err := fetchAndMapIssues(ctx, client, jqlWithDates)
 	if err != nil {
 		return fmt.Errorf("failed to fetch issues: %w", err)
 	}
-	fmt.Println()
 
-	if len(issues) == 0 {
+	if len(histories) == 0 {
 		return fmt.Errorf("no historical throughput data found - cannot forecast")
-	}
-
-	// Map to workflow history
-	mapper := getWorkflowMapper()
-	histories := make([]workflow.IssueHistory, len(issues))
-	for i, issue := range issues {
-		histories[i] = mapper.MapIssueHistory(issue)
 	}
 
 	// Calculate weekly throughput

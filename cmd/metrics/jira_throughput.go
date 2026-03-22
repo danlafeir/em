@@ -75,27 +75,17 @@ func generateThroughput(ctx context.Context, client *jira.Client, team, jql stri
 	fmt.Printf("Fetching issues from JIRA...\n")
 	fmt.Printf("JQL: %s\n", jqlWithDates)
 
-	issues, err := client.FetchIssuesWithHistory(ctx, jqlWithDates, func(current, total int) {
-		fmt.Printf("\rProcessing issue %d/%d...", current, total)
-	})
+	histories, mapper, err := fetchAndMapIssues(ctx, client, jqlWithDates)
 	if err != nil {
 		return fmt.Errorf("failed to fetch issues: %w", err)
 	}
-	fmt.Println()
 
-	if len(issues) == 0 {
+	if len(histories) == 0 {
 		fmt.Println("No issues found matching the query.")
 		return nil
 	}
 
-	fmt.Printf("Found %d issues\n\n", len(issues))
-
-	mapper := getWorkflowMapper()
-
-	histories := make([]workflow.IssueHistory, len(issues))
-	for i, issue := range issues {
-		histories[i] = mapper.MapIssueHistory(issue)
-	}
+	fmt.Printf("Found %d issues\n\n", len(histories))
 
 	frequency := parseThroughputFrequency(frequencyFlag)
 	result := computeThroughputFromHistories(histories, mapper, frequency, from, to)
