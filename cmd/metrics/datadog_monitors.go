@@ -73,7 +73,8 @@ func runDatadogMonitors(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Fetching alert events (%s to %s)...\n",
 		from.Format("2006-01-02"), to.Format("2006-01-02"))
-	events, err := client.ListMonitorEvents(ctx, "tags:"+teamTag, from, to)
+	// No team filter on events — we join by monitor_id against the already-team-filtered monitors list.
+	events, err := client.ListMonitorEvents(ctx, "", from, to)
 	if err != nil {
 		return fmt.Errorf("failed to list monitor events: %w", err)
 	}
