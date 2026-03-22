@@ -112,8 +112,7 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 			target = slo.Thresholds[0].Target
 		}
 
-		// The API returns sli_value as a decimal (0–1); multiply to get percentage.
-		current := history.SLIValue * 100
+		current := history.SLIValue
 		isViolated := current < target
 
 		r := sloResult{
@@ -123,7 +122,7 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 			Type:     slo.Type,
 			Target:   target,
 			Current:  current,
-			Budget:   float64(history.ErrorBudgetRemaining) * 100,
+			Budget:   float64(history.ErrorBudgetRemaining),
 			Violated: isViolated,
 		}
 		allResults = append(allResults, r)
@@ -236,11 +235,10 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 		if count == 1 {
 			label = "violation"
 		}
-		if r.Current > 0 {
-			label += fmt.Sprintf(" · SLI %.2f%%", r.Current)
-		}
+		definition := fmt.Sprintf("SLI %.2f%% · target %.2f%%", r.Current, r.Target)
 		widgets[i] = charts.Widget{
 			Name:       r.Name,
+			Definition: definition,
 			Value:      value,
 			Label:      label,
 			StateClass: stateClass,
@@ -250,10 +248,9 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 		from.Format("Jan 2"), to.Format("Jan 2"), len(allResults), len(violated))
 	outputPath := getDatadogOutputPath("slos", "html")
 	if err := charts.WidgetPage(charts.WidgetPageData{
-		Title:       "SLOs · " + team,
-		Subtitle:    subtitle,
-		Widgets:     widgets,
-		WidgetStyle: "compact",
+		Title:    "SLOs · " + team,
+		Subtitle: subtitle,
+		Widgets:  widgets,
 	}, outputPath); err != nil {
 		return fmt.Errorf("failed to generate HTML: %w", err)
 	}

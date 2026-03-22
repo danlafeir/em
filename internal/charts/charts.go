@@ -431,8 +431,9 @@ func ThroughputLine(data metrics.ThroughputResult, cfg Config, path string) erro
 // Widget is a single square status tile in a widget grid page.
 type Widget struct {
 	Name       string // displayed at the top of the widget
-	Value      string // large number or short status text in the center
-	Label      string // small descriptive label at the bottom
+	Definition string // optional secondary line below the name (e.g. "SLI 99.88% / target 99.90%")
+	Value      string // large number or short status text
+	Label      string // small descriptive label below the value
 	StateClass string // "widget-alerted" (red) or "widget-ok" (green)
 }
 
