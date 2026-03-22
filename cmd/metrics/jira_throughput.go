@@ -97,22 +97,8 @@ func generateThroughput(ctx context.Context, client *jira.Client, team, jql stri
 		histories[i] = mapper.MapIssueHistory(issue)
 	}
 
-	var frequency metrics.ThroughputFrequency
-	switch frequencyFlag {
-	case "daily":
-		frequency = metrics.FrequencyDaily
-	case "weekly":
-		frequency = metrics.FrequencyWeekly
-	case "biweekly":
-		frequency = metrics.FrequencyBiweekly
-	case "monthly":
-		frequency = metrics.FrequencyMonthly
-	default:
-		frequency = metrics.FrequencyWeekly
-	}
-
-	calculator := metrics.NewThroughputCalculator(frequency, mapper)
-	result := calculator.Calculate(histories, from, to)
+	frequency := parseThroughputFrequency(frequencyFlag)
+	result := computeThroughputFromHistories(histories, mapper, frequency, from, to)
 
 	if saveRawDataFlag {
 		if err := saveJiraThroughputData(result, team); err == nil {
@@ -164,6 +150,28 @@ func generateThroughput(ctx context.Context, client *jira.Client, team, jql stri
 	}
 
 	return nil
+}
+
+// computeThroughputFromHistories calculates throughput for the given histories,
+// frequency, and date range. This is the shared primitive called by both the
+// standalone throughput command and report generators.
+func computeThroughputFromHistories(histories []workflow.IssueHistory, mapper *workflow.Mapper, frequency metrics.ThroughputFrequency, from, to time.Time) metrics.ThroughputResult {
+	calculator := metrics.NewThroughputCalculator(frequency, mapper)
+	return calculator.Calculate(histories, from, to)
+}
+
+// parseThroughputFrequency maps the --frequency flag value to a ThroughputFrequency constant.
+func parseThroughputFrequency(flag string) metrics.ThroughputFrequency {
+	switch flag {
+	case "daily":
+		return metrics.FrequencyDaily
+	case "biweekly":
+		return metrics.FrequencyBiweekly
+	case "monthly":
+		return metrics.FrequencyMonthly
+	default:
+		return metrics.FrequencyWeekly
+	}
 }
 
 func exportThroughputCSV(result metrics.ThroughputResult, path string) error {

@@ -174,10 +174,8 @@ func loadWeeklyThroughput(ctx context.Context, client *jira.Client, throughputJQ
 		histories[i] = mapper.MapIssueHistory(issue)
 	}
 
-	throughputCalc := metrics.NewThroughputCalculator(metrics.FrequencyWeekly, mapper)
-	throughputResult := throughputCalc.Calculate(histories, historyStart, historyEnd)
+	throughputResult := computeThroughputFromHistories(histories, mapper, metrics.FrequencyWeekly, historyStart, historyEnd)
 	weeklyThroughput := metrics.GetWeeklyThroughputValues(throughputResult)
-
 
 	if len(weeklyThroughput) == 0 {
 		return nil, fmt.Errorf("no throughput data available for simulation")
@@ -723,10 +721,8 @@ func runManualForecast(ctx context.Context, client *jira.Client, throughputJQL s
 	}
 
 	// Calculate weekly throughput
-	throughputCalc := metrics.NewThroughputCalculator(metrics.FrequencyWeekly, mapper)
-	throughputResult := throughputCalc.Calculate(histories, historyStart, historyEnd)
+	throughputResult := computeThroughputFromHistories(histories, mapper, metrics.FrequencyWeekly, historyStart, historyEnd)
 	weeklyThroughput := metrics.GetWeeklyThroughputValues(throughputResult)
-
 
 	if len(weeklyThroughput) == 0 {
 		return fmt.Errorf("no throughput data available for simulation")
