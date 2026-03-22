@@ -20,7 +20,6 @@ var DatadogCmd = &cobra.Command{
 	Long: `Generate operational metrics from Datadog data.
 
 Available metrics:
-  - pages    (on-call page response times)
   - monitors (monitor alert frequency)
   - slos     (SLO violation tracking)
 
@@ -30,7 +29,6 @@ Setup:
   devctl-em config set datadog.app_key
 
 Examples:
-  devctl-em metrics datadog pages
   devctl-em metrics datadog monitors
   devctl-em metrics datadog slos`,
 	Run: func(cmd *cobra.Command, args []string) {

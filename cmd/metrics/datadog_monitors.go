@@ -142,6 +142,14 @@ func runDatadogMonitors(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+// truncateStr shortens a string to maxLen, adding "..." if truncated.
+func truncateStr(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
+}
+
 func exportMonitorsCSV(events []datadog.MonitorEvent, path string) error {
 	file, err := output.Create(path)
 	if err != nil {

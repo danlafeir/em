@@ -120,66 +120,6 @@ func (c *Client) TestConnection(ctx context.Context) error {
 	return err
 }
 
-// ListPages lists on-call pages for a team within a date range.
-func (c *Client) ListPages(ctx context.Context, team string, from, to time.Time) ([]Page, error) {
-	baseURL := c.credentials.BaseURL()
-	var allPages []Page
-	offset := 0
-	pageSize := 100
-
-	for {
-		query := url.Values{}
-		if team != "" {
-			query.Set("filter[query]", "teams:"+team)
-		}
-		query.Set("filter[from]", from.Format(time.RFC3339))
-		query.Set("filter[to]", to.Format(time.RFC3339))
-		query.Set("page[limit]", strconv.Itoa(pageSize))
-		if offset > 0 {
-			query.Set("page[offset]", strconv.Itoa(offset))
-		}
-
-		body, err := c.doRequest(ctx, "GET", baseURL, "/api/v2/on-call/pages", query)
-		if err != nil {
-			return nil, fmt.Errorf("listing pages: %w", err)
-		}
-
-		var resp pageListResponse
-		if err := json.Unmarshal(body, &resp); err != nil {
-			return nil, fmt.Errorf("parsing pages: %w", err)
-		}
-
-		for _, d := range resp.Data {
-			p := Page{
-				ID:      d.ID,
-				Title:   d.Attributes.Title,
-				Urgency: d.Attributes.Urgency,
-				Status:  d.Attributes.Status,
-			}
-			if d.Attributes.Responder != nil {
-				p.Responder = *d.Attributes.Responder
-			}
-			if t, err := time.Parse(time.RFC3339, d.Attributes.CreatedAt); err == nil {
-				p.CreatedAt = t
-			}
-			if t, err := time.Parse(time.RFC3339, d.Attributes.AcknowledgedAt); err == nil {
-				p.AcknowledgedAt = t
-			}
-			if t, err := time.Parse(time.RFC3339, d.Attributes.ResolvedAt); err == nil {
-				p.ResolvedAt = t
-			}
-			allPages = append(allPages, p)
-		}
-
-		if resp.Meta.Pagination.NextOffset == 0 || len(resp.Data) < pageSize {
-			break
-		}
-		offset = resp.Meta.Pagination.NextOffset
-	}
-
-	return allPages, nil
-}
-
 // ListMonitorEvents fetches monitor alert events from the Events v2 API.
 // It returns events where a monitor transitioned to Alert (or Warn/No Data).
 // Pass a non-empty tagsQuery to filter by team tag, e.g. "team:my-team".

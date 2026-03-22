@@ -23,45 +23,6 @@ func (c *Credentials) BaseURL() string {
 }
 
 
-// Page represents a single on-call page/incident.
-type Page struct {
-	ID             string    `json:"id"`
-	Title          string    `json:"title"`
-	Urgency        string    `json:"urgency"`
-	Status         string    `json:"status"`
-	CreatedAt      time.Time `json:"created_at"`
-	AcknowledgedAt time.Time `json:"acknowledged_at"`
-	ResolvedAt     time.Time `json:"resolved_at"`
-	Responder      string    `json:"responder"`
-}
-
-// pageAttributes holds the attributes from the on-call pages API response.
-type pageAttributes struct {
-	Title          string  `json:"title"`
-	Urgency        string  `json:"urgency"`
-	Status         string  `json:"status"`
-	CreatedAt      string  `json:"created_at"`
-	AcknowledgedAt string  `json:"acknowledged_at"`
-	ResolvedAt     string  `json:"resolved_at"`
-	Responder      *string `json:"responder"`
-}
-
-// pageData represents a single item in the pages API response.
-type pageData struct {
-	ID         string         `json:"id"`
-	Attributes pageAttributes `json:"attributes"`
-}
-
-// pageListResponse is the raw API response for listing pages.
-type pageListResponse struct {
-	Data []pageData `json:"data"`
-	Meta struct {
-		Pagination struct {
-			NextOffset int `json:"next_offset"`
-		} `json:"pagination"`
-	} `json:"meta"`
-}
-
 // SLOData represents a Datadog SLO definition.
 type SLOData struct {
 	ID         string         `json:"id"`
