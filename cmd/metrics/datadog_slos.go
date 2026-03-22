@@ -104,7 +104,7 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 			Type:     slo.Type,
 			Target:   target,
 			Current:  current,
-			Budget:   history.ErrorBudgetRemaining * 100,
+			Budget:   float64(history.ErrorBudgetRemaining) * 100,
 			Violated: isViolated,
 		}
 		allResults = append(allResults, r)

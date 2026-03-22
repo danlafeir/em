@@ -2,6 +2,7 @@
 package datadog
 
 import (
+	"encoding/json"
 	"strconv"
 	"time"
 )
@@ -44,10 +45,32 @@ type sloListResponse struct {
 	Data []SLOData `json:"data"`
 }
 
+// sloErrorBudget parses error_budget_remaining, which can be a float or an object.
+type sloErrorBudget float64
+
+func (b *sloErrorBudget) UnmarshalJSON(data []byte) error {
+	// Plain float (time-based SLOs)
+	var f float64
+	if err := json.Unmarshal(data, &f); err == nil {
+		*b = sloErrorBudget(f)
+		return nil
+	}
+	// Object (monitor-based SLOs): {"remaining": N}
+	var obj struct {
+		Remaining float64 `json:"remaining"`
+	}
+	if err := json.Unmarshal(data, &obj); err == nil {
+		*b = sloErrorBudget(obj.Remaining)
+		return nil
+	}
+	*b = 0
+	return nil
+}
+
 // SLOHistorySLIData holds history data for a single SLO.
 type SLOHistorySLIData struct {
-	SLIValue             float64 `json:"sli_value"`
-	ErrorBudgetRemaining float64 `json:"error_budget_remaining"`
+	SLIValue             float64        `json:"sli_value"`
+	ErrorBudgetRemaining sloErrorBudget `json:"error_budget_remaining"`
 }
 
 // sloHistoryResponse is the raw API response for SLO history.
