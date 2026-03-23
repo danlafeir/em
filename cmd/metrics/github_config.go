@@ -163,7 +163,6 @@ func runGhTeamConfig(ctx context.Context, reader *bufio.Reader, client *github.C
 
 	slugKey := fmt.Sprintf("teams.%s.github.slug", teamName)
 	config.SetConfigValue(configNamespace, slugKey, slug)
-	saveTeamName(teamName)
 	if err := config.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
