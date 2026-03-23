@@ -104,6 +104,12 @@ func runSelectTeam(cmd *cobra.Command, args []string) error {
 	return saveSelectedTeam(name)
 }
 
+// saveTeamName writes the team name as a string value under teams.<team>.name,
+// preserving its original capitalization regardless of viper's key lowercasing.
+func saveTeamName(team string) {
+	config.SetConfigValue(configNamespace, fmt.Sprintf("teams.%s.name", team), team)
+}
+
 // registerTeamIfNew adds the team to team_names if it isn't already there.
 func registerTeamIfNew(team string) error {
 	existing := getAllTeams()
@@ -118,6 +124,7 @@ func registerTeamIfNew(team string) error {
 	}
 	updated = append(updated, team)
 	config.SetConfigValue(configNamespace, "team_names", updated)
+	saveTeamName(team)
 	if err := config.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
@@ -164,10 +171,15 @@ func getAllTeams() []string {
 	}
 
 	// Teams that already have config under teams.*
+	// Use the stored teams.<slug>.name value to recover original capitalization.
 	if raw := getConfigAny("teams"); raw != nil {
 		if rawMap, ok := raw.(map[string]any); ok {
-			for name := range rawMap {
-				seen[name] = true
+			for slug := range rawMap {
+				if name := getConfigString(fmt.Sprintf("teams.%s.name", slug)); name != "" {
+					seen[name] = true
+				} else {
+					seen[slug] = true
+				}
 			}
 		}
 	}

@@ -125,6 +125,7 @@ func runJiraConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	// Save config
+	saveTeamName(team)
 	if err := config.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
