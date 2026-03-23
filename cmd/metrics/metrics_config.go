@@ -27,6 +27,23 @@ func init() {
 }
 
 func runMetricsConfig(cmd *cobra.Command, args []string) error {
+	initConfig()
+
+	teams := getAllTeams()
+	selected := getSelectedTeam()
+	if len(teams) == 0 || selected == "" {
+		if len(teams) == 0 {
+			fmt.Println("No teams configured yet. Let's set one up first.")
+		} else {
+			fmt.Println("No team selected. Please select a team before configuring metrics.")
+		}
+		fmt.Println()
+		if err := runSelectTeam(cmd, args); err != nil {
+			return fmt.Errorf("team selection required: %w", err)
+		}
+		fmt.Println()
+	}
+
 	fmt.Println("=== JIRA ===")
 	if err := runJiraConfig(cmd, args); err != nil {
 		fmt.Printf("Warning: JIRA config failed: %v\n", err)
