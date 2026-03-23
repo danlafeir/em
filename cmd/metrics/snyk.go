@@ -5,11 +5,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/danlafeir/devctl/pkg/secrets"
+	"github.com/danlafeir/cli-go/pkg/secrets"
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/output"
-	"devctl-em/internal/snyk"
+	"em/internal/output"
+	"em/internal/snyk"
 )
 
 // SnykCmd is the parent command for all Snyk metrics.
@@ -22,11 +22,11 @@ Available metrics:
   - issues   (vulnerability counts and weekly trends)
 
 Configure Snyk first:
-  devctl-em metrics snyk config
+  em metrics snyk config
 
 Examples:
-  devctl-em metrics snyk issues
-  devctl-em metrics snyk issues --from 2025-01-01 --to 2025-06-30`,
+  em metrics snyk issues
+  em metrics snyk issues --from 2025-01-01 --to 2025-06-30`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
@@ -57,12 +57,12 @@ func getSnykClient() (*snyk.Client, error) {
 	}
 
 	if token == "" {
-		return nil, fmt.Errorf("Snyk API token not configured. Run: devctl-em metrics snyk config")
+		return nil, fmt.Errorf("Snyk API token not configured. Run: em metrics snyk config")
 	}
 
 	orgID := getConfigString("snyk.org_id")
 	if orgID == "" {
-		return nil, fmt.Errorf("Snyk org ID not configured. Run: devctl-em metrics snyk config")
+		return nil, fmt.Errorf("Snyk org ID not configured. Run: em metrics snyk config")
 	}
 
 	site := getConfigString("snyk.site")

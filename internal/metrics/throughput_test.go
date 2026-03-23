@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"devctl-em/internal/workflow"
+	"em/internal/workflow"
 )
 
 func TestNormalizeToPeriodStart_Daily(t *testing.T) {

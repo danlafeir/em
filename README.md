@@ -1,4 +1,4 @@
-# devctl-em
+# em
 
 CLI tools for engineering managers to generate JIRA agile metrics reports.
 
@@ -12,7 +12,7 @@ CLI tools for engineering managers to generate JIRA agile metrics reports.
 ## Installation
 
 ```sh
-curl -sSL https://raw.githubusercontent.com/danlafeir/devctl-em/main/scripts/install.sh | sh
+curl -sSL https://raw.githubusercontent.com/danlafeir/em/main/scripts/install.sh | sh
 ```
 
 This script will detect your OS and architecture, download the latest pre-built binary, and install it to `~/.local/bin`. Ensure `~/.local/bin` is in your PATH.
@@ -52,10 +52,10 @@ Set up your JIRA Cloud credentials:
 
 ```bash
 # Set your Atlassian domain (e.g., "mycompany" for mycompany.atlassian.net)
-devctl-em config set jira.domain mycompany
+em config set jira.domain mycompany
 
 # Set your email
-devctl-em config set jira.email user@company.com
+em config set jira.email user@company.com
 
 # Set API token via environment variable
 export JIRA_API_TOKEN=your_api_token_here
@@ -71,23 +71,23 @@ To generate an API token:
 Set a default project to automatically scope all metrics to child issues of active (unresolved) epics:
 
 ```bash
-devctl-em config set jira.project MYPROJ
+em config set jira.project MYPROJ
 ```
 
 With this set, you no longer need to pass `--jql` to every command:
 
 ```bash
 # These just work — scoped to active epics in MYPROJ
-devctl-em metrics jira cycle-time
-devctl-em metrics jira forecast
-devctl-em metrics jira report
+em metrics jira cycle-time
+em metrics jira forecast
+em metrics jira report
 ```
 
 JQL resolution order: `--jql` flag > `jira.jql_filter_for_metrics` config > `jira.project` config.
 
 ### Workflow Mapping (Optional)
 
-Create `~/.devctl-em/config.yaml` to customize workflow stage mapping:
+Create `~/.em/config.yaml` to customize workflow stage mapping:
 
 ```yaml
 jira:
@@ -112,7 +112,7 @@ workflow:
 
 ## Usage
 
-All JIRA metrics commands are under `devctl-em metrics jira`.
+All JIRA metrics commands are under `em metrics jira`.
 
 ### Common Flags
 
@@ -130,10 +130,10 @@ Analyze how long issues take from start to completion:
 
 ```bash
 # Generate cycle time scatter plot
-devctl-em metrics jira cycle-time --jql "project = MYPROJ"
+em metrics jira cycle-time --jql "project = MYPROJ"
 
 # Specify date range and output
-devctl-em metrics jira cycle-time \
+em metrics jira cycle-time \
   --jql "project = MYPROJ AND type = Story" \
   --from 2024-01-01 \
   --to 2024-06-30 \
@@ -146,10 +146,10 @@ Track team delivery velocity:
 
 ```bash
 # Weekly throughput chart
-devctl-em metrics jira throughput --jql "project = MYPROJ"
+em metrics jira throughput --jql "project = MYPROJ"
 
 # Daily frequency with CSV export
-devctl-em metrics jira throughput \
+em metrics jira throughput \
   --jql "project = MYPROJ" \
   --frequency daily \
   -f csv \
@@ -164,16 +164,16 @@ Predict epic completion dates using Monte Carlo simulation:
 
 ```bash
 # Forecast all open epics in your default project
-devctl-em metrics jira forecast
+em metrics jira forecast
 
 # Forecast a specific epic
-devctl-em metrics jira forecast --epic MYPROJ-123
+em metrics jira forecast --epic MYPROJ-123
 
 # Forecast with a deadline
-devctl-em metrics jira forecast --epic MYPROJ-123 --deadline 2024-12-31
+em metrics jira forecast --epic MYPROJ-123 --deadline 2024-12-31
 
 # Forecast arbitrary remaining items
-devctl-em metrics jira forecast --remaining 25
+em metrics jira forecast --remaining 25
 ```
 
 Output includes probability distribution:
@@ -186,8 +186,8 @@ Output includes probability distribution:
 Generate a single PNG report with cycle time scatter, throughput trend, and epic forecast:
 
 ```bash
-devctl-em metrics jira report
-devctl-em metrics jira report --from 2024-01-01 -o report.png
+em metrics jira report
+em metrics jira report --from 2024-01-01 -o report.png
 ```
 
 This creates a single `jira-report.png` file combining all three panels.
@@ -198,10 +198,10 @@ This creates a single `jira-report.png` file combining all three panels.
 
 ```bash
 # Get forecast for all epics
-devctl-em metrics jira forecast --jql "project = MYPROJ"
+em metrics jira forecast --jql "project = MYPROJ"
 
 # Export to CSV for stakeholder reporting
-devctl-em metrics jira forecast \
+em metrics jira forecast \
   --jql "project = MYPROJ" \
   -o epic-forecasts.csv
 ```
@@ -210,7 +210,7 @@ devctl-em metrics jira forecast \
 
 ```bash
 # Analyze cycle time trends
-devctl-em metrics jira cycle-time \
+em metrics jira cycle-time \
   --jql "project = MYPROJ" \
   --from 2024-01-01 \
   -f csv \

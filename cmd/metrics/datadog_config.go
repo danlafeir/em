@@ -9,12 +9,12 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/danlafeir/devctl/pkg/config"
-	"github.com/danlafeir/devctl/pkg/secrets"
+	"github.com/danlafeir/cli-go/pkg/config"
+	"github.com/danlafeir/cli-go/pkg/secrets"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"devctl-em/internal/datadog"
+	"em/internal/datadog"
 )
 
 var datadogConfigCmd = &cobra.Command{
@@ -31,7 +31,7 @@ Prompts for:
 Existing values are shown and can be kept by pressing Enter.
 
 Examples:
-  devctl-em metrics datadog config`,
+  em metrics datadog config`,
 	RunE: runDatadogConfig,
 }
 

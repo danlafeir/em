@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/charts"
-	"devctl-em/internal/output"
-	"devctl-em/internal/snyk"
+	"em/internal/charts"
+	"em/internal/output"
+	"em/internal/snyk"
 )
 
 var snykIssuesCmd = &cobra.Command{
@@ -21,9 +21,9 @@ var snykIssuesCmd = &cobra.Command{
 	Long: `Show aggregate vulnerability counts by severity and generate a weekly trend chart.
 
 Examples:
-  devctl-em metrics snyk issues
-  devctl-em metrics snyk issues --from 2025-01-01 --to 2025-06-30
-  devctl-em metrics snyk issues -f csv -o issues.csv`,
+  em metrics snyk issues
+  em metrics snyk issues --from 2025-01-01 --to 2025-06-30
+  em metrics snyk issues -f csv -o issues.csv`,
 	RunE: runSnykIssues,
 }
 

@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"devctl-em/internal/workflow"
+	"em/internal/workflow"
 )
 
 // CycleTimeResult holds cycle time calculation for a single issue.

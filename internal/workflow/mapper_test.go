@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"devctl-em/internal/jira"
+	"em/internal/jira"
 )
 
 func TestGetStage(t *testing.T) {

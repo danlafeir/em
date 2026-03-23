@@ -9,7 +9,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"devctl-em/cmd"
+	"em/cmd"
+	"github.com/danlafeir/cli-go/pkg/secrets"
 )
 
 // BuildGitHash is set at build time via -ldflags
@@ -19,11 +20,11 @@ var BuildGitHash = "dev"
 var BuildLatestHash = "dev"
 
 func checkUpgrade() {
-	configDir, err := os.UserConfigDir()
+	home, err := os.UserHomeDir()
 	if err != nil {
 		return // fail silently
 	}
-	checkFile := filepath.Join(configDir, "devctl-em", "upgrade-check")
+	checkFile := filepath.Join(home, ".em", "upgrade-check")
 	os.MkdirAll(filepath.Dir(checkFile), 0o755)
 
 	today := time.Now().Format("2006-01-02")
@@ -39,7 +40,7 @@ func checkUpgrade() {
 	// Check remote for latest hash
 	remoteHash := BuildLatestHash
 	if remoteHash != "" && remoteHash != BuildGitHash {
-		fmt.Fprintf(os.Stderr, "A new version of devctl-em is available (hash: %s). Run 'devctl-em update' to upgrade.\n", remoteHash)
+		fmt.Fprintf(os.Stderr, "A new version of em is available (hash: %s). Run 'em update' to upgrade.\n", remoteHash)
 	}
 
 	// Write today's check
@@ -51,6 +52,7 @@ func checkUpgrade() {
 }
 
 func main() {
+	secrets.SetDefaultProvider("em")
 	checkUpgrade()
 	cmd.BuildGitHash = BuildGitHash
 	cmd.BuildLatestHash = BuildLatestHash

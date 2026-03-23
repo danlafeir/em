@@ -11,12 +11,12 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/danlafeir/devctl/pkg/config"
-	"github.com/danlafeir/devctl/pkg/secrets"
+	"github.com/danlafeir/cli-go/pkg/config"
+	"github.com/danlafeir/cli-go/pkg/secrets"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"devctl-em/internal/github"
+	"em/internal/github"
 )
 
 var ghConfigCmd = &cobra.Command{
@@ -32,8 +32,8 @@ Prompts for:
 Existing values are shown and can be kept by pressing Enter.
 
 Examples:
-  devctl-em metrics github config
-  devctl-em metrics github config --team my-team`,
+  em metrics github config
+  em metrics github config --team my-team`,
 	RunE: runGhConfig,
 }
 
@@ -93,9 +93,9 @@ func runGhConfig(cmd *cobra.Command, args []string) error {
 	team := getSelectedTeam()
 	if team == "" {
 		if len(getAllTeams()) == 0 {
-			return fmt.Errorf("no teams configured. Run: devctl-em metrics config to add a team first")
+			return fmt.Errorf("no teams configured. Run: em metrics config to add a team first")
 		}
-		return fmt.Errorf("no team selected. Run: devctl-em metrics select-team")
+		return fmt.Errorf("no team selected. Run: em metrics select-team")
 	}
 
 	if err := runGhTeamConfig(ctx, reader, client, org, team); err != nil {

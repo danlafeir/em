@@ -1,4 +1,4 @@
-APP_NAME=devctl-em
+APP_NAME=em
 BUILD_DIR=bin
 GOFILES=$(shell find . -type f -name '*.go' -not -path "./vendor/*")
 
@@ -9,7 +9,7 @@ GOARCH?=$(shell go env GOARCH)
 .PHONY: all build build-all install clean test run mock-jira
 
 # Usage:
-#   make build           # builds for your current system, output: bin/devctl-em (+ bin/devctl-em-<os>-<arch>-<hash>)
+#   make build           # builds for your current system, output: bin/em (+ bin/em-<os>-<arch>-<hash>)
 #   make build-all       # builds for all supported systems
 #   GOOS=linux GOARCH=amd64 make build  # cross-compiles for linux/amd64
 

@@ -18,7 +18,7 @@ Configures JIRA, GitHub, Snyk, and Datadog in order. Each section can be skipped
 by pressing Ctrl+C, but errors are shown and configuration continues.
 
 Examples:
-  devctl-em metrics config`,
+  em metrics config`,
 	RunE: runMetricsConfig,
 }
 

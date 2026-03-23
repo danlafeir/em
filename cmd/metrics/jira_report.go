@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/charts"
-	"devctl-em/internal/jira"
-	pkgmetrics "devctl-em/internal/metrics"
+	"em/internal/charts"
+	"em/internal/jira"
+	pkgmetrics "em/internal/metrics"
 )
 
 var reportCmd = &cobra.Command{
@@ -25,9 +25,9 @@ generate for a single team, or --jql/--project to bypass team iteration.
 Uses the last 6 weeks of data by default. Output is an HTML file.
 
 Example:
-  devctl-em metrics jira report
-  devctl-em metrics jira report --team platform
-  devctl-em metrics jira report --from 2024-01-01 -o report.html`,
+  em metrics jira report
+  em metrics jira report --team platform
+  em metrics jira report --from 2024-01-01 -o report.html`,
 	RunE: runReport,
 }
 

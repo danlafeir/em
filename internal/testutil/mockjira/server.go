@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"devctl-em/internal/jira"
+	"em/internal/jira"
 )
 
 // Server is a mock JIRA API server backed by a Dataset.
@@ -265,15 +265,15 @@ func queryInt(r *http.Request, key string, defaultVal int) int {
 	return n
 }
 
-// Usage prints usage instructions showing how to point devctl-em at this server.
+// Usage prints usage instructions showing how to point em at this server.
 func Usage(addr string) string {
 	return fmt.Sprintf(`Mock JIRA server running at http://localhost%s
 
 Usage:
   export JIRA_BASE_URL=http://localhost%s
-  devctl-em metrics jira cycle-time --jql "project = PROJ"
-  devctl-em metrics jira throughput --jql "project = PROJ"
-  devctl-em metrics jira wip --jql "project = PROJ"
-  devctl-em metrics jira report --jql "project = PROJ"
+  em metrics jira cycle-time --jql "project = PROJ"
+  em metrics jira throughput --jql "project = PROJ"
+  em metrics jira wip --jql "project = PROJ"
+  em metrics jira report --jql "project = PROJ"
 `, addr, addr)
 }

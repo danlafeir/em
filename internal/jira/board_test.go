@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"devctl-em/internal/jira"
-	"devctl-em/internal/testutil/mockjira"
+	"em/internal/jira"
+	"em/internal/testutil/mockjira"
 )
 
 func datasetWithBoards() *mockjira.Dataset {

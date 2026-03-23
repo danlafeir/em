@@ -4,21 +4,22 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/danlafeir/devctl/pkg/config"
-	"github.com/danlafeir/devctl/pkg/secrets"
+	"github.com/danlafeir/cli-go/pkg/config"
+	"github.com/danlafeir/cli-go/pkg/secrets"
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/charts"
-	"devctl-em/internal/jira"
-	"devctl-em/internal/output"
-	"devctl-em/internal/workflow"
+	"em/internal/charts"
+	"em/internal/jira"
+	"em/internal/output"
+	"em/internal/workflow"
 )
 
-// configNamespace is the namespace for devctl-em config
+// configNamespace is the namespace for em config
 const configNamespace = "em"
 
 // skipBrowserOpen suppresses openBrowser calls when set to true.
@@ -33,8 +34,16 @@ func openBrowser(path string) {
 	charts.OpenBrowser(path) //nolint:errcheck
 }
 
+func emConfigDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ".em"
+	}
+	return filepath.Join(home, ".em")
+}
+
 func initConfig() {
-	config.InitConfig("")
+	config.InitConfig(emConfigDir()) //nolint:errcheck
 }
 
 // getConfigString returns a string config value from the em namespace.
@@ -66,22 +75,22 @@ var JiraCmd = &cobra.Command{
   - Monte Carlo forecasting
 
 Configure your JIRA connection first:
-  devctl-em config set jira.domain mycompany
-  devctl-em config set jira.email user@company.com
-  devctl-em config set jira.api_token
+  em config set jira.domain mycompany
+  em config set jira.email user@company.com
+  em config set jira.api_token
 
 Configure teams with their projects:
-  devctl-em config set jira.teams.platform.project PLAT
-  devctl-em config set jira.teams.backend.project API
-  devctl-em config set jira.teams.backend.jql_filter_for_metrics "project = API AND ..."
+  em config set jira.teams.platform.project PLAT
+  em config set jira.teams.backend.project API
+  em config set jira.teams.backend.jql_filter_for_metrics "project = API AND ..."
 
 JQL resolution order: --jql flag > --project flag > team jql_filter_for_metrics > team project config.
 Use --team to filter to a single team; omit it to aggregate all teams.
 
 Examples:
-  devctl-em metrics jira cycle-time --team platform
-  devctl-em metrics jira throughput --from 2024-01-01 --to 2024-12-31
-  devctl-em metrics jira forecast --team backend --epic API-123`,
+  em metrics jira cycle-time --team platform
+  em metrics jira throughput --from 2024-01-01 --to 2024-12-31
+  em metrics jira forecast --team backend --epic API-123`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
@@ -130,13 +139,13 @@ func getJiraClient() (*jira.Client, error) {
 	}
 
 	if domain == "" {
-		return nil, fmt.Errorf("JIRA domain not configured. Run: devctl-em config set jira.domain <domain>")
+		return nil, fmt.Errorf("JIRA domain not configured. Run: em config set jira.domain <domain>")
 	}
 	if email == "" {
-		return nil, fmt.Errorf("JIRA email not configured. Run: devctl-em config set jira.email <email>")
+		return nil, fmt.Errorf("JIRA email not configured. Run: em config set jira.email <email>")
 	}
 	if token == "" {
-		return nil, fmt.Errorf("JIRA API token not configured. Run: devctl-em config set jira.api_token")
+		return nil, fmt.Errorf("JIRA API token not configured. Run: em config set jira.api_token")
 	}
 
 	creds := jira.Credentials{

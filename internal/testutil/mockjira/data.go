@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"devctl-em/internal/jira"
+	"em/internal/jira"
 )
 
 // Dataset holds a collection of mock JIRA issues and their changelogs.

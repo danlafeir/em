@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/charts"
-	pkgmetrics "devctl-em/internal/metrics"
-	snykpkg "devctl-em/internal/snyk"
+	"em/internal/charts"
+	pkgmetrics "em/internal/metrics"
+	snykpkg "em/internal/snyk"
 )
 
 var metricsReportCmd = &cobra.Command{
@@ -23,8 +23,8 @@ Each section runs independently — a failure in one does not stop the other.
 Also generates a combined <team>-report.html with both sections.
 
 Example:
-  devctl-em metrics report
-  devctl-em metrics report --team platform`,
+  em metrics report
+  em metrics report --team platform`,
 	RunE: runMetricsReport,
 }
 
@@ -58,7 +58,7 @@ func runMetricsReport(cmd *cobra.Command, args []string) error {
 	}
 	if len(unconfigured) > 0 {
 		fmt.Printf("Skipping unconfigured: %s\n", strings.Join(unconfigured, ", "))
-		fmt.Println("Run `devctl-em metrics config` to set them up.")
+		fmt.Println("Run `em metrics config` to set them up.")
 		fmt.Println()
 	}
 

@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"devctl-em/internal/metrics"
+	"em/internal/metrics"
 )
 
 // Config holds common chart configuration.

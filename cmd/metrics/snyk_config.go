@@ -9,12 +9,12 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/danlafeir/devctl/pkg/config"
-	"github.com/danlafeir/devctl/pkg/secrets"
+	"github.com/danlafeir/cli-go/pkg/config"
+	"github.com/danlafeir/cli-go/pkg/secrets"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"devctl-em/internal/snyk"
+	"em/internal/snyk"
 )
 
 var snykConfigCmd = &cobra.Command{
@@ -30,7 +30,7 @@ Prompts for:
 Existing values are shown and can be kept by pressing Enter.
 
 Examples:
-  devctl-em metrics snyk config`,
+  em metrics snyk config`,
 	RunE: runSnykConfig,
 }
 

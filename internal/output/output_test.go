@@ -8,26 +8,26 @@ import (
 
 // -- Dir ----------------------------------------------------------------------
 
-func TestDir_DefaultsToHomeDotDevctl(t *testing.T) {
-	os.Unsetenv("DEVCTL_EM_OUTPUT_DIR")
+func TestDir_DefaultsToHomeDotEm(t *testing.T) {
+	os.Unsetenv("EM_OUTPUT_DIR")
 	home, _ := os.UserHomeDir()
-	expected := filepath.Join(home, ".devctl", "output", "em")
+	expected := filepath.Join(home, ".em", "output")
 	if got := Dir(); got != expected {
 		t.Errorf("expected %q, got %q", expected, got)
 	}
 }
 
 func TestDir_ReadsEnvVar(t *testing.T) {
-	t.Setenv("DEVCTL_EM_OUTPUT_DIR", "/tmp/custom-output")
+	t.Setenv("EM_OUTPUT_DIR", "/tmp/custom-output")
 	if got := Dir(); got != "/tmp/custom-output" {
 		t.Errorf("expected '/tmp/custom-output', got %q", got)
 	}
 }
 
 func TestDir_EmptyEnvVarFallsBackToDefault(t *testing.T) {
-	os.Unsetenv("DEVCTL_EM_OUTPUT_DIR")
+	os.Unsetenv("EM_OUTPUT_DIR")
 	home, _ := os.UserHomeDir()
-	expected := filepath.Join(home, ".devctl", "output", "em")
+	expected := filepath.Join(home, ".em", "output")
 	if got := Dir(); got != expected {
 		t.Errorf("expected %q when env var is empty, got %q", expected, got)
 	}
@@ -36,17 +36,17 @@ func TestDir_EmptyEnvVarFallsBackToDefault(t *testing.T) {
 // -- Path ---------------------------------------------------------------------
 
 func TestPath_JoinsDirAndName(t *testing.T) {
-	os.Unsetenv("DEVCTL_EM_OUTPUT_DIR")
+	os.Unsetenv("EM_OUTPUT_DIR")
 	home, _ := os.UserHomeDir()
 	got := Path("report.csv")
-	expected := filepath.Join(home, ".devctl", "output", "em", "report.csv")
+	expected := filepath.Join(home, ".em", "output", "report.csv")
 	if got != expected {
 		t.Errorf("expected %q, got %q", expected, got)
 	}
 }
 
 func TestPath_UsesCustomDir(t *testing.T) {
-	t.Setenv("DEVCTL_EM_OUTPUT_DIR", "/data")
+	t.Setenv("EM_OUTPUT_DIR", "/data")
 	got := Path("metrics.xlsx")
 	expected := filepath.Join("/data", "metrics.xlsx")
 	if got != expected {
@@ -55,10 +55,10 @@ func TestPath_UsesCustomDir(t *testing.T) {
 }
 
 func TestPath_NestedName(t *testing.T) {
-	os.Unsetenv("DEVCTL_EM_OUTPUT_DIR")
+	os.Unsetenv("EM_OUTPUT_DIR")
 	home, _ := os.UserHomeDir()
 	got := Path("subdir/file.txt")
-	expected := filepath.Join(home, ".devctl", "output", "em", "subdir", "file.txt")
+	expected := filepath.Join(home, ".em", "output", "subdir", "file.txt")
 	if got != expected {
 		t.Errorf("expected %q, got %q", expected, got)
 	}

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"devctl-em/internal/httputil"
+	"em/internal/httputil"
 )
 
 func TestExtractStatusTransitions(t *testing.T) {

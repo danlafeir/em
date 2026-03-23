@@ -6,8 +6,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/charts"
-	snykpkg "devctl-em/internal/snyk"
+	"em/internal/charts"
+	snykpkg "em/internal/snyk"
 )
 
 var snykReportCmd = &cobra.Command{
@@ -18,9 +18,9 @@ var snykReportCmd = &cobra.Command{
 Uses the last 6 weeks of data by default. Output is an HTML file.
 
 Examples:
-  devctl-em metrics snyk report
-  devctl-em metrics snyk report --from 2025-01-01 --to 2025-06-30
-  devctl-em metrics snyk report -o snyk-report.html`,
+  em metrics snyk report
+  em metrics snyk report --from 2025-01-01 --to 2025-06-30
+  em metrics snyk report -o snyk-report.html`,
 	RunE: runSnykReport,
 }
 

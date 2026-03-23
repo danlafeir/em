@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"devctl-em/internal/workflow"
+	"em/internal/workflow"
 )
 
 func TestPercentile(t *testing.T) {

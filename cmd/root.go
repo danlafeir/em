@@ -6,8 +6,8 @@ package cmd
 import (
 	"os"
 
-	"devctl-em/cmd/metrics"
-	"github.com/danlafeir/devctl/pkg/update"
+	"em/cmd/metrics"
+	"github.com/danlafeir/cli-go/pkg/update"
 	"github.com/spf13/cobra"
 )
 
@@ -15,17 +15,17 @@ import (
 var BuildGitHash string
 var BuildLatestHash string
 
-// updateConfig returns the update configuration for devctl-em
+// updateConfig returns the update configuration for em
 var updateConfig = update.Config{
-	AppName: "devctl-em",
-	Repo:    "danlafeir/devctl-em",
+	AppName: "em",
+	Repo:    "danlafeir/em",
 	BinDir:  "bin",
 }
 
 // updateCmd represents the update command
 var updateCmd = &cobra.Command{
 	Use:   "update",
-	Short: "Update devctl-em to the latest version",
+	Short: "Update em to the latest version",
 	Run: func(cmd *cobra.Command, args []string) {
 		update.RunUpdateWithConfig(updateConfig, BuildGitHash, cmd)
 	},
@@ -33,18 +33,18 @@ var updateCmd = &cobra.Command{
 
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
-	Use:   "devctl-em",
+	Use:   "em",
 	Short: "Engineering manager CLI tools for metrics and reporting",
-	Long: `devctl-em provides CLI tools for engineering managers to generate
+	Long: `em provides CLI tools for engineering managers to generate
 metrics reports and insights from JIRA and other sources.
 
 Quick Start:
   1. Configure connections:
-     devctl-em metrics jira config
-     devctl-em metrics github config
+     em metrics jira config
+     em metrics github config
 
   2. Generate a report:
-     devctl-em metrics jira report`,
+     em metrics jira report`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

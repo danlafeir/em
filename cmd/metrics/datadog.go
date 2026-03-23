@@ -5,11 +5,11 @@ import (
 	"os"
 	"time"
 
-	"github.com/danlafeir/devctl/pkg/secrets"
+	"github.com/danlafeir/cli-go/pkg/secrets"
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/datadog"
-	"devctl-em/internal/output"
+	"em/internal/datadog"
+	"em/internal/output"
 )
 
 // DatadogCmd is the parent command for all Datadog metrics.
@@ -24,13 +24,13 @@ Available metrics:
   - slos     (SLO violation tracking)
 
 Setup:
-  devctl-em config set datadog.team my-team
-  devctl-em config set datadog.api_key
-  devctl-em config set datadog.app_key
+  em config set datadog.team my-team
+  em config set datadog.api_key
+  em config set datadog.app_key
 
 Examples:
-  devctl-em metrics datadog monitors
-  devctl-em metrics datadog slos`,
+  em metrics datadog monitors
+  em metrics datadog slos`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
@@ -68,10 +68,10 @@ func getDatadogClient() (*datadog.Client, error) {
 	}
 
 	if apiKey == "" {
-		return nil, fmt.Errorf("Datadog API key not configured. Run: devctl-em config set datadog.api_key")
+		return nil, fmt.Errorf("Datadog API key not configured. Run: em config set datadog.api_key")
 	}
 	if appKey == "" {
-		return nil, fmt.Errorf("Datadog App key not configured. Run: devctl-em config set datadog.app_key")
+		return nil, fmt.Errorf("Datadog App key not configured. Run: em config set datadog.app_key")
 	}
 
 	site := getConfigString("datadog.site")

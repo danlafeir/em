@@ -1,8 +1,8 @@
 #!/bin/sh
 set -e
 
-REPO=danlafeir/devctl-em
-BINARY=devctl-em
+REPO=danlafeir/em
+BINARY=em
 INSTALL_DIR=~/.local/bin
 
 # Detect OS
@@ -22,7 +22,7 @@ case "$ARCH" in
 esac
 
 # Find the latest binary for this OS/ARCH by querying the GitHub API
-# Builds use the pattern: devctl-em-<os>-<arch>-<git hash>
+# Builds use the pattern: em-<os>-<arch>-<git hash>
 API_URL="https://api.github.com/repos/$REPO/contents/bin/"
 FILENAME=$(curl -sSL "$API_URL" | grep -o '"name": *"'$BINARY'-'$OS'-'$ARCH'-[a-zA-Z0-9]*"' | sed 's/.*: *"//;s/"//' | sort | tail -n1)
 if [ -z "$FILENAME" ]; then

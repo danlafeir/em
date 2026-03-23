@@ -11,9 +11,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/charts"
-	"devctl-em/internal/datadog"
-	"devctl-em/internal/output"
+	"em/internal/charts"
+	"em/internal/datadog"
+	"em/internal/output"
 )
 
 var datadogMonitorsCmd = &cobra.Command{
@@ -23,10 +23,10 @@ var datadogMonitorsCmd = &cobra.Command{
 monitor triggered in the last 2 weeks (or the specified date range).
 
 Examples:
-  devctl-em metrics datadog monitors
-  devctl-em metrics datadog monitors --team my-team
-  devctl-em metrics datadog monitors --from 2025-01-01 --to 2025-06-30
-  devctl-em metrics datadog monitors -f csv -o monitors.csv`,
+  em metrics datadog monitors
+  em metrics datadog monitors --team my-team
+  em metrics datadog monitors --from 2025-01-01 --to 2025-06-30
+  em metrics datadog monitors -f csv -o monitors.csv`,
 	RunE: runDatadogMonitors,
 }
 
@@ -57,7 +57,7 @@ func runDatadogMonitors(cmd *cobra.Command, args []string) error {
 
 	team := getDatadogTeam()
 	if team == "" {
-		return fmt.Errorf("Datadog team not configured. Use --team or run: devctl-em metrics datadog config")
+		return fmt.Errorf("Datadog team not configured. Use --team or run: em metrics datadog config")
 	}
 	teamTag := "team:" + team
 

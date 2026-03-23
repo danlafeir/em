@@ -12,10 +12,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/charts"
-	"devctl-em/internal/jira"
-	"devctl-em/internal/metrics"
-	"devctl-em/internal/workflow"
+	"em/internal/charts"
+	"em/internal/jira"
+	"em/internal/metrics"
+	"em/internal/workflow"
 )
 
 var forecastCmd = &cobra.Command{
@@ -29,10 +29,10 @@ and calculate probability distributions.
 When run without flags, forecasts all open epics in your configured projects.
 
 Example:
-  devctl-em metrics jira forecast                                    # All open epics
-  devctl-em metrics jira forecast --epic MYPROJ-123                  # Single epic
-  devctl-em metrics jira forecast --jql "project = MYPROJ" --remaining 25
-  devctl-em metrics jira forecast --deadline 2024-12-31              # Check deadline`,
+  em metrics jira forecast                                    # All open epics
+  em metrics jira forecast --epic MYPROJ-123                  # Single epic
+  em metrics jira forecast --jql "project = MYPROJ" --remaining 25
+  em metrics jira forecast --deadline 2024-12-31              # Check deadline`,
 	RunE: runForecast,
 }
 

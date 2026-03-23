@@ -1,17 +1,17 @@
-module devctl-em
+module em
 
 go 1.25.0
 
 require (
-	github.com/danlafeir/devctl v0.0.0-20260311235438-efd32978a6e9
+	github.com/cli/go-gh/v2 v2.13.0
+	github.com/danlafeir/cli-go v0.0.0-20260323033014-41f12251a4c7
 	github.com/spf13/cobra v1.10.2
 	github.com/xuri/excelize/v2 v2.10.0
-	golang.org/x/term v0.39.0
+	golang.org/x/term v0.41.0
 )
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/cli/go-gh/v2 v2.13.0 // indirect
 	github.com/cli/safeexec v1.0.0 // indirect
 	github.com/cli/shurcooL-graphql v0.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
@@ -38,11 +38,9 @@ require (
 	github.com/xuri/efp v0.0.1 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/crypto v0.47.0 // indirect
-	golang.org/x/net v0.48.0 // indirect
-	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sys v0.41.0 // indirect
-	golang.org/x/text v0.33.0 // indirect
-	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
+	golang.org/x/crypto v0.49.0 // indirect
+	golang.org/x/net v0.51.0 // indirect
+	golang.org/x/sys v0.42.0 // indirect
+	golang.org/x/text v0.35.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

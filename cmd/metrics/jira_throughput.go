@@ -9,11 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/charts"
-	"devctl-em/internal/jira"
-	"devctl-em/internal/metrics"
-	"devctl-em/internal/output"
-	"devctl-em/internal/workflow"
+	"em/internal/charts"
+	"em/internal/jira"
+	"em/internal/metrics"
+	"em/internal/output"
+	"em/internal/workflow"
 )
 
 var throughputCmd = &cobra.Command{
@@ -27,8 +27,8 @@ Generates:
   - CSV export with period-by-period data
 
 Example:
-  devctl-em metrics jira throughput --jql "project = MYPROJ" --from 2024-01-01
-  devctl-em metrics jira throughput --frequency weekly -o throughput.csv`,
+  em metrics jira throughput --jql "project = MYPROJ" --from 2024-01-01
+  em metrics jira throughput --frequency weekly -o throughput.csv`,
 	RunE: runThroughput,
 }
 

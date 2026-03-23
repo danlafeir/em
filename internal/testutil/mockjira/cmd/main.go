@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"devctl-em/internal/testutil/mockjira"
+	"em/internal/testutil/mockjira"
 )
 
 func main() {

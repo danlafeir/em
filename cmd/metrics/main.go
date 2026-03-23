@@ -50,11 +50,11 @@ Available data sources:
 
 Quick Start:
   1. Add teams:
-     devctl-em metrics config
+     em metrics config
 
   2. Configure connections:
-     devctl-em metrics jira config
-     devctl-em metrics github config`,
+     em metrics jira config
+     em metrics github config`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},

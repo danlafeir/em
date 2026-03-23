@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/danlafeir/devctl/pkg/config"
+	"github.com/danlafeir/cli-go/pkg/config"
 	"github.com/spf13/cobra"
 )
 
@@ -22,8 +22,8 @@ without requiring --team. Use 0 to clear the selection and revert
 to all configured teams.
 
 Examples:
-  devctl-em metrics select-team
-  devctl-em metrics select-team my-team`,
+  em metrics select-team
+  em metrics select-team my-team`,
 	RunE: runSelectTeam,
 }
 

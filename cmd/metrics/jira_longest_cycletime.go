@@ -9,9 +9,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/charts"
-	"devctl-em/internal/jira"
-	"devctl-em/internal/metrics"
+	"em/internal/charts"
+	"em/internal/jira"
+	"em/internal/metrics"
 )
 
 const defaultLongestCTLimit = 10
@@ -23,8 +23,8 @@ var longestCycleTimeCmd = &cobra.Command{
 	Long: `Show the top 10 issues with the longest cycle times in the last 6 weeks.
 
 Example:
-  devctl-em metrics jira longest-cycle-time
-  devctl-em metrics jira longest-cycle-time --from 2024-01-01`,
+  em metrics jira longest-cycle-time
+  em metrics jira longest-cycle-time --from 2024-01-01`,
 	RunE: runLongestCycleTime,
 }
 

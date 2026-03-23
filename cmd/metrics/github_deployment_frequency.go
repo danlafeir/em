@@ -12,10 +12,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/charts"
-	gh "devctl-em/internal/github"
-	"devctl-em/internal/metrics"
-	"devctl-em/internal/output"
+	"em/internal/charts"
+	gh "em/internal/github"
+	"em/internal/metrics"
+	"em/internal/output"
 )
 
 var deploymentFrequencyCmd = &cobra.Command{
@@ -23,12 +23,12 @@ var deploymentFrequencyCmd = &cobra.Command{
 	Short: "Measure deployment frequency",
 	Long: `Count successful runs of configured deploy workflows.
 
-Run "devctl-em metrics github config" first to configure deploy workflows.
+Run "em metrics github config" first to configure deploy workflows.
 
 Examples:
-  devctl-em metrics github deployment-frequency
-  devctl-em metrics github deployment-frequency --from 2025-01-01 --to 2025-06-30
-  devctl-em metrics github deployment-frequency -f csv -o deployments.csv`,
+  em metrics github deployment-frequency
+  em metrics github deployment-frequency --from 2025-01-01 --to 2025-06-30
+  em metrics github deployment-frequency -f csv -o deployments.csv`,
 	RunE: runDeploymentFrequency,
 }
 
@@ -83,7 +83,7 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 
 	org := getGithubOrg()
 	if org == "" {
-		return fmt.Errorf("GitHub org not configured. Run: devctl-em config set github.org <org>")
+		return fmt.Errorf("GitHub org not configured. Run: em config set github.org <org>")
 	}
 
 	allTeamWorkflows, err := getAllConfiguredWorkflows()

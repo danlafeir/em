@@ -8,17 +8,27 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"syscall"
 
-	"github.com/danlafeir/devctl/pkg/config"
-	"github.com/danlafeir/devctl/pkg/secrets"
+	"github.com/danlafeir/cli-go/pkg/config"
+	"github.com/danlafeir/cli-go/pkg/secrets"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
 
-// configNamespace is the namespace for devctl-em config within ~/.devctl/config.yaml
+// configNamespace is the namespace for em config within ~/.em/config.yaml
 const configNamespace = "em"
+
+// emConfigDir returns the path to the em config directory (~/.em).
+func emConfigDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return ".em"
+	}
+	return filepath.Join(home, ".em")
+}
 
 // isSecretKey returns true if the key should be stored in the keychain.
 func isSecretKey(key string) bool {
@@ -35,12 +45,12 @@ func isSecretKey(key string) bool {
 // configCmd represents the config command
 var configCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Manage configuration for devctl-em",
-	Long: `Manage configuration values for devctl-em CLI.
+	Short: "Manage configuration for em",
+	Long: `Manage configuration values for em CLI.
 
 Use this command to get, set, or delete configuration values.
-Regular config is stored in ~/.devctl/config.yaml under the 'em' namespace.
-Sensitive values (like api_token) are stored in the system keychain.`,
+Regular config is stored in ~/.em/config.yaml.
+Sensitive values (like api_token) are stored in the system keychain under cli.em.*.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},
@@ -73,7 +83,7 @@ var getCmd = &cobra.Command{
 		}
 
 		// Get from config file
-		if err := config.InitConfig(""); err != nil {
+		if err := config.InitConfig(emConfigDir()); err != nil {
 			log.Fatalf("Failed to initialize config: %v", err)
 		}
 
@@ -135,7 +145,7 @@ For secrets, if no value is provided, you will be prompted to enter it securely.
 		}
 
 		// Store in config file
-		if err := config.InitConfig(""); err != nil {
+		if err := config.InitConfig(emConfigDir()); err != nil {
 			log.Fatalf("Failed to initialize config: %v", err)
 		}
 
@@ -170,7 +180,7 @@ var deleteCmd = &cobra.Command{
 		}
 
 		// Delete from config file
-		if err := config.InitConfig(""); err != nil {
+		if err := config.InitConfig(emConfigDir()); err != nil {
 			log.Fatalf("Failed to initialize config: %v", err)
 		}
 
@@ -188,7 +198,7 @@ var listCmd = &cobra.Command{
 	Long: `List all configuration values.`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		if err := config.InitConfig(""); err != nil {
+		if err := config.InitConfig(emConfigDir()); err != nil {
 			log.Fatalf("Failed to initialize config: %v", err)
 		}
 

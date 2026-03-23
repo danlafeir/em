@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"devctl-em/internal/metrics"
+	"em/internal/metrics"
 )
 
 // helpers

@@ -11,9 +11,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/charts"
-	"devctl-em/internal/datadog"
-	"devctl-em/internal/output"
+	"em/internal/charts"
+	"em/internal/datadog"
+	"em/internal/output"
 )
 
 var datadogSLOsCmd = &cobra.Command{
@@ -22,9 +22,9 @@ var datadogSLOsCmd = &cobra.Command{
 	Long: `Show all SLOs for the team with violation count over the last 2 weeks.
 
 Examples:
-  devctl-em metrics datadog slos
-  devctl-em metrics datadog slos --from 2025-01-01 --to 2025-06-30
-  devctl-em metrics datadog slos -f csv -o slos.csv`,
+  em metrics datadog slos
+  em metrics datadog slos --from 2025-01-01 --to 2025-06-30
+  em metrics datadog slos -f csv -o slos.csv`,
 	RunE: runDatadogSLOs,
 }
 
@@ -177,7 +177,7 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 
 	team := getDatadogTeam()
 	if team == "" {
-		return fmt.Errorf("Datadog team not configured. Run: devctl-em config set datadog.team <team>")
+		return fmt.Errorf("Datadog team not configured. Run: em config set datadog.team <team>")
 	}
 
 	fmt.Println("Testing Datadog connection...")

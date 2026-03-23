@@ -9,10 +9,10 @@ import (
 	"strings"
 	"syscall"
 
-	"devctl-em/internal/jira"
+	"em/internal/jira"
 
-	"github.com/danlafeir/devctl/pkg/config"
-	"github.com/danlafeir/devctl/pkg/secrets"
+	"github.com/danlafeir/cli-go/pkg/config"
+	"github.com/danlafeir/cli-go/pkg/secrets"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 )
@@ -29,10 +29,10 @@ Prompts for:
   - Team project key
 
 Existing values are shown and can be kept by pressing Enter.
-Use "devctl-em metrics select-team" to set the active team first.
+Use "em metrics select-team" to set the active team first.
 
 Example:
-  devctl-em metrics jira config`,
+  em metrics jira config`,
 	RunE: runJiraConfig,
 }
 
@@ -85,9 +85,9 @@ func runJiraConfig(cmd *cobra.Command, args []string) error {
 	team := getSelectedTeam()
 	if team == "" {
 		if len(getAllTeams()) == 0 {
-			return fmt.Errorf("no teams configured. Run: devctl-em metrics config to add a team first")
+			return fmt.Errorf("no teams configured. Run: em metrics config to add a team first")
 		}
-		return fmt.Errorf("no team selected. Run: devctl-em metrics select-team")
+		return fmt.Errorf("no team selected. Run: em metrics select-team")
 	}
 
 	currentProject := getTeamConfigString(team, "project")

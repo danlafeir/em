@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"time"
 
-	"devctl-em/internal/charts"
-	pkgmetrics "devctl-em/internal/metrics"
-	"devctl-em/internal/output"
-	snykpkg "devctl-em/internal/snyk"
+	"em/internal/charts"
+	pkgmetrics "em/internal/metrics"
+	"em/internal/output"
+	snykpkg "em/internal/snyk"
 )
 
 // useSavedDataFlag skips upstream API calls and loads from previously saved CSVs.

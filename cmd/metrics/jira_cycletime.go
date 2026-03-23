@@ -9,11 +9,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"devctl-em/internal/charts"
-	"devctl-em/internal/jira"
-	"devctl-em/internal/metrics"
-	"devctl-em/internal/output"
-	"devctl-em/internal/workflow"
+	"em/internal/charts"
+	"em/internal/jira"
+	"em/internal/metrics"
+	"em/internal/output"
+	"em/internal/workflow"
 )
 
 var cycleTimeCmd = &cobra.Command{
@@ -27,8 +27,8 @@ Generates:
   - Scatter plot showing cycle time over time (if HTML format)
 
 Example:
-  devctl-em metrics jira cycle-time --jql "project = MYPROJ" --from 2024-01-01
-  devctl-em metrics jira cycle-time --jql "project = MYPROJ AND issuetype in (Story, Spike, Bug, Defect)" -o cycletime.csv`,
+  em metrics jira cycle-time --jql "project = MYPROJ" --from 2024-01-01
+  em metrics jira cycle-time --jql "project = MYPROJ AND issuetype in (Story, Spike, Bug, Defect)" -o cycletime.csv`,
 	RunE: runCycleTime,
 }
 
