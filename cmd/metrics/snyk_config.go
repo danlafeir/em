@@ -40,6 +40,9 @@ func init() {
 
 func runSnykConfig(cmd *cobra.Command, args []string) error {
 	initConfig()
+	if err := ensureTeamSelected(cmd, args); err != nil {
+		return err
+	}
 	reader := bufio.NewReader(os.Stdin)
 	ctx := context.Background()
 

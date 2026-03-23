@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"strconv"
 	"strings"
 	"syscall"
 
@@ -26,7 +25,6 @@ Prompts for:
   - Datadog site (optional, defaults to datadoghq.com)
   - API key (stored in system keychain)
   - App key (stored in system keychain)
-  - Team name (used to filter pages and SLOs)
 
 Existing values are shown and can be kept by pressing Enter.
 
@@ -41,6 +39,9 @@ func init() {
 
 func runDatadogConfig(cmd *cobra.Command, args []string) error {
 	initConfig()
+	if err := ensureTeamSelected(cmd, args); err != nil {
+		return err
+	}
 	reader := bufio.NewReader(os.Stdin)
 	ctx := context.Background()
 
@@ -123,72 +124,8 @@ func runDatadogConfig(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Println("Connected successfully.")
 
-	// 5. Team
-	teamInput, err := selectDatadogTeam(reader)
-	if err != nil {
-		return err
-	}
-	currentTeam := getConfigString("datadog.team")
-	if teamInput != currentTeam {
-		config.SetConfigValue(configNamespace, "datadog.team", teamInput)
-		if err := config.WriteConfig(); err != nil {
-			return fmt.Errorf("failed to save config: %w", err)
-		}
-	}
-
 	fmt.Println("Datadog configuration saved.")
 	return nil
-}
-
-// selectDatadogTeam lists configured teams and lets the user pick one or enter a new one.
-func selectDatadogTeam(reader *bufio.Reader) (string, error) {
-	currentTeam := getConfigString("datadog.team")
-	teams := getAllTeams()
-
-	if len(teams) > 0 {
-		fmt.Println("Teams:")
-		for i, t := range teams {
-			marker := ""
-			if t == currentTeam {
-				marker = " (current)"
-			}
-			fmt.Printf("  %d) %s%s\n", i+1, t, marker)
-		}
-		fmt.Printf("  n) Enter a new team\n")
-
-		if currentTeam != "" {
-			fmt.Printf("Select team [current: %s]: ", currentTeam)
-		} else {
-			fmt.Print("Select team: ")
-		}
-
-		input, _ := reader.ReadString('\n')
-		input = strings.TrimSpace(input)
-
-		if input == "" && currentTeam != "" {
-			return currentTeam, nil
-		}
-
-		if input != "n" && input != "" {
-			choice, err := strconv.Atoi(input)
-			if err != nil || choice < 1 || choice > len(teams) {
-				return "", fmt.Errorf("invalid selection")
-			}
-			return teams[choice-1], nil
-		}
-	}
-
-	// New team prompt
-	fmt.Print("Team name: ")
-	name, _ := reader.ReadString('\n')
-	name = strings.TrimSpace(name)
-	if name == "" {
-		if currentTeam != "" {
-			return currentTeam, nil
-		}
-		return "", fmt.Errorf("team name is required")
-	}
-	return name, nil
 }
 
 func promptAndStoreDatadogKey(secretName, displayName string) error {

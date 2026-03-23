@@ -177,7 +177,7 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 
 	team := getDatadogTeam()
 	if team == "" {
-		return fmt.Errorf("Datadog team not configured. Run: em config set datadog.team <team>")
+		return fmt.Errorf("no team selected. Run: em metrics select-team")
 	}
 
 	fmt.Println("Testing Datadog connection...")

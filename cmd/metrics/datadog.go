@@ -88,12 +88,12 @@ func getDatadogClient() (*datadog.Client, error) {
 	return datadog.NewClient(creds), nil
 }
 
-// getDatadogTeam returns the Datadog team from flag or config.
+// getDatadogTeam returns the Datadog team from flag, falling back to the selected team.
 func getDatadogTeam() string {
 	if ddTeamFlag != "" {
 		return ddTeamFlag
 	}
-	return getConfigString("datadog.team")
+	return getSelectedTeam()
 }
 
 // getDatadogDateRange returns the from/to date range for Datadog commands.

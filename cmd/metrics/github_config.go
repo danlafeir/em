@@ -43,6 +43,9 @@ func init() {
 
 func runGhConfig(cmd *cobra.Command, args []string) error {
 	initConfig()
+	if err := ensureTeamSelected(cmd, args); err != nil {
+		return err
+	}
 	reader := bufio.NewReader(os.Stdin)
 	ctx := context.Background()
 
@@ -91,12 +94,6 @@ func runGhConfig(cmd *cobra.Command, args []string) error {
 
 	// 4. Configure selected team
 	team := getSelectedTeam()
-	if team == "" {
-		if len(getAllTeams()) == 0 {
-			return fmt.Errorf("no teams configured. Run: em metrics config to add a team first")
-		}
-		return fmt.Errorf("no team selected. Run: em metrics select-team")
-	}
 
 	if err := runGhTeamConfig(ctx, reader, client, org, team); err != nil {
 		return err

@@ -42,6 +42,9 @@ func init() {
 
 func runJiraConfig(cmd *cobra.Command, args []string) error {
 	initConfig()
+	if err := ensureTeamSelected(cmd, args); err != nil {
+		return err
+	}
 	reader := bufio.NewReader(os.Stdin)
 
 	// 1. Domain
@@ -83,12 +86,6 @@ func runJiraConfig(cmd *cobra.Command, args []string) error {
 
 	// 4. Configure selected team
 	team := getSelectedTeam()
-	if team == "" {
-		if len(getAllTeams()) == 0 {
-			return fmt.Errorf("no teams configured. Run: em metrics config to add a team first")
-		}
-		return fmt.Errorf("no team selected. Run: em metrics select-team")
-	}
 
 	currentProject := getTeamConfigString(team, "project")
 	project, err := promptValue(reader, fmt.Sprintf("Project key for team %q", team), currentProject)

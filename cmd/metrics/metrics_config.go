@@ -26,22 +26,30 @@ func init() {
 	MetricsCmd.AddCommand(metricsConfigCmd)
 }
 
-func runMetricsConfig(cmd *cobra.Command, args []string) error {
-	initConfig()
-
+// ensureTeamSelected checks that at least one team exists and one is selected.
+// If not, it runs the select-team flow inline before returning.
+func ensureTeamSelected(cmd *cobra.Command, args []string) error {
 	teams := getAllTeams()
 	selected := getSelectedTeam()
 	if len(teams) == 0 || selected == "" {
 		if len(teams) == 0 {
 			fmt.Println("No teams configured yet. Let's set one up first.")
 		} else {
-			fmt.Println("No team selected. Please select a team before configuring metrics.")
+			fmt.Println("No team selected. Please select a team before configuring.")
 		}
 		fmt.Println()
 		if err := runSelectTeam(cmd, args); err != nil {
 			return fmt.Errorf("team selection required: %w", err)
 		}
 		fmt.Println()
+	}
+	return nil
+}
+
+func runMetricsConfig(cmd *cobra.Command, args []string) error {
+	initConfig()
+	if err := ensureTeamSelected(cmd, args); err != nil {
+		return err
 	}
 
 	fmt.Println("=== JIRA ===")
