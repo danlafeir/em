@@ -147,7 +147,8 @@ func saveSelectedTeam(team string) error {
 func getAllTeams() []string {
 	seen := make(map[string]bool)
 
-	// Teams explicitly registered via metrics config
+	// Teams explicitly registered via metrics config.
+	// team_names stores string values so original capitalization is preserved.
 	if raw := getConfigAny("team_names"); raw != nil {
 		switch v := raw.(type) {
 		case []any:
@@ -163,11 +164,22 @@ func getAllTeams() []string {
 		}
 	}
 
+	// Build a lookup from the lowercase slug → original name using team_names.
+	// Viper lowercases all map keys, so teams.* slugs need this to recover case.
+	slugToName := make(map[string]string, len(seen))
+	for name := range seen {
+		slugToName[strings.ToLower(name)] = name
+	}
+
 	// Teams that already have config under teams.*
 	if raw := getConfigAny("teams"); raw != nil {
 		if rawMap, ok := raw.(map[string]any); ok {
-			for name := range rawMap {
-				seen[name] = true
+			for slug := range rawMap {
+				if original, ok := slugToName[slug]; ok {
+					seen[original] = true
+				} else {
+					seen[slug] = true
+				}
 			}
 		}
 	}
