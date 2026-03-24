@@ -137,7 +137,7 @@ func generateLongestCycleTime(ctx context.Context, client *jira.Client, team, jq
 func buildLongestCTRows(results []metrics.CycleTimeResult, outlierKeys map[string]bool, limit int) []charts.LongestCycleTimeRow {
 	filtered := make([]metrics.CycleTimeResult, 0, len(results))
 	for _, r := range results {
-		if r.IssueType != "Epic" {
+		if r.IssueType != "Epic" && r.CycleTimeDays() > 0 {
 			filtered = append(filtered, r)
 		}
 	}
