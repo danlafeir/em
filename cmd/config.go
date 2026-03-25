@@ -16,6 +16,8 @@ import (
 	"github.com/danlafeir/cli-go/pkg/secrets"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
+
+	"em/cmd/metrics"
 )
 
 // configNamespace is the namespace for em config within ~/.em/config.yaml
@@ -51,6 +53,12 @@ var configCmd = &cobra.Command{
 Use this command to get, set, or delete configuration values.
 Regular config is stored in ~/.em/config.yaml.
 Sensitive values (like api_token) are stored in the system keychain under cli.em.*.`,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if err := config.InitConfig(emConfigDir()); err != nil {
+			return err
+		}
+		return metrics.EnsureTeamSelected(cmd, args)
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},

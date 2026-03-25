@@ -26,8 +26,12 @@ func init() {
 	MetricsCmd.AddCommand(metricsConfigCmd)
 }
 
-// ensureTeamSelected checks that at least one team exists and one is selected.
+// EnsureTeamSelected checks that at least one team exists and one is selected.
 // If not, it runs the select-team flow inline before returning.
+func EnsureTeamSelected(cmd *cobra.Command, args []string) error {
+	return ensureTeamSelected(cmd, args)
+}
+
 func ensureTeamSelected(cmd *cobra.Command, args []string) error {
 	teams := getAllTeams()
 	selected := getSelectedTeam()
