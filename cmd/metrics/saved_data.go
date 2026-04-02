@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"em/internal/charts"
@@ -119,7 +120,7 @@ func loadDeploymentData(team string) (pkgmetrics.ThroughputResult, error) {
 }
 
 // ---- JIRA cycle time data ----
-// CSV: key,type,summary,cycle_time_hours,start_date,end_date,is_outlier
+// CSV: key,type,summary,cycle_time_days,start_date,end_date,is_outlier,assignee,priority,labels,epic_key
 
 func saveJiraCycleTimeData(results []pkgmetrics.CycleTimeResult, outlierKeys map[string]bool, team string) error {
 	f, err := output.Create(savedJiraCycleTimePath(team))
@@ -129,7 +130,7 @@ func saveJiraCycleTimeData(results []pkgmetrics.CycleTimeResult, outlierKeys map
 	defer f.Close()
 	w := csv.NewWriter(f)
 	defer w.Flush()
-	if err := w.Write([]string{"key", "type", "summary", "cycle_time_hours", "start_date", "end_date", "is_outlier"}); err != nil {
+	if err := w.Write([]string{"key", "type", "summary", "cycle_time_days", "start_date", "end_date", "is_outlier", "assignee", "priority", "labels", "epic_key"}); err != nil {
 		return err
 	}
 	for _, r := range results {
@@ -137,10 +138,14 @@ func saveJiraCycleTimeData(results []pkgmetrics.CycleTimeResult, outlierKeys map
 			r.IssueKey,
 			r.IssueType,
 			r.Summary,
-			strconv.FormatFloat(r.CycleTime.Hours(), 'f', 4, 64),
+			strconv.FormatFloat(r.CycleTimeDays(), 'f', 4, 64),
 			r.StartDate.Format(time.RFC3339),
 			r.EndDate.Format(time.RFC3339),
 			strconv.FormatBool(outlierKeys[r.IssueKey]),
+			r.Assignee,
+			r.Priority,
+			strings.Join(r.Labels, "|"),
+			r.EpicKey,
 		}); err != nil {
 			return err
 		}
@@ -170,7 +175,7 @@ func loadJiraCycleTimeData(team string) (loadedCycleTimeData, error) {
 		if len(row) < 7 {
 			continue
 		}
-		hours, err := strconv.ParseFloat(row[3], 64)
+		days, err := strconv.ParseFloat(row[3], 64)
 		if err != nil {
 			continue
 		}
@@ -183,9 +188,18 @@ func loadJiraCycleTimeData(team string) (loadedCycleTimeData, error) {
 			IssueKey:  row[0],
 			IssueType: row[1],
 			Summary:   row[2],
-			CycleTime: time.Duration(hours * float64(time.Hour)),
+			CycleTime: time.Duration(days * 24 * float64(time.Hour)),
 			StartDate: start,
 			EndDate:   end,
+		}
+		// Extended fields (present in newer files only)
+		if len(row) >= 11 {
+			r.Assignee = row[7]
+			r.Priority = row[8]
+			if row[9] != "" {
+				r.Labels = strings.Split(row[9], "|")
+			}
+			r.EpicKey = row[10]
 		}
 		isOutlier, _ := strconv.ParseBool(row[6])
 		d.all = append(d.all, r)

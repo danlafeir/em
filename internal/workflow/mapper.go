@@ -114,6 +114,11 @@ type IssueHistory struct {
 	Completed    *time.Time
 	CurrentStage string
 	Transitions  []StageTransition
+	// Raw JIRA fields preserved for export
+	Assignee string
+	Priority string
+	Labels   []string
+	EpicKey  string
 }
 
 // MapIssueHistory converts a JIRA issue with status transitions to workflow stage history.
@@ -124,6 +129,19 @@ func (m *Mapper) MapIssueHistory(issue jira.IssueWithHistory) IssueHistory {
 		Summary:      issue.Fields.Summary,
 		Created:      issue.Fields.Created.Time,
 		CurrentStage: m.GetStage(issue.Fields.Status.Name),
+		Labels:       issue.Fields.Labels,
+	}
+
+	if issue.Fields.Assignee != nil {
+		history.Assignee = issue.Fields.Assignee.DisplayName
+	}
+	if issue.Fields.Priority != nil {
+		history.Priority = issue.Fields.Priority.Name
+	}
+	if issue.Fields.Parent != nil {
+		history.EpicKey = issue.Fields.Parent.Key
+	} else if issue.Fields.Epic != nil {
+		history.EpicKey = issue.Fields.Epic.Key
 	}
 
 	if issue.Fields.ResolutionDate != nil && !issue.Fields.ResolutionDate.Time.IsZero() {

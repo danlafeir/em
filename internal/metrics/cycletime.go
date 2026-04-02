@@ -17,6 +17,11 @@ type CycleTimeResult struct {
 	StartDate    time.Time
 	EndDate      time.Time
 	StageDetails map[string]time.Duration // Time spent in each stage
+	// Raw JIRA fields
+	Assignee string
+	Priority string
+	Labels   []string
+	EpicKey  string
 }
 
 // CycleTimeStats holds statistical summary of cycle times.
@@ -124,6 +129,10 @@ func (c *CycleTimeCalculator) calculateForIssue(history workflow.IssueHistory) *
 		StartDate:    startTime,
 		EndDate:      endTime,
 		StageDetails: stageDetails,
+		Assignee:     history.Assignee,
+		Priority:     history.Priority,
+		Labels:       history.Labels,
+		EpicKey:      history.EpicKey,
 	}
 }
 
