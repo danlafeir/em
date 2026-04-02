@@ -129,6 +129,10 @@ func init() {
 
 // getJiraClient creates a JIRA client from configuration.
 func getJiraClient() (*jira.Client, error) {
+	if activeMock.jiraClient != nil {
+		return activeMock.jiraClient, nil
+	}
+
 	domain := getConfigString("jira.domain")
 	email := getConfigString("jira.email")
 

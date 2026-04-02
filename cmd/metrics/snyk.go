@@ -51,6 +51,10 @@ func init() {
 
 // getSnykClient creates a Snyk client from configuration.
 func getSnykClient() (*snyk.Client, error) {
+	if activeMock.snykClient != nil {
+		return activeMock.snykClient, nil
+	}
+
 	token, err := secrets.Read("snyk", "api_token")
 	if err != nil || token == "" {
 		token = os.Getenv("SNYK_TOKEN")

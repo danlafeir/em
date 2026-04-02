@@ -6,11 +6,11 @@ import (
 	"time"
 )
 
-// SmallDataset returns a small deterministic dataset with ~20 issues.
-// Useful for quick sanity checks and exact assertions.
+// SmallDataset returns a small deterministic dataset with ~20 issues
+// anchored to the current time so resolved issues fall within any recent date range.
 func SmallDataset() *Dataset {
 	ds := NewDataset("mock-org-id", "Mock Org")
-	base := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	base := time.Now().UTC().Truncate(24 * time.Hour)
 
 	// Mix of open and resolved issues across severities
 	builders := []*IssueBuilder{
@@ -51,8 +51,9 @@ func RealisticDataset() *Dataset {
 		{ID: "project-3", TargetID: "target-2"}, // two projects, same target (dedup test)
 	}
 
-	rng := rand.New(rand.NewSource(42)) // deterministic
-	base := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
+	rng := rand.New(rand.NewSource(42)) // deterministic seed, relative dates
+	// Anchor 90 days before today so all data falls within any recent default range
+	base := time.Now().UTC().Truncate(24 * time.Hour)
 
 	severities := []string{"critical", "high", "high", "medium", "medium", "medium", "low"}
 	titles := []string{

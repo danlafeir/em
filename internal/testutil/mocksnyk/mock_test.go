@@ -28,8 +28,8 @@ func TestSmallDataset_listIssues(t *testing.T) {
 		t.Fatal("expected at least one org")
 	}
 
-	from := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
-	to := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	from := time.Now().AddDate(0, 0, -90)
+	to := time.Now()
 	issues, err := client.ListIssues(ctx, from, to)
 	if err != nil {
 		t.Fatalf("ListIssues: %v", err)

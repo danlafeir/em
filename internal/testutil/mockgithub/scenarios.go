@@ -7,11 +7,13 @@ import (
 	"em/internal/github"
 )
 
-// SmallDataset returns a small deterministic dataset with ~3 weeks of deployments.
-// Useful for quick sanity checks and exact assertions.
+// SmallDataset returns a small deterministic dataset with ~3 weeks of deployments
+// anchored to the current time, so it falls within any recent default date range.
 func SmallDataset() *Dataset {
 	ds := NewDataset("acme", "platform", "acme-org", "api-service")
-	base := time.Date(2024, 1, 8, 10, 0, 0, 0, time.UTC) // Monday
+	// Anchor to most recent Monday so data is always "recent"
+	now := time.Now().UTC().Truncate(24 * time.Hour)
+	base := now.AddDate(0, 0, -int(now.Weekday())-14) // ~3 weeks ago
 
 	var id int64 = 1
 
@@ -44,7 +46,8 @@ func SmallDataset() *Dataset {
 	return ds
 }
 
-// RealisticDataset returns ~12 weeks of deployment data for two repos.
+// RealisticDataset returns ~12 weeks of deployment data for two repos,
+// anchored to the current time so it falls within any recent default date range.
 func RealisticDataset() *Dataset {
 	ds := NewDataset("acme", "platform", "acme-org", "api-service")
 
@@ -60,8 +63,9 @@ func RealisticDataset() *Dataset {
 		{ID: 3, Name: "Deploy", Path: ".github/workflows/deploy.yml", State: "active"},
 	}
 
-	rng := rand.New(rand.NewSource(42)) // deterministic
-	base := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
+	rng := rand.New(rand.NewSource(42)) // deterministic seed, relative dates
+	// Anchor 12 weeks before today so all data falls within any recent default range
+	base := time.Now().UTC().Truncate(24 * time.Hour).AddDate(0, 0, -84)
 
 	var id int64 = 1
 

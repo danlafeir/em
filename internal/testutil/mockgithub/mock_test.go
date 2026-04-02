@@ -36,8 +36,8 @@ func TestSmallDataset_workflowRuns(t *testing.T) {
 		t.Fatal("expected at least one workflow")
 	}
 
-	from := time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
-	to := time.Date(2024, 12, 31, 0, 0, 0, 0, time.UTC)
+	from := time.Now().AddDate(0, 0, -90)
+	to := time.Now()
 	runs, err := client.ListWorkflowRuns(ctx, "acme-org", "api-service", workflows[0].ID, "main", from, to)
 	if err != nil {
 		t.Fatalf("ListWorkflowRuns: %v", err)

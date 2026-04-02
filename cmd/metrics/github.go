@@ -66,6 +66,10 @@ func init() {
 
 // getGithubClient creates a GitHub client from configuration.
 func getGithubClient() (*github.Client, error) {
+	if activeMock.githubClient != nil {
+		return activeMock.githubClient, nil
+	}
+
 	token, err := secrets.Read("github", "api_token")
 	if err != nil || token == "" {
 		return nil, fmt.Errorf("GitHub API token not configured. Run: em config set github.api_token")
