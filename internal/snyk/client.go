@@ -37,6 +37,16 @@ func NewClient(creds Credentials) *Client {
 	}
 }
 
+// NewClientWithHTTPDoer creates a Snyk client with a custom HTTP doer.
+// Intended for use in tests (e.g. pointing the client at an httptest.Server).
+func NewClientWithHTTPDoer(doer httputil.HTTPDoer, creds Credentials) *Client {
+	return &Client{
+		httpClient:  doer,
+		credentials: creds,
+		rateLimiter: &httputil.RateLimiter{MaxRetries: 0},
+	}
+}
+
 // doRequest executes a request with authentication and rate limit handling.
 // If fullURL is provided (non-empty), it is used as-is (for pagination next links).
 // Otherwise, the request is built from path and query against the base URL.

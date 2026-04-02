@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
 	"net/url"
 	"regexp"
 	"strings"
@@ -29,6 +30,20 @@ func NewClient(creds Credentials) (*Client, error) {
 		return nil, err
 	}
 
+	return &Client{rest: rest}, nil
+}
+
+// NewClientWithTransport creates a GitHub API client with a custom HTTP transport.
+// Intended for use in tests (e.g. pointing the client at an httptest.Server).
+func NewClientWithTransport(creds Credentials, transport http.RoundTripper) (*Client, error) {
+	opts := ghapi.ClientOptions{
+		AuthToken: creds.Token,
+		Transport: transport,
+	}
+	rest, err := ghapi.NewRESTClient(opts)
+	if err != nil {
+		return nil, err
+	}
 	return &Client{rest: rest}, nil
 }
 

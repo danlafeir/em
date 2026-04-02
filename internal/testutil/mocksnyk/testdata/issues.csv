@@ -1,0 +1,13 @@
+id,title,severity,type,status,is_fixable,is_ignored,created_at,resolved_at
+snyk-001,SQL Injection in express-validator,critical,vuln,open,true,false,2024-01-15T10:00:00Z,0001-01-01T00:00:00Z
+snyk-002,Prototype Pollution in lodash,high,vuln,open,true,false,2024-01-20T14:30:00Z,0001-01-01T00:00:00Z
+snyk-003,ReDoS in moment,medium,vuln,open,false,false,2024-02-01T09:00:00Z,0001-01-01T00:00:00Z
+snyk-004,Outdated TLS configuration,low,config,open,false,false,2024-02-10T11:00:00Z,0001-01-01T00:00:00Z
+snyk-005,Path Traversal in multer,high,vuln,open,false,true,2024-01-25T16:00:00Z,0001-01-01T00:00:00Z
+snyk-006,SSRF in axios,high,vuln,open,true,false,2024-02-15T08:00:00Z,0001-01-01T00:00:00Z
+snyk-007,XSS in marked,medium,vuln,open,true,false,2024-02-20T13:00:00Z,0001-01-01T00:00:00Z
+snyk-008,Insecure randomness,medium,vuln,open,false,false,2024-03-01T10:00:00Z,0001-01-01T00:00:00Z
+snyk-009,RCE in deserialize,critical,vuln,resolved,true,false,2023-12-01T10:00:00Z,2024-01-10T15:00:00Z
+snyk-010,Buffer Overflow in native dep,high,vuln,resolved,false,false,2023-12-15T10:00:00Z,2024-01-20T11:00:00Z
+snyk-011,XXE in xml2js,medium,vuln,resolved,true,false,2024-01-05T09:00:00Z,2024-02-05T14:00:00Z
+snyk-012,Directory Traversal in serve-static,low,vuln,resolved,true,false,2024-01-10T10:00:00Z,2024-02-15T16:00:00Z
