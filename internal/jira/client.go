@@ -41,8 +41,8 @@ func (c *Client) BrowseURL(issueKey string) string {
 	return c.credentials.BaseURL() + "/browse/" + issueKey
 }
 
-// doRequest executes a request with authentication and rate limit handling.
-func (c *Client) doRequest(ctx context.Context, method, path string, query url.Values) ([]byte, error) {
+// httpAdapter executes a request with authentication and rate limit handling.
+func (c *Client) httpAdapter(ctx context.Context, method, path string, query url.Values) ([]byte, error) {
 	fullURL := c.credentials.BaseURL() + path
 	if len(query) > 0 {
 		fullURL += "?" + query.Encode()
@@ -124,7 +124,7 @@ func (c *Client) SearchIssues(ctx context.Context, jql string, opts SearchOption
 		query.Set("expand", opts.Expand)
 	}
 
-	data, err := c.doRequest(ctx, "GET", "/rest/api/3/search/jql", query)
+	data, err := c.httpAdapter(ctx, "GET", "/rest/api/3/search/jql", query)
 	if err != nil {
 		return nil, err
 	}
@@ -173,7 +173,7 @@ func (c *Client) GetIssueChangelog(ctx context.Context, issueKey string, startAt
 	query.Set("maxResults", "100")
 
 	path := fmt.Sprintf("/rest/api/3/issue/%s/changelog", issueKey)
-	data, err := c.doRequest(ctx, "GET", path, query)
+	data, err := c.httpAdapter(ctx, "GET", path, query)
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +324,7 @@ func (c *Client) ListBoards(ctx context.Context, projectKey string) ([]Board, er
 		query.Set("projectLocation", projectID)
 		query.Set("startAt", strconv.Itoa(startAt))
 
-		data, err := c.doRequest(ctx, "GET", "/rest/agile/1.0/board", query)
+		data, err := c.httpAdapter(ctx, "GET", "/rest/agile/1.0/board", query)
 		if err != nil {
 			return nil, fmt.Errorf("listing boards: %w", err)
 		}
@@ -348,7 +348,7 @@ func (c *Client) ListBoards(ctx context.Context, projectKey string) ([]Board, er
 // getProjectID resolves a project key to its numeric ID.
 func (c *Client) getProjectID(ctx context.Context, projectKey string) (string, error) {
 	path := fmt.Sprintf("/rest/api/3/project/%s", projectKey)
-	data, err := c.doRequest(ctx, "GET", path, nil)
+	data, err := c.httpAdapter(ctx, "GET", path, nil)
 	if err != nil {
 		return "", err
 	}
@@ -366,7 +366,7 @@ func (c *Client) getProjectID(ctx context.Context, projectKey string) (string, e
 // GetBoardConfiguration returns the configuration for a board, including its filter.
 func (c *Client) GetBoardConfiguration(ctx context.Context, boardID int) (*BoardConfig, error) {
 	path := fmt.Sprintf("/rest/agile/1.0/board/%d/configuration", boardID)
-	data, err := c.doRequest(ctx, "GET", path, nil)
+	data, err := c.httpAdapter(ctx, "GET", path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("getting board configuration: %w", err)
 	}
@@ -382,7 +382,7 @@ func (c *Client) GetBoardConfiguration(ctx context.Context, boardID int) (*Board
 // GetFilter returns a JIRA saved filter by ID.
 func (c *Client) GetFilter(ctx context.Context, filterID string) (*Filter, error) {
 	path := fmt.Sprintf("/rest/api/3/filter/%s", filterID)
-	data, err := c.doRequest(ctx, "GET", path, nil)
+	data, err := c.httpAdapter(ctx, "GET", path, nil)
 	if err != nil {
 		return nil, fmt.Errorf("getting filter: %w", err)
 	}
@@ -397,6 +397,6 @@ func (c *Client) GetFilter(ctx context.Context, filterID string) (*Filter, error
 
 // TestConnection verifies the JIRA credentials work.
 func (c *Client) TestConnection(ctx context.Context) error {
-	_, err := c.doRequest(ctx, "GET", "/rest/api/3/myself", nil)
+	_, err := c.httpAdapter(ctx, "GET", "/rest/api/3/myself", nil)
 	return err
 }
