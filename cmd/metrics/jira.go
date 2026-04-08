@@ -68,29 +68,10 @@ func getConfigAny(key string) interface{} {
 var JiraCmd = &cobra.Command{
 	Use:   "jira",
 	Short: "JIRA agile metrics and forecasting",
-	Long: `Generate agile metrics from JIRA Cloud data including:
+	Long: `Generate agile metrics from JIRA Cloud.
 
-  - Cycle time analysis with scatter plots and histograms
-  - Throughput trends over time
-  - Monte Carlo forecasting
-
-Configure your JIRA connection first:
-  em config set jira.domain mycompany
-  em config set jira.email user@company.com
-  em config set jira.api_token
-
-Configure teams with their projects:
-  em config set jira.teams.platform.project PLAT
-  em config set jira.teams.backend.project API
-  em config set jira.teams.backend.jql_filter_for_metrics "project = API AND ..."
-
-JQL resolution order: --jql flag > --project flag > team jql_filter_for_metrics > team project config.
-Use --team to filter to a single team; omit it to aggregate all teams.
-
-Examples:
-  em metrics jira cycle-time --team platform
-  em metrics jira throughput --from 2024-01-01 --to 2024-12-31
-  em metrics jira forecast --team backend --epic API-123`,
+Required:
+  em metrics jira config`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},

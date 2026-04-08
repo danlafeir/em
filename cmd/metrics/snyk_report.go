@@ -13,14 +13,10 @@ import (
 var snykReportCmd = &cobra.Command{
 	Use:   "report",
 	Short: "Generate a Snyk security metrics report as a single HTML page",
-	Long: `Generate an HTML report showing aggregate vulnerability counts and weekly trend.
+	Long: `Generate an HTML report of vulnerability counts and weekly trend.
 
-Uses the last 6 weeks of data by default. Output is an HTML file.
-
-Examples:
-  em metrics snyk report
-  em metrics snyk report --from 2025-01-01 --to 2025-06-30
-  em metrics snyk report -o snyk-report.html`,
+Required:
+  em metrics snyk config`,
 	RunE: runSnykReport,
 }
 

@@ -17,20 +17,10 @@ var DatadogCmd = &cobra.Command{
 	Hidden: true,
 	Use:    "datadog",
 	Short: "Datadog operational metrics",
-	Long: `Generate operational metrics from Datadog data.
+	Long: `Generate operational metrics from Datadog.
 
-Available metrics:
-  - monitors (monitor alert frequency)
-  - slos     (SLO violation tracking)
-
-Setup:
-  em config set datadog.team my-team
-  em config set datadog.api_key
-  em config set datadog.app_key
-
-Examples:
-  em metrics datadog monitors
-  em metrics datadog slos`,
+Required:
+  em metrics datadog config`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},

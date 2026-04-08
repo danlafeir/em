@@ -16,18 +16,10 @@ import (
 var reportCmd = &cobra.Command{
 	Use:   "report",
 	Short: "Generate combined metrics report as a single HTML page",
-	Long: `Generate an HTML report combining cycle time scatter, throughput trend,
-and Monte Carlo epic forecast.
+	Long: `Generate an HTML report combining cycle time, throughput, and forecast.
 
-When teams are configured, generates one report per team. Use --team to
-generate for a single team, or --jql/--project to bypass team iteration.
-
-Uses the last 6 weeks of data by default. Output is an HTML file.
-
-Example:
-  em metrics jira report
-  em metrics jira report --team platform
-  em metrics jira report --from 2024-01-01 -o report.html`,
+Required:
+  em metrics jira config`,
 	RunE: runReport,
 }
 

@@ -18,12 +18,10 @@ import (
 var snykIssuesCmd = &cobra.Command{
 	Use:   "issues",
 	Short: "Vulnerability counts and weekly trends",
-	Long: `Show aggregate vulnerability counts by severity and generate a weekly trend chart.
+	Long: `Show vulnerability counts by severity and generate a weekly trend chart.
 
-Examples:
-  em metrics snyk issues
-  em metrics snyk issues --from 2025-01-01 --to 2025-06-30
-  em metrics snyk issues -f csv -o issues.csv`,
+Required:
+  em metrics snyk config`,
 	RunE: runSnykIssues,
 }
 

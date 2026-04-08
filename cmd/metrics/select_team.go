@@ -15,15 +15,7 @@ import (
 var selectTeamCmd = &cobra.Command{
 	Use:   "select-team",
 	Short: "Set the active team for metrics commands",
-	Long: `Set the active team assumed by metrics subcommands.
-
-When a team is selected, jira and github metrics commands use it
-without requiring --team. Use 0 to clear the selection and revert
-to all configured teams.
-
-Examples:
-  em metrics select-team
-  em metrics select-team my-team`,
+	Long: `Set the active team assumed by all metrics commands. Use 0 to clear and revert to all teams.`,
 	RunE: runSelectTeam,
 }
 

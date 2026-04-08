@@ -21,14 +21,10 @@ import (
 var deploymentFrequencyCmd = &cobra.Command{
 	Use:   "deployment-frequency",
 	Short: "Measure deployment frequency",
-	Long: `Count successful runs of configured deploy workflows.
+	Long: `Count successful deploy workflow runs per repository.
 
-Run "em metrics github config" first to configure deploy workflows.
-
-Examples:
-  em metrics github deployment-frequency
-  em metrics github deployment-frequency --from 2025-01-01 --to 2025-06-30
-  em metrics github deployment-frequency -f csv -o deployments.csv`,
+Required:
+  em metrics github config`,
 	RunE: runDeploymentFrequency,
 }
 

@@ -21,14 +21,8 @@ var cycleTimeCmd = &cobra.Command{
 	Short: "Generate cycle time analysis",
 	Long: `Analyze cycle time for completed issues.
 
-Generates:
-  - Statistical summary (mean, median, percentiles)
-  - CSV export with per-issue details
-  - Scatter plot showing cycle time over time (if HTML format)
-
-Example:
-  em metrics jira cycle-time --jql "project = MYPROJ" --from 2024-01-01
-  em metrics jira cycle-time --jql "project = MYPROJ AND issuetype in (Story, Spike, Bug, Defect)" -o cycletime.csv`,
+Required:
+  em metrics jira config`,
 	RunE: runCycleTime,
 }
 

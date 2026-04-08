@@ -19,17 +19,7 @@ import (
 var datadogConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Interactive Datadog configuration",
-	Long: `Interactively configure Datadog connection.
-
-Prompts for:
-  - Datadog site (optional, defaults to datadoghq.com)
-  - API key (stored in system keychain)
-  - App key (stored in system keychain)
-
-Existing values are shown and can be kept by pressing Enter.
-
-Examples:
-  em metrics datadog config`,
+	Long: `Interactively configure Datadog API and App keys.`,
 	RunE: runDatadogConfig,
 }
 

@@ -49,11 +49,7 @@ func isSecretKey(key string) bool {
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Manage configuration for em",
-	Long: `Manage configuration values for em CLI.
-
-Use this command to get, set, or delete configuration values.
-Regular config is stored in ~/.em/config.yaml.
-Sensitive values (like api_token) are stored in the system keychain under cli.em.*.`,
+	Long: `Manage em configuration. Regular values are stored in ~/.em/config.yaml; sensitive values (api_token) are stored in the system keychain.`,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		if err := config.InitConfig(emConfigDir()); err != nil {
 			return err

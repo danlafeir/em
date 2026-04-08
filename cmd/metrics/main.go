@@ -42,19 +42,7 @@ func parseDateRange(fromStr, toStr string) (time.Time, time.Time, error) {
 var MetricsCmd = &cobra.Command{
 	Use:   "metrics",
 	Short: "Generate engineering metrics and reports",
-	Long: `Generate engineering metrics and reports from various data sources.
-
-Available data sources:
-  jira    - JIRA Cloud agile metrics
-  github  - GitHub DORA metrics
-
-Quick Start:
-  1. Add teams:
-     em metrics config
-
-  2. Configure connections:
-     em metrics jira config
-     em metrics github config`,
+	Long: `Generate engineering metrics and reports from JIRA, GitHub, Snyk, and Datadog.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},

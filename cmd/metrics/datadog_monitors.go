@@ -19,14 +19,10 @@ import (
 var datadogMonitorsCmd = &cobra.Command{
 	Use:   "monitors",
 	Short: "List monitors for a team and whether they have recently triggered",
-	Long: `List all monitors for a team, showing current state and whether each
-monitor triggered in the last 2 weeks (or the specified date range).
+	Long: `List monitors for a team showing current state and recent alert history.
 
-Examples:
-  em metrics datadog monitors
-  em metrics datadog monitors --team my-team
-  em metrics datadog monitors --from 2025-01-01 --to 2025-06-30
-  em metrics datadog monitors -f csv -o monitors.csv`,
+Required:
+  em metrics datadog config`,
 	RunE: runDatadogMonitors,
 }
 

@@ -35,16 +35,7 @@ var updateCmd = &cobra.Command{
 var rootCmd = &cobra.Command{
 	Use:   "em",
 	Short: "Engineering manager CLI tools for metrics and reporting",
-	Long: `em provides CLI tools for engineering managers to generate
-metrics reports and insights from JIRA and other sources.
-
-Quick Start:
-  1. Configure connections:
-     em metrics jira config
-     em metrics github config
-
-  2. Generate a report:
-     em metrics jira report`,
+	Long: `em provides CLI tools for engineering managers to generate metrics reports and insights.`,
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.

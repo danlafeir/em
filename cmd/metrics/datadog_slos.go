@@ -19,12 +19,10 @@ import (
 var datadogSLOsCmd = &cobra.Command{
 	Use:   "slos",
 	Short: "SLO violation tracking",
-	Long: `Show all SLOs for the team with violation count over the last 2 weeks.
+	Long: `Show SLOs for the team and flag any violations.
 
-Examples:
-  em metrics datadog slos
-  em metrics datadog slos --from 2025-01-01 --to 2025-06-30
-  em metrics datadog slos -f csv -o slos.csv`,
+Required:
+  em metrics datadog config`,
 	RunE: runDatadogSLOs,
 }
 

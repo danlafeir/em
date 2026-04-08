@@ -16,27 +16,10 @@ import (
 var GithubCmd = &cobra.Command{
 	Use:   "github",
 	Short: "GitHub DORA metrics",
-	Long: `Generate DORA metrics from GitHub Actions data.
+	Long: `Generate DORA metrics from GitHub Actions.
 
-Available metrics:
-  - Deployment frequency (how often code is deployed)
-
-Setup:
-  em config set github.org myorg
-  em config set github.api_token
-
-Then run config to pick deploy workflows per team:
-  em metrics github config --team my-team
-
-Config structure:
-  github.teams.<team>.workflows:
-    repo-a: deploy.yml
-    repo-b: release.yaml
-
-Examples:
-  em metrics github deployment-frequency --from 2025-01-01
-  em metrics github deployment-frequency --team platform
-  em metrics github deployment-frequency -f csv`,
+Required:
+  em metrics github config`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},

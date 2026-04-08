@@ -16,17 +16,10 @@ import (
 var SnykCmd = &cobra.Command{
 	Use:   "snyk",
 	Short: "Snyk security metrics",
-	Long: `Generate security metrics from Snyk data.
+	Long: `Generate security metrics from Snyk.
 
-Available metrics:
-  - issues   (vulnerability counts and weekly trends)
-
-Configure Snyk first:
-  em metrics snyk config
-
-Examples:
-  em metrics snyk issues
-  em metrics snyk issues --from 2025-01-01 --to 2025-06-30`,
+Required:
+  em metrics snyk config`,
 	Run: func(cmd *cobra.Command, args []string) {
 		cmd.Help()
 	},

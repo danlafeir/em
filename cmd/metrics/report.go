@@ -18,13 +18,8 @@ var metricsReportCmd = &cobra.Command{
 	Short: "Generate a combined engineering metrics report",
 	Long: `Generate a combined report across all configured data sources.
 
-Runs GitHub deployment frequency and JIRA metrics reports in sequence.
-Each section runs independently — a failure in one does not stop the other.
-Also generates a combined <team>-report.html with both sections.
-
-Example:
-  em metrics report
-  em metrics report --team platform`,
+Required:
+  At least one source configured (run "em metrics config")`,
 	RunE: runMetricsReport,
 }
 

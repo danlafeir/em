@@ -21,14 +21,8 @@ var throughputCmd = &cobra.Command{
 	Short: "Generate throughput trend analysis",
 	Long: `Analyze throughput (items completed per period) over time.
 
-Generates:
-  - Weekly/monthly throughput counts
-  - Statistical summary (average, min, max)
-  - CSV export with period-by-period data
-
-Example:
-  em metrics jira throughput --jql "project = MYPROJ" --from 2024-01-01
-  em metrics jira throughput --frequency weekly -o throughput.csv`,
+Required:
+  em metrics jira config`,
 	RunE: runThroughput,
 }
 

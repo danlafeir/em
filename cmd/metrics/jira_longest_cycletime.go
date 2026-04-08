@@ -20,11 +20,10 @@ const reportLongestCTLimit = 5
 var longestCycleTimeCmd = &cobra.Command{
 	Use:   "longest-cycle-time",
 	Short: "List issues with the longest cycle times",
-	Long: `Show the top 10 issues with the longest cycle times in the last 6 weeks.
+	Long: `List the top 10 issues with the longest cycle times.
 
-Example:
-  em metrics jira longest-cycle-time
-  em metrics jira longest-cycle-time --from 2024-01-01`,
+Required:
+  em metrics jira config`,
 	RunE: runLongestCycleTime,
 }
 

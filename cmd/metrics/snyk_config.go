@@ -20,17 +20,7 @@ import (
 var snykConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Interactive Snyk configuration",
-	Long: `Interactively configure Snyk connection.
-
-Prompts for:
-  - Snyk site (optional, defaults to api.snyk.io)
-  - API token (stored in system keychain)
-  - Snyk org (selected from your accessible organizations)
-
-Existing values are shown and can be kept by pressing Enter.
-
-Examples:
-  em metrics snyk config`,
+	Long: `Interactively configure Snyk connection and organization.`,
 	RunE: runSnykConfig,
 }
 

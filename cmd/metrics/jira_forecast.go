@@ -21,18 +21,10 @@ import (
 var forecastCmd = &cobra.Command{
 	Use:   "forecast",
 	Short: "Monte Carlo completion forecast",
-	Long: `Run Monte Carlo simulation to forecast completion dates.
+	Long: `Run Monte Carlo simulation to forecast epic completion dates using historical throughput.
 
-Uses historical throughput data to simulate possible completion dates
-and calculate probability distributions.
-
-When run without flags, forecasts all open epics in your configured projects.
-
-Example:
-  em metrics jira forecast                                    # All open epics
-  em metrics jira forecast --epic MYPROJ-123                  # Single epic
-  em metrics jira forecast --jql "project = MYPROJ" --remaining 25
-  em metrics jira forecast --deadline 2024-12-31              # Check deadline`,
+Required:
+  em metrics jira config`,
 	RunE: runForecast,
 }
 

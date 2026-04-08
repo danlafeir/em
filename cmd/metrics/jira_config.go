@@ -20,19 +20,7 @@ import (
 var jiraConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Interactive JIRA configuration",
-	Long: `Interactively configure JIRA connection and team projects.
-
-Prompts for:
-  - JIRA domain (e.g. mycompany for mycompany.atlassian.net)
-  - Email address
-  - API token (stored in system keychain)
-  - Team project key
-
-Existing values are shown and can be kept by pressing Enter.
-Use "em metrics select-team" to set the active team first.
-
-Example:
-  em metrics jira config`,
+	Long: `Interactively configure JIRA connection and team project settings.`,
 	RunE: runJiraConfig,
 }
 

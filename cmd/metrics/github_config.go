@@ -22,18 +22,7 @@ import (
 var ghConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Interactive GitHub configuration",
-	Long: `Interactively configure GitHub connection and team deploy workflows.
-
-Prompts for:
-  - GitHub organization
-  - API token (stored in system keychain)
-  - Deploy workflow per repository for each team
-
-Existing values are shown and can be kept by pressing Enter.
-
-Examples:
-  em metrics github config
-  em metrics github config --team my-team`,
+	Long: `Interactively configure GitHub connection and team deploy workflows.`,
 	RunE: runGhConfig,
 }
 
