@@ -35,7 +35,6 @@ var (
 	trialsFlag      int
 	historyDaysFlag int
 	allEpicsFlag    bool
-	selectEpicsFlag bool
 )
 
 func init() {
@@ -48,7 +47,6 @@ func init() {
 	forecastCmd.Flags().IntVar(&trialsFlag, "trials", 10000, "Number of Monte Carlo simulations")
 	forecastCmd.Flags().IntVar(&historyDaysFlag, "history-days", 120, "Days of historical throughput to sample from")
 	forecastCmd.Flags().BoolVar(&allEpicsFlag, "all", false, "Forecast all open epics (default when no other flags)")
-	forecastCmd.Flags().BoolVar(&selectEpicsFlag, "select", false, "Interactively select which epics to forecast")
 }
 
 // EpicForecast holds forecast results for a single epic.
@@ -88,9 +86,6 @@ func runForecast(cmd *cobra.Command, args []string) error {
 		}
 		if remainingFlag > 0 {
 			return runManualForecast(ctx, client, jql, remainingFlag)
-		}
-		if selectEpicsFlag {
-			return runSelectEpicsForecast(ctx, client, team, jql)
 		}
 		return runAllEpicsForecast(ctx, client, team, jql)
 	})
@@ -443,7 +438,7 @@ func runAllEpicsForecast(ctx context.Context, client *jira.Client, team, through
 
 	if savedKeys := loadEpicSelection(team); len(savedKeys) > 0 {
 		// Fetch selected epics by key — no resolution filter so completed epics appear too.
-		fmt.Printf("Using saved epic selection (%d epic(s)). Run with --select to change.\n\n", len(savedKeys))
+		fmt.Printf("Using saved epic selection (%d epic(s)). Run 'em metrics jira set-priority' to change.\n\n", len(savedKeys))
 		epics, err = fetchEpicsByKeys(ctx, client, savedKeys)
 		if err != nil {
 			return err
@@ -528,7 +523,7 @@ func applyEpicSelection(epics []jira.Issue, team string) []jira.Issue {
 		// All saved epics are closed — fall back to all open epics
 		return epics
 	}
-	fmt.Printf("Using saved epic selection (%d epic(s)). Run with --select to change.\n\n", len(selected))
+	fmt.Printf("Using saved epic selection (%d epic(s)). Run 'em metrics jira set-priority' to change.\n\n", len(selected))
 	return selected
 }
 
@@ -565,32 +560,6 @@ func promptEpicSelection(epics []jira.Issue) ([]jira.Issue, error) {
 	return selected, nil
 }
 
-func runSelectEpicsForecast(ctx context.Context, client *jira.Client, team, throughputJQLBase string) error {
-	fmt.Println("Discovering open epics...")
-
-	epics, err := fetchOpenEpics(ctx, client, team)
-	if err != nil {
-		return err
-	}
-
-	if len(epics) == 0 {
-		fmt.Println("No open epics found.")
-		return nil
-	}
-
-	selected, err := promptEpicSelection(epics)
-	if err != nil {
-		return err
-	}
-	saveEpicSelection(team, selected)
-
-	weeklyThroughput, err := loadWeeklyThroughput(ctx, client, throughputJQLBase)
-	if err != nil {
-		return err
-	}
-
-	return runEpicForecasts(ctx, client, selected, weeklyThroughput, team, true)
-}
 
 func forecastEpic(ctx context.Context, client *jira.Client, mapper *workflow.Mapper, epic jira.Issue, weeklyThroughput []int) EpicForecast {
 	forecast := EpicForecast{

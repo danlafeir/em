@@ -25,7 +25,6 @@ Required:
 
 func init() {
 	JiraCmd.AddCommand(reportCmd)
-	reportCmd.Flags().BoolVar(&selectEpicsFlag, "select", false, "Interactively select which epics to include in the forecast")
 }
 
 func runReport(cmd *cobra.Command, args []string) error {
@@ -141,19 +140,7 @@ func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql 
 			var epics []jira.Issue
 			var epicErr error
 			sequential := false
-			if selectEpicsFlag {
-				epics, epicErr = fetchOpenEpics(ctx, client, team)
-				if epicErr == nil && len(epics) > 0 {
-					if selected, selErr := promptEpicSelection(epics); selErr != nil {
-						log("Warning: epic selection skipped: %v\n", selErr)
-						epics = nil
-					} else {
-						saveEpicSelection(team, selected)
-						epics = selected
-						sequential = true
-					}
-				}
-			} else if savedKeys := loadEpicSelection(team); len(savedKeys) > 0 {
+			if savedKeys := loadEpicSelection(team); len(savedKeys) > 0 {
 				epics, epicErr = fetchEpicsByKeys(ctx, client, savedKeys)
 				sequential = true
 			} else {
