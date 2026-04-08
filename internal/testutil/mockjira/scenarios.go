@@ -97,19 +97,21 @@ func PaginationDataset() *Dataset {
 	return ds
 }
 
-// RealisticDataset returns ~50 issues spanning 90 days with varied types and cycle times.
+// RealisticDataset returns ~50 issues spanning 40 days with varied types and cycle times.
+// Dates are anchored to time.Now() so resolved dates always fall within the default 42-day
+// query window used by throughput, cycle-time, and other commands.
 func RealisticDataset() *Dataset {
 	ds := &Dataset{Changelogs: make(map[string][]jira.ChangelogEntry)}
 	rng := rand.New(rand.NewSource(42)) // deterministic
-	base := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
+	base := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -60)
 
 	types := []string{"Story", "Bug", "Task", "Story", "Story", "Bug"}
 
 	for i := 1; i <= 50; i++ {
 		issueType := types[rng.Intn(len(types))]
 
-		// Spread creation over 90 days
-		createdOffset := time.Duration(rng.Intn(90*24)) * time.Hour
+		// Spread creation over 40 days (so resolved dates land within the 42-day window)
+		createdOffset := time.Duration(rng.Intn(40*24)) * time.Hour
 		created := base.Add(createdOffset)
 
 		b := NewIssue(issueName("PROJ", i)).

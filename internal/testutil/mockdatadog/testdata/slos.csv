@@ -1,0 +1,13 @@
+slo_id,app,name,type,target,current,budget,violated,event_count
+slo-001,api-service,API Availability,metric,99.9000,99.9500,80.0000,false,0
+slo-002,api-service,API Latency p99,metric,99.9000,98.5000,-15.0000,true,3
+slo-003,api-service,API Success Rate,metric,99.5000,99.8000,60.0000,false,0
+slo-004,web-app,Web Availability,metric,99.9000,99.9900,95.0000,false,0
+slo-005,web-app,Checkout Latency,metric,99.9000,99.8000,40.0000,false,1
+slo-006,web-app,Cart Success Rate,metric,99.5000,99.2000,-5.0000,true,2
+slo-007,payments,Payment Success Rate,metric,99.9000,99.9500,70.0000,false,0
+slo-008,payments,Payment Latency,metric,99.5000,97.0000,-30.0000,true,5
+slo-009,auth-service,Auth Availability,metric,99.9000,100.0000,100.0000,false,0
+slo-010,auth-service,Token Validation,metric,99.5000,99.6000,20.0000,false,0
+slo-011,worker,Job Success Rate,metric,99.0000,99.5000,50.0000,false,0
+slo-012,worker,Queue Depth SLO,metric,95.0000,94.0000,-8.0000,true,2

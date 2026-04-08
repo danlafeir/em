@@ -30,6 +30,15 @@ func NewClient(creds Credentials) *Client {
 	}
 }
 
+// NewClientWithHTTPDoer creates a Datadog client with an injectable HTTP doer (for testing).
+func NewClientWithHTTPDoer(doer httputil.HTTPDoer, creds Credentials) *Client {
+	return &Client{
+		httpClient:  doer,
+		credentials: creds,
+		rateLimiter: &httputil.RateLimiter{MaxRetries: 0},
+	}
+}
+
 // doRequest executes a request with authentication and rate limit handling.
 func (c *Client) doRequest(ctx context.Context, method, baseURL, path string, query url.Values) ([]byte, error) {
 	fullURL := baseURL + path

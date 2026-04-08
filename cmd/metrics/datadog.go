@@ -57,6 +57,9 @@ func init() {
 
 // getDatadogClient creates a Datadog client from configuration.
 func getDatadogClient() (*datadog.Client, error) {
+	if activeMock.datadogClient != nil {
+		return activeMock.datadogClient, nil
+	}
 	apiKey, err := secrets.Read("datadog", "api_key")
 	if err != nil || apiKey == "" {
 		apiKey = os.Getenv("DD_API_KEY")

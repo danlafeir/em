@@ -9,13 +9,17 @@ import (
 
 // Credentials holds Datadog authentication details.
 type Credentials struct {
-	APIKey string // Datadog API key
-	AppKey string // Datadog Application key
-	Site   string // Datadog site (default "datadoghq.com")
+	APIKey          string // Datadog API key
+	AppKey          string // Datadog Application key
+	Site            string // Datadog site (default "datadoghq.com")
+	BaseURLOverride string // If set, use instead of https://api.<site> (for testing)
 }
 
 // BaseURL returns the standard Datadog API base URL.
 func (c *Credentials) BaseURL() string {
+	if c.BaseURLOverride != "" {
+		return c.BaseURLOverride
+	}
 	site := c.Site
 	if site == "" {
 		site = "datadoghq.com"
@@ -23,6 +27,7 @@ func (c *Credentials) BaseURL() string {
 	return "https://api." + site
 }
 
+type SLOErrorBudget = sloErrorBudget
 
 // SLOData represents a Datadog SLO definition.
 type SLOData struct {

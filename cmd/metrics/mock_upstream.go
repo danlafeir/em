@@ -6,9 +6,11 @@ import (
 
 	"github.com/danlafeir/cli-go/pkg/config"
 
+	"em/internal/datadog"
 	"em/internal/github"
 	"em/internal/jira"
 	"em/internal/snyk"
+	"em/internal/testutil/mockdatadog"
 	"em/internal/testutil/mockgithub"
 	"em/internal/testutil/mockjira"
 	"em/internal/testutil/mocksnyk"
@@ -18,13 +20,15 @@ var mockUpstreamFlag bool
 
 // activeMock holds running servers and pre-built clients while --mock-upstream is active.
 var activeMock struct {
-	jiraServer   *httptest.Server
-	githubServer *httptest.Server
-	snykServer   *httptest.Server
+	jiraServer    *httptest.Server
+	githubServer  *httptest.Server
+	snykServer    *httptest.Server
+	datadogServer *httptest.Server
 
-	jiraClient   *jira.Client
-	githubClient *github.Client
-	snykClient   *snyk.Client
+	jiraClient    *jira.Client
+	githubClient  *github.Client
+	snykClient    *snyk.Client
+	datadogClient *datadog.Client
 }
 
 // startMockUpstream spins up in-process mock servers for JIRA, GitHub, and Snyk
@@ -57,14 +61,21 @@ func startMockUpstream() error {
 	activeMock.snykServer = snykSrv.Start()
 	activeMock.snykClient = mocksnyk.NewClient(activeMock.snykServer)
 
+	// Datadog (TLS — Datadog client uses HTTPS)
+	ddDS := mockdatadog.RealisticDataset()
+	ddSrv := mockdatadog.New(ddDS)
+	activeMock.datadogServer = ddSrv.Start()
+	activeMock.datadogClient = mockdatadog.NewClient(activeMock.datadogServer)
+
 	// Inject in-memory config so commands resolve teams/projects/workflows
 	// without real configuration. Nothing is written to disk.
 	injectMockConfig()
 
 	fmt.Println("[mock-upstream] Servers running:")
-	fmt.Printf("  JIRA   %s  (%d issues)\n", activeMock.jiraServer.URL, len(jiraDS.Issues))
-	fmt.Printf("  GitHub %s  (%d repos)\n", activeMock.githubServer.URL, len(ghDS.Repos))
-	fmt.Printf("  Snyk   %s  (%d issues)\n\n", activeMock.snykServer.URL, len(snykDS.Issues))
+	fmt.Printf("  JIRA    %s  (%d issues)\n", activeMock.jiraServer.URL, len(jiraDS.Issues))
+	fmt.Printf("  GitHub  %s  (%d repos)\n", activeMock.githubServer.URL, len(ghDS.Repos))
+	fmt.Printf("  Snyk    %s  (%d issues)\n", activeMock.snykServer.URL, len(snykDS.Issues))
+	fmt.Printf("  Datadog %s  (%d SLOs, %d monitors)\n\n", activeMock.datadogServer.URL, len(ddDS.SLOs), len(ddDS.Monitors))
 
 	return nil
 }
@@ -80,6 +91,9 @@ func stopMockUpstream() {
 	if activeMock.snykServer != nil {
 		activeMock.snykServer.Close()
 	}
+	if activeMock.datadogServer != nil {
+		activeMock.datadogServer.Close()
+	}
 }
 
 // injectMockConfig sets in-memory config values that let commands resolve
@@ -88,6 +102,7 @@ func stopMockUpstream() {
 //   - JIRA: project key "PROJ"
 //   - GitHub: org "acme-org", repo "api-service", workflow "deploy.yml"
 //   - Snyk: org ID "prod-org-id"
+//   - Datadog: team tag "team:platform"
 func injectMockConfig() {
 	initConfig()
 	set := func(k string, v any) { config.SetConfigValue(configNamespace, k, v) }
@@ -110,4 +125,8 @@ func injectMockConfig() {
 	// Snyk — matches mocksnyk.RealisticDataset()
 	set("snyk.org_id", "prod-org-id")
 	set("snyk.org_name", "Production Org")
+
+	// Datadog — matches mockdatadog.RealisticDataset() (team tag "team:platform")
+	set("datadog.site", "datadoghq.com") // overridden by BaseURLOverride in mock client
+	set("teams.platform.datadog.team", "platform")
 }
