@@ -107,6 +107,15 @@ func (c *Client) doRequest(ctx context.Context, method, path string, query url.V
 }
 
 
+// IsExploitable returns true for vulnerabilities with a known exploit (Proof of Concept or higher).
+func IsExploitable(maturity string) bool {
+	switch maturity {
+	case "Proof of Concept", "Functional", "High":
+		return true
+	}
+	return false
+}
+
 // isFixable returns true if any coordinate has a fix available.
 func isFixable(coords []coordinate) bool {
 	for _, c := range coords {
@@ -284,21 +293,37 @@ func (c *Client) CountOpenIssues(ctx context.Context) (OpenCounts, error) {
 			}
 			seenOpen[key] = true
 			counts.Total++
-			isFixable := isFixable(d.Attributes.Coordinates)
-			if isFixable {
+			fixable := isFixable(d.Attributes.Coordinates)
+			exploitable := IsExploitable(d.Attributes.ExploitDetails.Maturity)
+			if fixable {
 				counts.Fixable++
+				if exploitable {
+					counts.ExploitableFixable++
+				}
 			} else {
 				counts.Unfixable++
 			}
 			switch key.severity {
 			case "critical":
 				counts.Critical++
+				if exploitable {
+					counts.ExploitableCritical++
+				}
 			case "high":
 				counts.High++
+				if exploitable {
+					counts.ExploitableHigh++
+				}
 			case "medium":
 				counts.Medium++
+				if exploitable {
+					counts.ExploitableMedium++
+				}
 			case "low":
 				counts.Low++
+				if exploitable {
+					counts.ExploitableLow++
+				}
 			}
 		}
 
@@ -348,12 +373,13 @@ func (c *Client) ListResolvedIssues(ctx context.Context, from, to time.Time) ([]
 				continue
 			}
 			issue := Issue{
-				ID:        d.ID,
-				Title:     d.Attributes.Title,
-				Severity:  d.Attributes.EffectiveSeverityLevel,
-				IssueType: d.Attributes.Type,
-				Status:    d.Attributes.Status,
-				IsFixable: isFixable(d.Attributes.Coordinates),
+				ID:             d.ID,
+				Title:          d.Attributes.Title,
+				Severity:       d.Attributes.EffectiveSeverityLevel,
+				IssueType:      d.Attributes.Type,
+				Status:         d.Attributes.Status,
+				IsFixable:      isFixable(d.Attributes.Coordinates),
+				Exploitability: d.Attributes.ExploitDetails.Maturity,
 			}
 			if t, err := time.Parse(time.RFC3339, d.Attributes.CreatedAt); err == nil {
 				issue.CreatedAt = t
@@ -410,13 +436,14 @@ func (c *Client) ListIssues(ctx context.Context, from, to time.Time) ([]Issue, e
 
 		for _, d := range resp.Data {
 			issue := Issue{
-				ID:        d.ID,
-				Title:     d.Attributes.Title,
-				Severity:  d.Attributes.EffectiveSeverityLevel,
-				IssueType: d.Attributes.Type,
-				Status:    d.Attributes.Status,
-				IsFixable: isFixable(d.Attributes.Coordinates),
-				IsIgnored: d.Attributes.Ignored,
+				ID:             d.ID,
+				Title:          d.Attributes.Title,
+				Severity:       d.Attributes.EffectiveSeverityLevel,
+				IssueType:      d.Attributes.Type,
+				Status:         d.Attributes.Status,
+				IsFixable:      isFixable(d.Attributes.Coordinates),
+				IsIgnored:      d.Attributes.Ignored,
+				Exploitability: d.Attributes.ExploitDetails.Maturity,
 			}
 			if t, err := time.Parse(time.RFC3339, d.Attributes.CreatedAt); err == nil {
 				issue.CreatedAt = t

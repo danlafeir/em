@@ -209,6 +209,7 @@ func issueToAPIData(iwp issueWithProject) map[string]any {
 			"created_at":               issue.CreatedAt.Format("2006-01-02T15:04:05Z"),
 			"resolved_at":              resolvedAt,
 			"coordinates":              coordinates,
+			"exploit_details":          map[string]any{"maturity": issue.Exploitability},
 		},
 		"relationships": map[string]any{
 			"scan_item": map[string]any{

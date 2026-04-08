@@ -14,8 +14,8 @@ import (
 
 var selectTeamCmd = &cobra.Command{
 	Use:   "select-team",
-	Short: "Set the active team for metrics commands",
-	Long: `Set the active team assumed by all metrics commands. Use 0 to clear and revert to all teams.`,
+	Short: "Select the active team for metrics commands",
+	Long: `Select the active team assumed by all metrics commands. Use 0 to clear and revert to all teams.`,
 	RunE: runSelectTeam,
 }
 

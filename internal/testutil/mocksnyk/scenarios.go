@@ -14,8 +14,8 @@ func SmallDataset() *Dataset {
 
 	// Mix of open and resolved issues across severities
 	builders := []*IssueBuilder{
-		NewIssue("snyk-1").WithTitle("SQL Injection").WithSeverity("critical").AsFixable(),
-		NewIssue("snyk-2").WithTitle("Prototype Pollution").WithSeverity("high").AsFixable(),
+		NewIssue("snyk-1").WithTitle("SQL Injection").WithSeverity("critical").AsFixable().WithExploitability("Functional"),
+		NewIssue("snyk-2").WithTitle("Prototype Pollution").WithSeverity("high").AsFixable().WithExploitability("Proof of Concept"),
 		NewIssue("snyk-3").WithTitle("ReDoS").WithSeverity("medium"),
 		NewIssue("snyk-4").WithTitle("Outdated Dependency").WithSeverity("low"),
 		NewIssue("snyk-5").WithTitle("Path Traversal").WithSeverity("high").AsIgnored(),
@@ -62,10 +62,17 @@ func RealisticDataset() *Dataset {
 		"Outdated Dependency", "Insecure Deserialization", "Buffer Overflow",
 		"Directory Traversal", "SSRF", "XXE Injection",
 	}
+	exploitMaturity := []string{
+		"", "", "", "", // ~40% no known exploit
+		"Proof of Concept", "Proof of Concept", // ~20% PoC
+		"Functional",  // ~10% functional
+		"High",        // ~10% high
+	}
 
 	for i := 1; i <= 100; i++ {
 		severity := severities[rng.Intn(len(severities))]
 		title := titles[rng.Intn(len(titles))]
+		maturity := exploitMaturity[rng.Intn(len(exploitMaturity))]
 
 		createdOffset := time.Duration(rng.Intn(90)) * 24 * time.Hour
 		createdAt := base.Add(-createdOffset)
@@ -73,7 +80,8 @@ func RealisticDataset() *Dataset {
 		b := NewIssue(fmt.Sprintf("snyk-%03d", i)).
 			WithTitle(title).
 			WithSeverity(severity).
-			WithCreatedAt(createdAt)
+			WithCreatedAt(createdAt).
+			WithExploitability(maturity)
 
 		// ~40% fixable
 		if rng.Float64() < 0.4 {

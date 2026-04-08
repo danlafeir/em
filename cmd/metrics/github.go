@@ -15,7 +15,7 @@ import (
 // GithubCmd is the parent command for all GitHub metrics.
 var GithubCmd = &cobra.Command{
 	Use:   "github",
-	Short: "GitHub DORA metrics",
+	Short: "GitHub metrics",
 	Long: `Generate DORA metrics from GitHub Actions.
 
 Required:

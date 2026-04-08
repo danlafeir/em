@@ -606,6 +606,12 @@ type SnykSummary struct {
 	Unfixable       int
 	IgnoredFixable  int
 	IgnoredUnfixable int
+	// Exploitable counts (Proof of Concept maturity or higher)
+	ExploitableCritical int
+	ExploitableHigh     int
+	ExploitableMedium   int
+	ExploitableLow      int
+	ExploitableFixable  int
 }
 
 // snykIssuesChartConfig builds the Chart.js config for the Snyk issues stacked area chart.

@@ -5,21 +5,25 @@
       <div>
         <div style="font-size:1.6rem;font-weight:600;color:#991b1b;line-height:1;">{{.Critical}}</div>
         <div style="font-size:.75rem;color:#888;margin-top:3px;">Critical</div>
+        {{if .ExploitableCritical}}<div style="font-size:.7rem;color:#b91c1c;margin-top:4px;">{{.ExploitableCritical}} exploitable</div>{{end}}
       </div>
       <div style="width:1px;background:#e0e0e0;align-self:stretch;"></div>
       <div>
         <div style="font-size:1.6rem;font-weight:600;color:#9a3412;line-height:1;">{{.High}}</div>
         <div style="font-size:.75rem;color:#888;margin-top:3px;">High</div>
+        {{if .ExploitableHigh}}<div style="font-size:.7rem;color:#b91c1c;margin-top:4px;">{{.ExploitableHigh}} exploitable</div>{{end}}
       </div>
       <div style="width:1px;background:#e0e0e0;align-self:stretch;"></div>
       <div>
         <div style="font-size:1.6rem;font-weight:600;color:#92400e;line-height:1;">{{.Medium}}</div>
         <div style="font-size:.75rem;color:#888;margin-top:3px;">Medium</div>
+        {{if .ExploitableMedium}}<div style="font-size:.7rem;color:#b91c1c;margin-top:4px;">{{.ExploitableMedium}} exploitable</div>{{end}}
       </div>
       <div style="width:1px;background:#e0e0e0;align-self:stretch;"></div>
       <div>
         <div style="font-size:1.6rem;font-weight:600;color:#1e40af;line-height:1;">{{.Low}}</div>
         <div style="font-size:.75rem;color:#888;margin-top:3px;">Low</div>
+        {{if .ExploitableLow}}<div style="font-size:.7rem;color:#b91c1c;margin-top:4px;">{{.ExploitableLow}} exploitable</div>{{end}}
       </div>
     </div>
   </div>
@@ -29,6 +33,7 @@
       <div>
         <div style="font-size:1.6rem;font-weight:600;color:#0f766e;line-height:1;">{{.Fixable}}</div>
         <div style="font-size:.75rem;color:#888;margin-top:3px;">Fixable</div>
+        {{if .ExploitableFixable}}<div style="font-size:.7rem;color:#b91c1c;margin-top:4px;">{{.ExploitableFixable}} exploitable</div>{{end}}
       </div>
       <div style="width:1px;background:#e0e0e0;align-self:stretch;"></div>
       <div>

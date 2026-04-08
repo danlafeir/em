@@ -67,8 +67,8 @@ func getConfigAny(key string) interface{} {
 // JiraCmd is the parent command for all JIRA metrics.
 var JiraCmd = &cobra.Command{
 	Use:   "jira",
-	Short: "JIRA agile metrics and forecasting",
-	Long: `Generate agile metrics from JIRA Cloud.
+	Short: "JIRA metrics",
+	Long: `Generate metrics from JIRA Cloud.
 
 Required:
   em metrics jira config`,

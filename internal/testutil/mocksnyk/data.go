@@ -38,16 +38,17 @@ func NewDataset(orgID, orgName string) *Dataset {
 
 // IssueBuilder provides a fluent API for constructing test Snyk issues.
 type IssueBuilder struct {
-	id         string
-	title      string
-	severity   string
-	issueType  string
-	status     string
-	isFixable  bool
-	isIgnored  bool
-	createdAt  time.Time
-	resolvedAt time.Time
-	projectID  string
+	id             string
+	title          string
+	severity       string
+	issueType      string
+	status         string
+	isFixable      bool
+	isIgnored      bool
+	exploitability string
+	createdAt      time.Time
+	resolvedAt     time.Time
+	projectID      string
 }
 
 // NewIssue starts building a new Snyk issue.
@@ -93,6 +94,11 @@ func (b *IssueBuilder) AsIgnored() *IssueBuilder {
 	return b
 }
 
+func (b *IssueBuilder) WithExploitability(maturity string) *IssueBuilder {
+	b.exploitability = maturity
+	return b
+}
+
 func (b *IssueBuilder) WithCreatedAt(t time.Time) *IssueBuilder {
 	b.createdAt = t
 	return b
@@ -111,15 +117,16 @@ func (b *IssueBuilder) WithProject(projectID string) *IssueBuilder {
 // Build returns the constructed snyk.Issue and the associated project ID.
 func (b *IssueBuilder) Build() (snyk.Issue, string) {
 	return snyk.Issue{
-		ID:         b.id,
-		Title:      b.title,
-		Severity:   b.severity,
-		IssueType:  b.issueType,
-		Status:     b.status,
-		IsFixable:  b.isFixable,
-		IsIgnored:  b.isIgnored,
-		CreatedAt:  b.createdAt,
-		ResolvedAt: b.resolvedAt,
+		ID:             b.id,
+		Title:          b.title,
+		Severity:       b.severity,
+		IssueType:      b.issueType,
+		Status:         b.status,
+		IsFixable:      b.isFixable,
+		IsIgnored:      b.isIgnored,
+		Exploitability: b.exploitability,
+		CreatedAt:      b.createdAt,
+		ResolvedAt:     b.resolvedAt,
 	}, b.projectID
 }
 

@@ -32,19 +32,23 @@ type OpenCounts struct {
 	Critical, High, Medium, Low, Total int
 	Fixable, Unfixable                 int
 	Ignored, IgnoredFixable, IgnoredUnfixable int
+	// Exploitable counts (Proof of Concept maturity or higher)
+	ExploitableCritical, ExploitableHigh, ExploitableMedium, ExploitableLow int
+	ExploitableFixable int
 }
 
 // Issue represents a Snyk vulnerability issue.
 type Issue struct {
-	ID         string
-	Title      string
-	Severity   string // critical, high, medium, low
-	IssueType  string
-	Status     string
-	IsFixable  bool
-	IsIgnored  bool
-	CreatedAt  time.Time
-	ResolvedAt time.Time
+	ID             string
+	Title          string
+	Severity       string // critical, high, medium, low
+	IssueType      string
+	Status         string
+	IsFixable      bool
+	IsIgnored      bool
+	Exploitability string // "", "No Known Exploit", "Proof of Concept", "Functional", "High"
+	CreatedAt      time.Time
+	ResolvedAt     time.Time
 }
 
 // coordinate holds fix information for one affected package coordinate.
@@ -57,16 +61,22 @@ type coordinate struct {
 	IsUpgradeable     bool `json:"is_upgradeable"`
 }
 
+// exploitDetails holds exploit maturity from the issues API response.
+type exploitDetails struct {
+	Maturity string `json:"maturity"`
+}
+
 // issueAttributes holds attributes from the issues API response.
 type issueAttributes struct {
-	Title                  string       `json:"title"`
-	EffectiveSeverityLevel string       `json:"effective_severity_level"`
-	Type                   string       `json:"type"`
-	Status                 string       `json:"status"`
-	Ignored                bool         `json:"ignored"`
-	CreatedAt              string       `json:"created_at"`
-	ResolvedAt             string       `json:"resolved_at"`
-	Coordinates            []coordinate `json:"coordinates"`
+	Title                  string         `json:"title"`
+	EffectiveSeverityLevel string         `json:"effective_severity_level"`
+	Type                   string         `json:"type"`
+	Status                 string         `json:"status"`
+	Ignored                bool           `json:"ignored"`
+	CreatedAt              string         `json:"created_at"`
+	ResolvedAt             string         `json:"resolved_at"`
+	Coordinates            []coordinate   `json:"coordinates"`
+	ExploitDetails         exploitDetails `json:"exploit_details"`
 }
 
 // issueRelationships holds relationship references from the issues API response.

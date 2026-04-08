@@ -11,7 +11,7 @@ import (
 
 var metricsConfigCmd = &cobra.Command{
 	Use:   "config",
-	Short: "Interactive configuration for all metrics services",
+	Short: "Interactive configuration for all metrics sources",
 	Long: `Interactively configure JIRA, GitHub, and Snyk in sequence.`,
 	RunE: runMetricsConfig,
 }

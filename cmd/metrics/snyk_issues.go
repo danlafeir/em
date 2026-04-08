@@ -61,18 +61,30 @@ func runSnykIssues(cmd *cobra.Command, args []string) error {
 
 	// Print severity summary
 	counts := countBySeverity(issues)
+	exploitable := countExploitableBySeverity(issues)
 	total := counts["critical"] + counts["high"] + counts["medium"] + counts["low"]
 
 	fmt.Printf("\nVulnerability Summary (%d total)\n", total)
 	fmt.Printf("================================\n\n")
-	fmt.Printf("| %-10s | %5s |\n", "Severity", "Count")
-	fmt.Printf("|%s|%s|\n", strings.Repeat("-", 12), strings.Repeat("-", 7))
-	fmt.Printf("| %-10s | %5d |\n", "Critical", counts["critical"])
-	fmt.Printf("| %-10s | %5d |\n", "High", counts["high"])
-	fmt.Printf("| %-10s | %5d |\n", "Medium", counts["medium"])
-	fmt.Printf("| %-10s | %5d |\n", "Low", counts["low"])
-	fmt.Printf("|%s|%s|\n", strings.Repeat("-", 12), strings.Repeat("-", 7))
-	fmt.Printf("| %-10s | %5d |\n", "Total", total)
+	fmt.Printf("| %-16s | %5s |\n", "Severity", "Count")
+	fmt.Printf("|%s|%s|\n", strings.Repeat("-", 18), strings.Repeat("-", 7))
+	for _, sev := range []string{"critical", "high", "medium", "low"} {
+		label := strings.ToUpper(sev[:1]) + sev[1:]
+		fmt.Printf("| %-16s | %5d |\n", label, counts[sev])
+		if exploitable[sev] > 0 {
+			fmt.Printf("| %-16s | %5d |\n", "  exploitable", exploitable[sev])
+		}
+	}
+	fmt.Printf("|%s|%s|\n", strings.Repeat("-", 18), strings.Repeat("-", 7))
+	fmt.Printf("| %-16s | %5d |\n", "Total", total)
+
+	fmt.Printf("\n| %-16s | %5s |\n", "Fix Status", "Count")
+	fmt.Printf("|%s|%s|\n", strings.Repeat("-", 18), strings.Repeat("-", 7))
+	fmt.Printf("| %-16s | %5d |\n", "Fixable", openCounts.Fixable)
+	if openCounts.ExploitableFixable > 0 {
+		fmt.Printf("| %-16s | %5d |\n", "  exploitable", openCounts.ExploitableFixable)
+	}
+	fmt.Printf("| %-16s | %5d |\n", "Unfixable", openCounts.Unfixable)
 
 	// Generate weekly trend chart
 	weeks := bucketByWeek(issues, resolved, openCounts.Total, openCounts.Fixable, openCounts.IgnoredFixable, openCounts.IgnoredUnfixable, from, to)
@@ -90,13 +102,22 @@ func runSnykIssues(cmd *cobra.Command, args []string) error {
 }
 
 func countBySeverity(issues []snyk.Issue) map[string]int {
-	counts := map[string]int{
-		"critical": 0,
-		"high":     0,
-		"medium":   0,
-		"low":      0,
-	}
+	counts := map[string]int{"critical": 0, "high": 0, "medium": 0, "low": 0}
 	for _, issue := range issues {
+		sev := strings.ToLower(issue.Severity)
+		if _, ok := counts[sev]; ok {
+			counts[sev]++
+		}
+	}
+	return counts
+}
+
+func countExploitableBySeverity(issues []snyk.Issue) map[string]int {
+	counts := map[string]int{"critical": 0, "high": 0, "medium": 0, "low": 0}
+	for _, issue := range issues {
+		if !snyk.IsExploitable(issue.Exploitability) {
+			continue
+		}
 		sev := strings.ToLower(issue.Severity)
 		if _, ok := counts[sev]; ok {
 			counts[sev]++
