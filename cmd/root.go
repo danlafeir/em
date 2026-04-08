@@ -47,6 +47,20 @@ func Execute() {
 	}
 }
 
+const helpTemplate = `{{with .Long}}{{. | trimRightSpace}}
+
+{{end}}{{if .HasAvailableSubCommands}}Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}
+
+{{end}}{{if .HasAvailableLocalFlags}}Flags:
+{{.LocalFlags.FlagUsages | trimRightSpace}}
+
+{{end}}{{if .HasAvailableInheritedFlags}}Global Flags:
+{{.InheritedFlags.FlagUsages | trimRightSpace}}
+
+{{end}}{{if .HasAvailableSubCommands}}Use "{{.CommandPath}} [command] --help" for more information about a command.
+{{end}}`
+
 func init() {
 	rootCmd.AddCommand(metrics.MetricsCmd)
 	rootCmd.AddCommand(updateCmd)
@@ -54,6 +68,8 @@ func init() {
 	// Disable default commands
 	rootCmd.SetHelpCommand(&cobra.Command{Hidden: true})
 	rootCmd.CompletionOptions.DisableDefaultCmd = true
+
+	rootCmd.SetHelpTemplate(helpTemplate)
 }
 
 
