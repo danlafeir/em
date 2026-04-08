@@ -48,9 +48,6 @@ func runMetricsReport(cmd *cobra.Command, args []string) error {
 	if !snykOK {
 		unconfigured = append(unconfigured, "Snyk")
 	}
-	if !datadogOK {
-		unconfigured = append(unconfigured, "Datadog")
-	}
 	if len(unconfigured) > 0 {
 		fmt.Printf("Skipping unconfigured: %s\n", strings.Join(unconfigured, ", "))
 		fmt.Println("Run `em metrics config` to set them up.")

@@ -12,7 +12,7 @@ import (
 var metricsConfigCmd = &cobra.Command{
 	Use:   "config",
 	Short: "Interactive configuration for all metrics services",
-	Long: `Interactively configure JIRA, GitHub, Snyk, and Datadog in sequence.`,
+	Long: `Interactively configure JIRA, GitHub, and Snyk in sequence.`,
 	RunE: runMetricsConfig,
 }
 
