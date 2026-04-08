@@ -122,7 +122,7 @@ func generateLongestCycleTime(ctx context.Context, client *jira.Client, team, jq
 		return fmt.Errorf("failed to save chart: %w", err)
 	}
 	fmt.Printf("\nChart saved to %s\n", outputPath)
-	charts.OpenBrowser(outputPath)
+	openBrowser(outputPath)
 
 	return nil
 }

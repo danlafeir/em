@@ -135,7 +135,7 @@ func generateCycleTime(ctx context.Context, client *jira.Client, team, jql strin
 		return fmt.Errorf("failed to generate chart: %w", err)
 	}
 	fmt.Printf("\nChart saved to %s\n", outputPath)
-	charts.OpenBrowser(outputPath)
+	openBrowser(outputPath)
 
 	return nil
 }

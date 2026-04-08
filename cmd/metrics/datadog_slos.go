@@ -293,7 +293,7 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to generate HTML: %w", err)
 	}
 	fmt.Printf("\nReport saved to %s\n", outputPath)
-	charts.OpenBrowser(outputPath)
+	openBrowser(outputPath)
 
 	return nil
 }

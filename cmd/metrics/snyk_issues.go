@@ -83,7 +83,7 @@ func runSnykIssues(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to create chart: %w", err)
 		}
 		fmt.Printf("\nChart saved to %s\n", chartPath)
-		charts.OpenBrowser(chartPath)
+		openBrowser(chartPath)
 	}
 
 	return nil
