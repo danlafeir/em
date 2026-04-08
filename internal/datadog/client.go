@@ -35,7 +35,7 @@ func NewClientWithHTTPDoer(doer httputil.HTTPDoer, creds Credentials) *Client {
 	return &Client{
 		httpClient:  doer,
 		credentials: creds,
-		rateLimiter: &httputil.RateLimiter{MaxRetries: 0},
+		rateLimiter: &httputil.RateLimiter{MaxRetries: 0}, // fail fast in tests
 	}
 }
 
