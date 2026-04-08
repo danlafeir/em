@@ -16,6 +16,7 @@ import (
 	"github.com/danlafeir/cli-go/pkg/secrets"
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
+	"gopkg.in/yaml.v3"
 
 	"em/cmd/metrics"
 )
@@ -246,12 +247,34 @@ func printConfigMap(prefix string, data map[string]interface{}) {
 	}
 }
 
+// yamlCmd writes the current config as YAML to stdout.
+var yamlCmd = &cobra.Command{
+	Use:   "yaml",
+	Short: "Print configuration as YAML",
+	Args:  cobra.NoArgs,
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := config.InitConfig(emConfigDir()); err != nil {
+			log.Fatalf("Failed to initialize config: %v", err)
+		}
+		configData, err := config.FetchConfig(configNamespace)
+		if err != nil {
+			log.Fatalf("Failed to fetch config: %v", err)
+		}
+		out, err := yaml.Marshal(configData)
+		if err != nil {
+			log.Fatalf("Failed to marshal config: %v", err)
+		}
+		os.Stdout.Write(out)
+	},
+}
+
 func init() {
 	// Add subcommands to config
 	configCmd.AddCommand(getCmd)
 	configCmd.AddCommand(setCmd)
 	configCmd.AddCommand(deleteCmd)
 	configCmd.AddCommand(listCmd)
+	configCmd.AddCommand(yamlCmd)
 
 	// Add config to root
 	rootCmd.AddCommand(configCmd)
