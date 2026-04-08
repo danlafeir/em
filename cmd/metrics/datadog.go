@@ -28,11 +28,9 @@ Required:
 
 // Flags for datadog subcommands
 var (
-	ddFromFlag   string
-	ddToFlag     string
-	ddTeamFlag   string
-	ddOutputFlag string
-	ddFormatFlag string
+	ddFromFlag string
+	ddToFlag   string
+	ddTeamFlag string
 )
 
 func init() {
@@ -41,8 +39,6 @@ func init() {
 	DatadogCmd.PersistentFlags().StringVar(&ddFromFlag, "from", "", "Start date (YYYY-MM-DD)")
 	DatadogCmd.PersistentFlags().StringVar(&ddToFlag, "to", "", "End date (YYYY-MM-DD)")
 	DatadogCmd.PersistentFlags().StringVar(&ddTeamFlag, "team", "", "Datadog team (overrides config)")
-	DatadogCmd.PersistentFlags().StringVarP(&ddOutputFlag, "output", "o", "", "Output file path")
-	DatadogCmd.PersistentFlags().StringVarP(&ddFormatFlag, "format", "f", "", "Output format (csv)")
 }
 
 // getDatadogClient creates a Datadog client from configuration.
@@ -96,16 +92,5 @@ func getDatadogDateRange() (time.Time, time.Time, error) {
 
 // getDatadogOutputPath returns the output file path.
 func getDatadogOutputPath(defaultName, defaultExt string) string {
-	if ddOutputFlag != "" {
-		return ddOutputFlag
-	}
 	return output.Path(defaultName + "." + defaultExt)
-}
-
-// getDatadogOutputFormat returns the output format.
-func getDatadogOutputFormat(defaultFormat string) string {
-	if ddFormatFlag != "" {
-		return ddFormatFlag
-	}
-	return defaultFormat
 }

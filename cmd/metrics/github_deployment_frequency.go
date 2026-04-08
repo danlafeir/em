@@ -2,9 +2,7 @@ package metrics
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
-	"math"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -15,7 +13,6 @@ import (
 	"em/internal/charts"
 	gh "em/internal/github"
 	"em/internal/metrics"
-	"em/internal/output"
 )
 
 var deploymentFrequencyCmd = &cobra.Command{
@@ -247,16 +244,6 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// CSV export
-	if getGithubOutputFormat("html") == "csv" {
-		outputPath := getGithubOutputPath("deployment-frequency", "csv")
-		if err := exportDeploymentFrequencyCSV(results, outputPath); err != nil {
-			return fmt.Errorf("failed to export CSV: %w", err)
-		}
-		fmt.Printf("\nExported to %s\n", outputPath)
-		return nil
-	}
-
 	// Generate HTML chart with aggregate weekly deployments
 	weeklyData := aggregateWeeklyDeployments(allRuns, from, to)
 	if saveRawDataFlag {
@@ -374,40 +361,3 @@ func fetchTeamDeploymentData(ctx context.Context, client *gh.Client, org, teamNa
 	return result
 }
 
-func exportDeploymentFrequencyCSV(results []repoDeploymentResult, path string) error {
-	file, err := output.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	header := []string{"Team", "Repo", "Workflow", "Deployments", "Deploys/Week"}
-	if err := writer.Write(header); err != nil {
-		return err
-	}
-
-	for _, r := range results {
-		deploysWeek := ""
-		if r.Error == "" {
-			deploysWeek = fmt.Sprintf("%.1f", math.Round(r.DeploysWeek*10)/10)
-		}
-		row := []string{
-			r.Team,
-			r.Repo,
-			r.Workflow,
-			fmt.Sprintf("%d", r.Deployments),
-			deploysWeek,
-		}
-		if r.Error != "" {
-			row[3] = r.Error
-		}
-		if err := writer.Write(row); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}

@@ -2,9 +2,7 @@ package metrics
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -12,7 +10,6 @@ import (
 	"em/internal/charts"
 	"em/internal/jira"
 	"em/internal/metrics"
-	"em/internal/output"
 	"em/internal/workflow"
 )
 
@@ -115,23 +112,13 @@ func generateThroughput(ctx context.Context, client *jira.Client, team, jql stri
 	}
 
 	outputName := teamOutputName("throughput", team)
-	outputFormat := getOutputFormat("html")
-	switch outputFormat {
-	case "csv", "xlsx":
-		outputPath := getOutputPath(outputName, "csv")
-		if err := exportThroughputCSV(result, outputPath); err != nil {
-			return fmt.Errorf("failed to export CSV: %w", err)
-		}
-		fmt.Printf("\nExported to %s\n", outputPath)
-	default:
-		outputPath := getOutputPath(outputName, "html")
-		cfg := charts.Config{}
-		if err := charts.ThroughputLine(result, cfg, outputPath); err != nil {
-			return fmt.Errorf("failed to generate chart: %w", err)
-		}
-		fmt.Printf("\nChart saved to %s\n", outputPath)
-		charts.OpenBrowser(outputPath)
+	outputPath := getOutputPath(outputName, "html")
+	cfg := charts.Config{}
+	if err := charts.ThroughputLine(result, cfg, outputPath); err != nil {
+		return fmt.Errorf("failed to generate chart: %w", err)
 	}
+	fmt.Printf("\nChart saved to %s\n", outputPath)
+	charts.OpenBrowser(outputPath)
 
 	return nil
 }
@@ -158,42 +145,3 @@ func parseThroughputFrequency(flag string) metrics.ThroughputFrequency {
 	}
 }
 
-func exportThroughputCSV(result metrics.ThroughputResult, path string) error {
-	file, err := output.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	// Write header
-	header := []string{"Period Start", "Period End", "Items Completed", "Issue Keys"}
-	if err := writer.Write(header); err != nil {
-		return err
-	}
-
-	// Write data
-	for _, p := range result.Periods {
-		issueKeys := ""
-		for i, key := range p.IssueKeys {
-			if i > 0 {
-				issueKeys += ", "
-			}
-			issueKeys += key
-		}
-
-		row := []string{
-			p.PeriodStart.Format("2006-01-02"),
-			p.PeriodEnd.Format("2006-01-02"),
-			strconv.Itoa(p.Count),
-			issueKeys,
-		}
-		if err := writer.Write(row); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}

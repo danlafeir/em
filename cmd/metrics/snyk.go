@@ -27,10 +27,8 @@ Required:
 
 // Flags for snyk subcommands
 var (
-	snykFromFlag   string
-	snykToFlag     string
-	snykOutputFlag string
-	snykFormatFlag string
+	snykFromFlag string
+	snykToFlag   string
 )
 
 func init() {
@@ -38,8 +36,6 @@ func init() {
 
 	SnykCmd.PersistentFlags().StringVar(&snykFromFlag, "from", "", "Start date (YYYY-MM-DD)")
 	SnykCmd.PersistentFlags().StringVar(&snykToFlag, "to", "", "End date (YYYY-MM-DD)")
-	SnykCmd.PersistentFlags().StringVarP(&snykOutputFlag, "output", "o", "", "Output file path")
-	SnykCmd.PersistentFlags().StringVarP(&snykFormatFlag, "format", "f", "", "Output format (csv)")
 }
 
 // getSnykClient creates a Snyk client from configuration.
@@ -83,16 +79,5 @@ func getSnykDateRange() (time.Time, time.Time, error) {
 
 // getSnykOutputPath returns the output file path.
 func getSnykOutputPath(defaultName, defaultExt string) string {
-	if snykOutputFlag != "" {
-		return snykOutputFlag
-	}
 	return output.Path(defaultName + "." + defaultExt)
-}
-
-// getSnykOutputFormat returns the output format.
-func getSnykOutputFormat(defaultFormat string) string {
-	if snykFormatFlag != "" {
-		return snykFormatFlag
-	}
-	return defaultFormat
 }

@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
 	"sort"
 	"strconv"
@@ -13,7 +12,6 @@ import (
 
 	"em/internal/charts"
 	"em/internal/datadog"
-	"em/internal/output"
 )
 
 var datadogSLOsCmd = &cobra.Command{
@@ -210,16 +208,6 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	// CSV export
-	if getDatadogOutputFormat("table") == "csv" {
-		outputPath := getDatadogOutputPath("slos", "csv")
-		if err := exportSLOsCSV(violated, outputPath); err != nil {
-			return fmt.Errorf("failed to export CSV: %w", err)
-		}
-		fmt.Printf("Exported to %s\n", outputPath)
-		return nil
-	}
-
 	// Print results
 	fmt.Printf("\nSLO Violations\n")
 	fmt.Printf("==============\n\n")
@@ -306,39 +294,6 @@ func runDatadogSLOs(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("\nReport saved to %s\n", outputPath)
 	charts.OpenBrowser(outputPath)
-
-	return nil
-}
-
-func exportSLOsCSV(results []sloResult, path string) error {
-	file, err := output.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	header := []string{"Application", "SLO Name", "Type", "Target (%)", "Current (%)", "Budget Remaining (%)", "Status"}
-	if err := writer.Write(header); err != nil {
-		return err
-	}
-
-	for _, r := range results {
-		row := []string{
-			r.App,
-			r.Name,
-			r.Type,
-			fmt.Sprintf("%.2f", r.Target),
-			fmt.Sprintf("%.2f", r.Current),
-			fmt.Sprintf("%.1f", r.Budget),
-			"VIOLATED",
-		}
-		if err := writer.Write(row); err != nil {
-			return err
-		}
-	}
 
 	return nil
 }

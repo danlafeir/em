@@ -84,8 +84,6 @@ var (
 	jiraTeamFlag string
 	fromFlag     string
 	toFlag       string
-	outputFlag   string
-	formatFlag   string
 )
 
 func init() {
@@ -98,8 +96,6 @@ func init() {
 	JiraCmd.PersistentFlags().StringVar(&jiraTeamFlag, "team", "", "JIRA team slug (filters to one team)")
 	JiraCmd.PersistentFlags().StringVar(&fromFlag, "from", "", "Start date (YYYY-MM-DD)")
 	JiraCmd.PersistentFlags().StringVar(&toFlag, "to", "", "End date (YYYY-MM-DD)")
-	JiraCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "", "Output file path")
-	JiraCmd.PersistentFlags().StringVarP(&formatFlag, "format", "f", "", "Output format (html, csv, xlsx)")
 
 	initConfig()
 	if unrecognized := config.ValidateNamespace(configNamespace, emConfigSchema); len(unrecognized) > 0 {
@@ -454,18 +450,7 @@ func getTeamProjectJQL(team string) (string, error) {
 
 // getOutputPath returns the output file path with default extension.
 func getOutputPath(defaultName, defaultExt string) string {
-	if outputFlag != "" {
-		return outputFlag
-	}
 	return output.Path(defaultName + "." + defaultExt)
-}
-
-// getOutputFormat returns the output format.
-func getOutputFormat(defaultFormat string) string {
-	if formatFlag != "" {
-		return formatFlag
-	}
-	return defaultFormat
 }
 
 // jqlWithDateRange prepends resolved date filters to a JQL string. If the JQL

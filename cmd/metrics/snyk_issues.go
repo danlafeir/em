@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
 	"sort"
 	"strings"
@@ -11,7 +10,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"em/internal/charts"
-	"em/internal/output"
 	"em/internal/snyk"
 )
 
@@ -58,16 +56,6 @@ func runSnykIssues(cmd *cobra.Command, args []string) error {
 
 	if openCounts.Total == 0 && len(issues) == 0 {
 		fmt.Println("\nNo issues found.")
-		return nil
-	}
-
-	// CSV export
-	if getSnykOutputFormat("table") == "csv" {
-		outputPath := getSnykOutputPath("snyk-issues", "csv")
-		if err := exportSnykIssuesCSV(issues, outputPath); err != nil {
-			return fmt.Errorf("failed to export CSV: %w", err)
-		}
-		fmt.Printf("Exported to %s\n", outputPath)
 		return nil
 	}
 
@@ -237,33 +225,3 @@ func bucketByWeek(issues []snyk.Issue, resolved []snyk.Issue, currentOpen, curre
 	return weeks
 }
 
-func exportSnykIssuesCSV(issues []snyk.Issue, path string) error {
-	file, err := output.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	header := []string{"Date", "Severity", "Type", "Status", "Title"}
-	if err := writer.Write(header); err != nil {
-		return err
-	}
-
-	for _, issue := range issues {
-		row := []string{
-			issue.CreatedAt.Format("2006-01-02"),
-			issue.Severity,
-			issue.IssueType,
-			issue.Status,
-			issue.Title,
-		}
-		if err := writer.Write(row); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}

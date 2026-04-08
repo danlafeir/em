@@ -2,7 +2,6 @@ package metrics
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
 	"sort"
 	"strconv"
@@ -13,7 +12,6 @@ import (
 
 	"em/internal/charts"
 	"em/internal/datadog"
-	"em/internal/output"
 )
 
 var datadogMonitorsCmd = &cobra.Command{
@@ -93,15 +91,6 @@ func runDatadogMonitors(cmd *cobra.Command, args []string) error {
 			}
 		}
 		rows[i] = monitorRow{monitor: m, fireCount: len(evts), lastFired: last}
-	}
-
-	if getDatadogOutputFormat("table") == "csv" {
-		outputPath := getDatadogOutputPath("monitors", "csv")
-		if err := exportMonitorsCSV(rows, outputPath); err != nil {
-			return fmt.Errorf("failed to export CSV: %w", err)
-		}
-		fmt.Printf("Exported to %s\n", outputPath)
-		return nil
 	}
 
 	// A monitor is considered "alerted" if it fired recently OR is currently in a non-OK state
@@ -219,38 +208,3 @@ type monitorRow struct {
 	lastFired time.Time
 }
 
-func exportMonitorsCSV(rows []monitorRow, path string) error {
-	file, err := output.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	header := []string{"Monitor", "Type", "Current State", "Fires", "Last Fired", "Tags"}
-	if err := writer.Write(header); err != nil {
-		return err
-	}
-
-	for _, r := range rows {
-		lastFired := ""
-		if !r.lastFired.IsZero() {
-			lastFired = r.lastFired.Format("2006-01-02")
-		}
-		row := []string{
-			r.monitor.Name,
-			r.monitor.Type,
-			r.monitor.OverallState,
-			strconv.Itoa(r.fireCount),
-			lastFired,
-			strings.Join(r.monitor.Tags, ", "),
-		}
-		if err := writer.Write(row); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}

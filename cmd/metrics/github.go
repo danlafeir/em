@@ -27,12 +27,10 @@ Required:
 
 // Flags for github subcommands (separate from jira flags)
 var (
-	ghFromFlag   string
-	ghToFlag     string
-	ghOrgFlag    string
-	ghTeamFlag   string
-	ghOutputFlag string
-	ghFormatFlag string
+	ghFromFlag string
+	ghToFlag   string
+	ghOrgFlag  string
+	ghTeamFlag string
 )
 
 func init() {
@@ -42,9 +40,6 @@ func init() {
 	GithubCmd.PersistentFlags().StringVar(&ghToFlag, "to", "", "End date (YYYY-MM-DD)")
 	GithubCmd.PersistentFlags().StringVar(&ghOrgFlag, "org", "", "GitHub organization (overrides config)")
 	GithubCmd.PersistentFlags().StringVar(&ghTeamFlag, "team", "", "GitHub team slug (filters to one team)")
-
-	GithubCmd.PersistentFlags().StringVarP(&ghOutputFlag, "output", "o", "", "Output file path")
-	GithubCmd.PersistentFlags().StringVarP(&ghFormatFlag, "format", "f", "", "Output format (csv)")
 }
 
 // getGithubClient creates a GitHub client from configuration.
@@ -115,18 +110,7 @@ func getGithubDateRange() (time.Time, time.Time, error) {
 
 // getGithubOutputPath returns the output file path.
 func getGithubOutputPath(defaultName, defaultExt string) string {
-	if ghOutputFlag != "" {
-		return ghOutputFlag
-	}
 	return output.Path(defaultName + "." + defaultExt)
-}
-
-// getGithubOutputFormat returns the output format.
-func getGithubOutputFormat(defaultFormat string) string {
-	if ghFormatFlag != "" {
-		return ghFormatFlag
-	}
-	return defaultFormat
 }
 
 // getConfiguredWorkflowsByTeam reads workflows for a specific team from config.

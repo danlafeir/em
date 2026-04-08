@@ -2,9 +2,7 @@ package metrics
 
 import (
 	"context"
-	"encoding/csv"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -12,7 +10,6 @@ import (
 	"em/internal/charts"
 	"em/internal/jira"
 	"em/internal/metrics"
-	"em/internal/output"
 	"em/internal/workflow"
 )
 
@@ -132,57 +129,13 @@ func generateCycleTime(ctx context.Context, client *jira.Client, team, jql strin
 	fmt.Printf("  Std Dev: %.1f\n", statsDays.StdDev)
 
 	outputName := teamOutputName("cycle-time", team)
-	outputFormat := getOutputFormat("html")
-	switch outputFormat {
-	case "csv", "xlsx":
-		outputPath := getOutputPath(outputName, "csv")
-		if err := exportCycleTimeCSV(results, outputPath); err != nil {
-			return fmt.Errorf("failed to export CSV: %w", err)
-		}
-		fmt.Printf("\nExported to %s\n", outputPath)
-	case "html":
-		cfg := charts.Config{}
-		outputPath := getOutputPath(outputName, "html")
-		if err := charts.CycleTimeScatter(results, nil, cfg, outputPath); err != nil {
-			return fmt.Errorf("failed to generate chart: %w", err)
-		}
-		fmt.Printf("\nChart saved to %s\n", outputPath)
-		charts.OpenBrowser(outputPath)
+	cfg := charts.Config{}
+	outputPath := getOutputPath(outputName, "html")
+	if err := charts.CycleTimeScatter(results, nil, cfg, outputPath); err != nil {
+		return fmt.Errorf("failed to generate chart: %w", err)
 	}
-
-	return nil
-}
-
-func exportCycleTimeCSV(results []metrics.CycleTimeResult, path string) error {
-	file, err := output.Create(path)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	writer := csv.NewWriter(file)
-	defer writer.Flush()
-
-	// Write header
-	header := []string{"Issue Key", "Type", "Summary", "Start Date", "End Date", "Cycle Time (days)"}
-	if err := writer.Write(header); err != nil {
-		return err
-	}
-
-	// Write data
-	for _, r := range results {
-		row := []string{
-			r.IssueKey,
-			r.IssueType,
-			r.Summary,
-			r.StartDate.Format("2006-01-02"),
-			r.EndDate.Format("2006-01-02"),
-			strconv.FormatFloat(r.CycleTimeDays(), 'f', 1, 64),
-		}
-		if err := writer.Write(row); err != nil {
-			return err
-		}
-	}
+	fmt.Printf("\nChart saved to %s\n", outputPath)
+	charts.OpenBrowser(outputPath)
 
 	return nil
 }

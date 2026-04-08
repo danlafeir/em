@@ -28,9 +28,8 @@ func setupMock(t *testing.T) {
 		os.Setenv("DEVCTL_OUTPUT_DIR", orig)
 		// Reset all flags that commands read from global vars.
 		fromFlag, toFlag = "", ""
-		outputFlag, formatFlag = "", ""
 		jqlFlag, projectFlag, jiraTeamFlag = "", "", ""
-		ddFromFlag, ddToFlag, ddTeamFlag, ddOutputFlag, ddFormatFlag = "", "", "", "", ""
+		ddFromFlag, ddToFlag, ddTeamFlag = "", "", ""
 		frequencyFlag = "weekly"
 		useSavedDataFlag = false
 		saveRawDataFlag = false
