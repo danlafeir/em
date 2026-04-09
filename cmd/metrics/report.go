@@ -96,17 +96,41 @@ func runMetricsReport(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Fetch Snyk data once and reuse it for both the standalone report and the
+	// combined team report.
+	var cachedSnykData *snykReportData
 	if snykOK {
 		sep()
-		if err := runSnykReport(cmd, args); err != nil {
+		ctx := context.Background()
+		from, to, err := getSnykDateRange()
+		if err != nil {
 			fmt.Printf("Warning: Snyk report failed: %v\n", err)
+		} else {
+			fmt.Println("Fetching Snyk data...")
+			summary, weeks := fetchSnykDataForReport(ctx, from, to)
+			cachedSnykData = &snykReportData{summary: summary, weeks: weeks}
+
+			team := getSelectedTeam()
+			orgName := getConfigString("snyk.org_name")
+			title := "Snyk Security Report"
+			if team != "" {
+				title = team + " — Snyk Security Report"
+			} else if orgName != "" {
+				title = orgName + " — Snyk Security Report"
+			}
+			outputPath := getSnykOutputPath("snyk-report", "html")
+			if err := charts.SnykSectionReport(summary, weeks, title, outputPath); err != nil {
+				fmt.Printf("Warning: Snyk report failed: %v\n", err)
+			} else {
+				fmt.Printf("\nReport generated: %s\n", outputPath)
+			}
 		}
 	}
 
 	if jiraOK || githubOK || snykOK {
 		sep()
 		skipBrowserOpen = false
-		if err := generateCombinedTeamReport(cachedJIRAData); err != nil {
+		if err := generateCombinedTeamReport(cachedJIRAData, cachedSnykData); err != nil {
 			fmt.Printf("Warning: combined report skipped: %v\n", err)
 		}
 	}
@@ -132,10 +156,15 @@ func isSnykConfigured() bool {
 	return err == nil
 }
 
+type snykReportData struct {
+	summary charts.SnykSummary
+	weeks   []charts.SnykIssueWeek
+}
+
 // generateCombinedTeamReport fetches JIRA and GitHub data for the selected team
 // and writes a combined <team>-report.html.
-// If cachedJIRAData is non-nil it is used as-is, skipping the JIRA fetch.
-func generateCombinedTeamReport(cachedJIRAData *jiraMetricsData) error {
+// If cachedJIRAData or cachedSnyk is non-nil, those are used as-is to avoid re-fetching.
+func generateCombinedTeamReport(cachedJIRAData *jiraMetricsData, cachedSnyk *snykReportData) error {
 	ctx := context.Background()
 	team := getSelectedTeam()
 
@@ -156,7 +185,13 @@ func generateCombinedTeamReport(cachedJIRAData *jiraMetricsData) error {
 
 	deployments := fetchGitHubDeploymentsForReport(ctx, team, from, to)
 
-	snykSummary, snykWeeks := fetchSnykDataForReport(ctx, from, to)
+	var snykSummary charts.SnykSummary
+	var snykWeeks []charts.SnykIssueWeek
+	if cachedSnyk != nil {
+		snykSummary, snykWeeks = cachedSnyk.summary, cachedSnyk.weeks
+	} else {
+		snykSummary, snykWeeks = fetchSnykDataForReport(ctx, from, to)
+	}
 
 	title := "Engineering Report"
 	if team != "" {
