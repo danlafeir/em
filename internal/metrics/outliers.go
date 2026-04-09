@@ -1,6 +1,13 @@
 package metrics
 
-import "math"
+import (
+	"math"
+	"sort"
+)
+
+// iqrFenceMultiplier controls how wide the Tukey fence is.
+// 1.5 is the standard value; 2.0 is wider, retaining more borderline results.
+const iqrFenceMultiplier = 2.0
 
 // FilterOutliers returns values within mean ± stddevs*σ.
 // If all values would be filtered or len < 2, returns the original slice unchanged.
@@ -31,7 +38,7 @@ func FilterOutliers(values []int, stddevs float64) []int {
 }
 
 // FilterCycleTimeOutliers splits cycle time results into kept and outlier slices
-// using Tukey's IQR fence method: outliers are values outside [Q1 - 2.0×IQR, Q3 + 2.0×IQR].
+// using Tukey's IQR fence method: outliers are values outside [Q1 - iqrFenceMultiplier×IQR, Q3 + iqrFenceMultiplier×IQR].
 // IQR is robust against the masking effect that afflicts stddev-based methods when
 // multiple extreme values inflate σ and hide each other from the filter.
 // If len < 4 or IQR is 0, returns everything in kept.
@@ -44,7 +51,7 @@ func FilterCycleTimeOutliers(results []CycleTimeResult) (kept, outliers []CycleT
 	for i, r := range results {
 		sorted[i] = r.CycleTimeDays()
 	}
-	sortFloat64s(sorted)
+	sort.Float64s(sorted)
 
 	q1 := percentileFloat(sorted, 25)
 	q3 := percentileFloat(sorted, 75)
@@ -53,8 +60,8 @@ func FilterCycleTimeOutliers(results []CycleTimeResult) (kept, outliers []CycleT
 		return results, nil
 	}
 
-	lo := q1 - 2.0*iqr
-	hi := q3 + 2.0*iqr
+	lo := q1 - iqrFenceMultiplier*iqr
+	hi := q3 + iqrFenceMultiplier*iqr
 
 	for _, r := range results {
 		if d := r.CycleTimeDays(); d >= lo && d <= hi {
@@ -70,13 +77,6 @@ func FilterCycleTimeOutliers(results []CycleTimeResult) (kept, outliers []CycleT
 	return kept, outliers
 }
 
-func sortFloat64s(s []float64) {
-	for i := 1; i < len(s); i++ {
-		for j := i; j > 0 && s[j] < s[j-1]; j-- {
-			s[j], s[j-1] = s[j-1], s[j]
-		}
-	}
-}
 
 func percentileFloat(sorted []float64, p int) float64 {
 	if len(sorted) == 0 {
