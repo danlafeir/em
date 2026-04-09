@@ -36,10 +36,15 @@ This script will detect your OS and architecture, download the latest pre-built 
 
 ## Requirements
 
-- Go 1.26+ (for building from source)
-- JIRA Cloud instance with API access
+At least one data source must be configured:
 
-## Building
+- **JIRA Cloud** — API token with read access to your projects
+- **GitHub** — personal access token with `repo` scope; GitHub Actions workflows used for deployment frequency
+- **Snyk** — API token and org ID from your Snyk account
+
+The binary runs on macOS and Linux (amd64/arm64). No runtime dependencies.
+
+## Build and Test
 
 ```bash
 make build          # Build for current platform
@@ -48,199 +53,44 @@ make install        # Install to ~/.local/bin
 make test           # Run all tests
 ```
 
-## Testing
-
-```bash
-# Run all tests
-go test ./...
-
-# Run tests with verbose output
-go test -v ./...
-
-# Run tests with coverage
-go test -cover ./...
-```
-
 ## Configuration
 
-### JIRA Connection
+Each data source has an interactive setup command that walks you through the required values and stores credentials securely in the system keychain.
 
-Set up your JIRA Cloud credentials:
-
-```bash
-# Set your Atlassian domain (e.g., "mycompany" for mycompany.atlassian.net)
-em config set jira.domain mycompany
-
-# Set your email
-em config set jira.email user@company.com
-
-# Set API token via environment variable
-export JIRA_API_TOKEN=your_api_token_here
-```
-
-To generate an API token:
-1. Go to https://id.atlassian.com/manage-profile/security/api-tokens
-2. Click "Create API token"
-3. Copy the token and set it as `JIRA_API_TOKEN`
-
-### Project Scoping (Optional)
-
-Set a default project to automatically scope all metrics to child issues of active (unresolved) epics:
+### JIRA
 
 ```bash
-em config set jira.project MYPROJ
+em metrics jira config
 ```
 
-With this set, you no longer need to pass `--jql` to every command:
+- **Domain** — your Atlassian subdomain (e.g. `mycompany` for `mycompany.atlassian.net`)
+- **Email** — the email address associated with your Atlassian account
+- **API token** — a personal API token from [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens); stored in the system keychain
+- **Project / JQL filter** — the JIRA project key or a JQL query that scopes all metrics to your team's issues; saved per team. JQL resolution order: `--jql` flag > `jira.jql_filter_for_metrics` config > `jira.project` config
+- **Work threads** — number of parallel API requests when fetching issue histories (default: 4)
+- **Workflow stages** — maps your JIRA status names to workflow stages (Backlog, In Progress, Review, Done, etc.) for cycle time calculation; uses sensible defaults if not set
+- **Cycle time boundaries** — which stage name marks the start and end of cycle time measurement
+
+### GitHub
 
 ```bash
-# These just work — scoped to active epics in MYPROJ
-em metrics jira cycle-time
-em metrics jira forecast
-em metrics jira report
+em metrics github config
 ```
 
-JQL resolution order: `--jql` flag > `jira.jql_filter_for_metrics` config > `jira.project` config.
+- **Organization** — your GitHub organization name
+- **API token** — a personal access token with `repo` scope; stored in the system keychain
+- **Team slug** — the team name used to look up deployment workflows
+- **Workflows** — one or more GitHub Actions workflow names whose successful runs count as deployments for frequency tracking
 
-### Workflow Mapping (Optional)
-
-Create `~/.em/config.yaml` to customize workflow stage mapping:
-
-```yaml
-jira:
-  domain: "mycompany"
-  email: "user@company.com"
-  jql_filter_for_metrics: "project = MYPROJ"
-
-workflow:
-  stages:
-    - name: "Backlog"
-      statuses: ["Open", "To Do", "Backlog"]
-    - name: "In Progress"
-      statuses: ["In Development", "In Progress"]
-    - name: "Review"
-      statuses: ["In Review", "Code Review"]
-    - name: "Done"
-      statuses: ["Done", "Closed", "Resolved"]
-  cycle_time:
-    started: "In Progress"
-    completed: "Done"
-```
-
-## Usage
-
-All JIRA metrics commands are under `em metrics jira`.
-
-### Common Flags
-
-| Flag | Description |
-|------|-------------|
-| `--jql` | JQL query to filter issues |
-| `--from` | Start date (YYYY-MM-DD), default: 6 weeks ago |
-| `--to` | End date (YYYY-MM-DD), default: today |
-| `-o, --output` | Output file path |
-| `-f, --format` | Output format: png, csv, xlsx, html |
-
-### Cycle Time
-
-Analyze how long issues take from start to completion:
+### Snyk
 
 ```bash
-# Generate cycle time scatter plot
-em metrics jira cycle-time --jql "project = MYPROJ"
-
-# Specify date range and output
-em metrics jira cycle-time \
-  --jql "project = MYPROJ AND type = Story" \
-  --from 2024-01-01 \
-  --to 2024-06-30 \
-  -o cycle-time.png
+em metrics snyk config
 ```
 
-### Throughput
-
-Track team delivery velocity:
-
-```bash
-# Weekly throughput chart
-em metrics jira throughput --jql "project = MYPROJ"
-
-# Daily frequency with CSV export
-em metrics jira throughput \
-  --jql "project = MYPROJ" \
-  --frequency daily \
-  -f csv \
-  -o throughput.csv
-```
-
-Frequency options: `daily`, `weekly`, `biweekly`, `monthly`
-
-### Monte Carlo Forecast
-
-Predict epic completion dates using Monte Carlo simulation:
-
-```bash
-# Forecast all open epics in your default project
-em metrics jira forecast
-
-# Forecast a specific epic
-em metrics jira forecast --epic MYPROJ-123
-
-# Forecast with a deadline
-em metrics jira forecast --epic MYPROJ-123 --deadline 2024-12-31
-
-# Forecast arbitrary remaining items
-em metrics jira forecast --remaining 25
-```
-
-Output includes probability distribution:
-- **50th percentile** - 50% chance of completion by this date
-- **85th percentile** - 85% chance (common planning target)
-- **95th percentile** - 95% chance (conservative estimate)
-
-### Combined Report
-
-Generate a single HTML report combining cycle time, throughput, longest CT table, and epic forecast:
-
-```bash
-em metrics jira report
-em metrics jira report --from 2024-01-01
-```
-
-This creates a `jira-report.html` file with all panels in one page.
-
-## Examples
-
-### Epic Progress Tracking
-
-```bash
-# Get forecast for all epics
-em metrics jira forecast --jql "project = MYPROJ"
-
-# Export to CSV for stakeholder reporting
-em metrics jira forecast \
-  --jql "project = MYPROJ" \
-  -o epic-forecasts.csv
-```
-
-### Team Health Check
-
-```bash
-# Analyze cycle time trends
-em metrics jira cycle-time \
-  --jql "project = MYPROJ" \
-  --from 2024-01-01 \
-  -f csv \
-  -o cycle-times.csv
-```
-
-## Output Formats
-
-| Format | Extension | Description |
-|--------|-----------|-------------|
-| HTML | `.html` | Interactive charts and reports (default) |
-| CSV | `.csv` | Raw data for spreadsheets |
-| Excel | `.xlsx` | Formatted workbooks with multiple sheets |
+- **Site** — Snyk API hostname (default: `api.snyk.io`; change for EU/AU tenants)
+- **API token** — a Snyk personal or service account token; stored in the system keychain
+- **Organization** — the Snyk org ID and display name to pull vulnerability data from
 
 ## License
 
