@@ -67,7 +67,7 @@ em metrics jira config
 - **Email** — the email address associated with your Atlassian account
 - **API token** — a personal API token from [id.atlassian.com/manage-profile/security/api-tokens](https://id.atlassian.com/manage-profile/security/api-tokens); stored in the system keychain
 - **Project / JQL filter** — the JIRA project key or a JQL query that scopes all metrics to your team's issues; saved per team. JQL resolution order: `--jql` flag > `jira.jql_filter_for_metrics` config > `jira.project` config
-- **Work threads** — number of parallel API requests when fetching issue histories (default: 4)
+- **Issues worked in parallel** — how many issues the team works on simultaneously; used as a throughput multiplier in Monte Carlo forecasts (default: 1)
 - **Workflow stages** — maps your JIRA status names to workflow stages (Backlog, In Progress, Review, Done, etc.) for cycle time calculation; uses sensible defaults if not set
 - **Cycle time boundaries** — which stage name marks the start and end of cycle time measurement
 

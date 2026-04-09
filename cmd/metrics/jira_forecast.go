@@ -718,7 +718,8 @@ func runManualForecast(ctx context.Context, client *jira.Client, throughputJQL s
 	return nil
 }
 
-// getConfiguredWorkThreads reads jira.work_threads from config (default 1).
+// getConfiguredWorkThreads reads jira.work_threads from config — the number of
+// issues the team works on in parallel. Defaults to 1 (no parallelism multiplier).
 func getConfiguredWorkThreads() int {
 	if raw := getConfigString("jira.work_threads"); raw != "" {
 		if n, err := strconv.Atoi(raw); err == nil && n > 0 {

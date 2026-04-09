@@ -14,7 +14,7 @@ type MonteCarloConfig struct {
 	ThroughputWindow int        // Days of history to sample from (default: 60)
 	SimulationStart  time.Time  // When to start simulation (default: now)
 	Deadline         *time.Time // Optional deadline to check against
-	WorkThreads      int        // Parallel work threads; multiplies weekly throughput (default: 1)
+	WorkThreads      int        // Number of issues the team works on in parallel; multiplies sampled weekly throughput (default: 1)
 }
 
 // ForecastResult holds Monte Carlo simulation results.

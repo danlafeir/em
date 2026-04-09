@@ -94,12 +94,12 @@ func runJiraConfig(cmd *cobra.Command, args []string) error {
 		fmt.Fprintf(os.Stderr, "Warning: could not configure epic priorities: %v\n", err)
 	}
 
-	// 6. Worker threads (used for forecasting)
+	// 6. Parallel work capacity (used for forecasting)
 	currentWorkers := getConfigString("jira.work_threads")
 	if currentWorkers == "" {
-		currentWorkers = "4"
+		currentWorkers = "1"
 	}
-	workersInput, err := promptValue(reader, "Forecast worker threads", currentWorkers)
+	workersInput, err := promptValue(reader, "Issues worked in parallel", currentWorkers)
 	if err != nil {
 		return err
 	}
