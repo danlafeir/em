@@ -1,13 +1,30 @@
 # em
 
-CLI tools for engineering managers to generate JIRA agile metrics reports.
+CLI tools for engineering managers to codify the mechanics of managing a team and prioritizing working on the hard stuff.
 
 ## Features
 
-- **Cycle Time Analysis** - Scatter plots and statistics for issue completion times
-- **Throughput Metrics** - Track team delivery velocity over time
-- **Monte Carlo Forecasting** - Probabilistic completion predictions for epics
-- **Combined PNG Reports** - Single-image reports with cycle time, throughput, and forecast
+**JIRA Metrics**
+- Cycle time analysis — scatter plot with percentile lines (50th/85th/95th), business-day calculation, IQR-based outlier filtering
+- Throughput tracking — weekly/daily/biweekly/monthly delivery frequency with trend line
+- Monte Carlo forecasting — probability-based completion dates for epics using historical throughput
+- Longest cycle time table — highlights recently completed issues that took the most time
+- Combined JIRA report — cycle time, throughput, forecasting, and longest CT in a single HTML file
+
+**GitHub**
+- Deployment frequency — track release cadence per team from GitHub Actions workflow runs
+
+**Snyk**
+- Open vulnerability tracking — counts by severity (critical/high/medium/low) and fix category (fixable/unfixable/ignored)
+- Exploitability highlighting — flags issues with Proof of Concept maturity or higher
+- Weekly trend chart — visualize how the vulnerability backlog changes over time
+- Standalone Snyk security report
+
+**Combined Engineering Report**
+- Executive Healthcheck — at-a-glance summary of cycle time, throughput, active epics, deploy frequency, and Snyk vulnerability counts
+- Aggregates JIRA, GitHub, and Snyk data into a single HTML report per team
+
+**Multi-team support** — configure multiple teams; commands run per-team with separate output files
 
 ## Installation
 
@@ -19,7 +36,7 @@ This script will detect your OS and architecture, download the latest pre-built 
 
 ## Requirements
 
-- Go 1.21+ (for building from source)
+- Go 1.26+ (for building from source)
 - JIRA Cloud instance with API access
 
 ## Building
@@ -183,14 +200,14 @@ Output includes probability distribution:
 
 ### Combined Report
 
-Generate a single PNG report with cycle time scatter, throughput trend, and epic forecast:
+Generate a single HTML report combining cycle time, throughput, longest CT table, and epic forecast:
 
 ```bash
 em metrics jira report
-em metrics jira report --from 2024-01-01 -o report.png
+em metrics jira report --from 2024-01-01
 ```
 
-This creates a single `jira-report.png` file combining all three panels.
+This creates a `jira-report.html` file with all panels in one page.
 
 ## Examples
 
@@ -221,7 +238,7 @@ em metrics jira cycle-time \
 
 | Format | Extension | Description |
 |--------|-----------|-------------|
-| PNG | `.png` | Chart images |
+| HTML | `.html` | Interactive charts and reports (default) |
 | CSV | `.csv` | Raw data for spreadsheets |
 | Excel | `.xlsx` | Formatted workbooks with multiple sheets |
 
