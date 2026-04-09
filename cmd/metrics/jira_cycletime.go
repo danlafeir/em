@@ -146,7 +146,7 @@ func generateCycleTime(ctx context.Context, client *jira.Client, team, jql strin
 func computeCycleTimeFromHistories(histories []workflow.IssueHistory, mapper *workflow.Mapper) (all, kept []metrics.CycleTimeResult, outlierKeys map[string]bool) {
 	calculator := metrics.NewCycleTimeCalculator(mapper)
 	all = calculator.Calculate(histories)
-	kept, outliers := metrics.FilterCycleTimeOutliers(all, 2.0)
+	kept, outliers := metrics.FilterCycleTimeOutliers(all)
 	outlierKeys = make(map[string]bool, len(outliers))
 	for _, r := range outliers {
 		outlierKeys[r.IssueKey] = true

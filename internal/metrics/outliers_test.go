@@ -84,22 +84,19 @@ func TestFilterCycleTimeOutliers(t *testing.T) {
 	tests := []struct {
 		name         string
 		results      []CycleTimeResult
-		stddevs      float64
 		wantKeptKeys []string
 		wantOutKeys  []string
 	}{
 		{
 			name:         "empty slice",
 			results:      nil,
-			stddevs:      2.0,
 			wantKeptKeys: nil,
 			wantOutKeys:  nil,
 		},
 		{
-			name:         "single result returns in kept",
-			results:      []CycleTimeResult{makeCTResult("A-1", 5)},
-			stddevs:      2.0,
-			wantKeptKeys: []string{"A-1"},
+			name:         "fewer than 4 results returns all in kept",
+			results:      []CycleTimeResult{makeCTResult("A-1", 5), makeCTResult("A-2", 50)},
+			wantKeptKeys: []string{"A-1", "A-2"},
 			wantOutKeys:  nil,
 		},
 		{
@@ -111,12 +108,11 @@ func TestFilterCycleTimeOutliers(t *testing.T) {
 				makeCTResult("A-4", 5),
 				makeCTResult("A-5", 6),
 			},
-			stddevs:      2.0,
 			wantKeptKeys: []string{"A-1", "A-2", "A-3", "A-4", "A-5"},
 			wantOutKeys:  nil,
 		},
 		{
-			name: "outlier removed",
+			name: "single outlier removed",
 			results: []CycleTimeResult{
 				makeCTResult("A-1", 5),
 				makeCTResult("A-2", 6),
@@ -126,9 +122,28 @@ func TestFilterCycleTimeOutliers(t *testing.T) {
 				makeCTResult("A-6", 6),
 				makeCTResult("A-7", 50),
 			},
-			stddevs:      2.0,
 			wantKeptKeys: []string{"A-1", "A-2", "A-3", "A-4", "A-5", "A-6"},
 			wantOutKeys:  []string{"A-7"},
+		},
+		{
+			// Masking test: two extreme outliers inflate σ enough to survive stddev-based
+			// filtering, but IQR correctly rejects both because it is resistant to extreme
+			// values in the upper tail (Q3 stays at 7, fence = 11.5, so 60 is excluded).
+			name: "multiple outliers not masked by each other",
+			results: []CycleTimeResult{
+				makeCTResult("A-1", 3),
+				makeCTResult("A-2", 3),
+				makeCTResult("A-3", 4),
+				makeCTResult("A-4", 4),
+				makeCTResult("A-5", 5),
+				makeCTResult("A-6", 5),
+				makeCTResult("A-7", 6),
+				makeCTResult("A-8", 7),
+				makeCTResult("A-9", 60),
+				makeCTResult("A-10", 60),
+			},
+			wantKeptKeys: []string{"A-1", "A-2", "A-3", "A-4", "A-5", "A-6", "A-7", "A-8"},
+			wantOutKeys:  []string{"A-9", "A-10"},
 		},
 		{
 			name: "all same values returns all in kept",
@@ -136,16 +151,16 @@ func TestFilterCycleTimeOutliers(t *testing.T) {
 				makeCTResult("A-1", 3),
 				makeCTResult("A-2", 3),
 				makeCTResult("A-3", 3),
+				makeCTResult("A-4", 3),
 			},
-			stddevs:      2.0,
-			wantKeptKeys: []string{"A-1", "A-2", "A-3"},
+			wantKeptKeys: []string{"A-1", "A-2", "A-3", "A-4"},
 			wantOutKeys:  nil,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			kept, outliers := FilterCycleTimeOutliers(tt.results, tt.stddevs)
+			kept, outliers := FilterCycleTimeOutliers(tt.results)
 
 			keptKeys := make([]string, len(kept))
 			for i, r := range kept {

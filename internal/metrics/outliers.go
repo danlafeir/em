@@ -31,25 +31,30 @@ func FilterOutliers(values []int, stddevs float64) []int {
 }
 
 // FilterCycleTimeOutliers splits cycle time results into kept and outlier slices
-// based on CycleTimeDays() using mean ± stddevs*σ filtering.
-// If len < 2, stddev is 0, or all would be filtered, returns everything in kept.
-func FilterCycleTimeOutliers(results []CycleTimeResult, stddevs float64) (kept, outliers []CycleTimeResult) {
-	if len(results) < 2 {
+// using Tukey's IQR fence method: outliers are values outside [Q1 - 1.5×IQR, Q3 + 1.5×IQR].
+// IQR is robust against the masking effect that afflicts stddev-based methods when
+// multiple extreme values inflate σ and hide each other from the filter.
+// If len < 4 or IQR is 0, returns everything in kept.
+func FilterCycleTimeOutliers(results []CycleTimeResult) (kept, outliers []CycleTimeResult) {
+	if len(results) < 4 {
 		return results, nil
 	}
 
-	days := make([]float64, len(results))
+	sorted := make([]float64, len(results))
 	for i, r := range results {
-		days[i] = r.CycleTimeDays()
+		sorted[i] = r.CycleTimeDays()
 	}
+	sortFloat64s(sorted)
 
-	mean, stddev := meanStddevFloat(days)
-	if stddev == 0 {
+	q1 := percentileFloat(sorted, 25)
+	q3 := percentileFloat(sorted, 75)
+	iqr := q3 - q1
+	if iqr == 0 {
 		return results, nil
 	}
 
-	lo := mean - stddevs*stddev
-	hi := mean + stddevs*stddev
+	lo := q1 - 1.5*iqr
+	hi := q3 + 1.5*iqr
 
 	for _, r := range results {
 		if d := r.CycleTimeDays(); d >= lo && d <= hi {
@@ -63,6 +68,25 @@ func FilterCycleTimeOutliers(results []CycleTimeResult, stddevs float64) (kept, 
 		return results, nil
 	}
 	return kept, outliers
+}
+
+func sortFloat64s(s []float64) {
+	for i := 1; i < len(s); i++ {
+		for j := i; j > 0 && s[j] < s[j-1]; j-- {
+			s[j], s[j-1] = s[j-1], s[j]
+		}
+	}
+}
+
+func percentileFloat(sorted []float64, p int) float64 {
+	if len(sorted) == 0 {
+		return 0
+	}
+	idx := (p * len(sorted)) / 100
+	if idx >= len(sorted) {
+		idx = len(sorted) - 1
+	}
+	return sorted[idx]
 }
 
 func meanStddevFloat(values []float64) (float64, float64) {
