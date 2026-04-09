@@ -17,6 +17,7 @@ hr.divider{border:none;border-top:2px solid #eee;margin:32px 0}
   <div style="margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #eee;">
     <div style="font-size:1.4rem;font-weight:700;color:#111;letter-spacing:-.01em;">{{.Title}}</div>
   </div>
+  {{if .SummaryHTML}}
   <h2>JIRA Metrics</h2>
   {{.SummaryHTML}}
   <div class="jira-grid">
@@ -25,11 +26,14 @@ hr.divider{border:none;border-top:2px solid #eee;margin:32px 0}
     {{.LongestCTHTML}}
     {{.CycleTimeHTML}}
   </div>
-  <hr class="divider">
+  {{end}}
+  {{if .DeploymentHTML}}
+  {{if .SummaryHTML}}<hr class="divider">{{end}}
   <h2>GitHub</h2>
-  {{if .DeploymentHTML}}{{.DeploymentHTML}}{{else}}<p style="color:#bbb;font-size:.85rem;margin:0">No deployment data configured.</p>{{end}}
+  {{.DeploymentHTML}}
+  {{end}}
   {{if .SnykChartHTML}}
-  <hr class="divider">
+  {{if or .SummaryHTML .DeploymentHTML}}<hr class="divider">{{end}}
   <h2>Snyk</h2>
   {{.SnykSummaryHTML}}
   {{.SnykChartHTML}}

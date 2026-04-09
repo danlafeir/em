@@ -719,8 +719,9 @@ func SnykSummaryHTML(s SnykSummary) (template.HTML, error) {
 	return renderHTML("fragment_snyk_summary.html.tmpl", s)
 }
 
-// SnykReport renders a single-page HTML report with a Snyk header, summary bar, and weekly trend chart.
-func SnykReport(summary SnykSummary, weeks []SnykIssueWeek, title, path string) error {
+// SnykSectionReport renders a standalone HTML page that matches the Snyk section
+// in the combined team report — same template, same visual style.
+func SnykSectionReport(summary SnykSummary, weeks []SnykIssueWeek, title, path string) error {
 	if title == "" {
 		title = "Snyk Security Report"
 	}
@@ -732,10 +733,10 @@ func SnykReport(summary SnykSummary, weeks []SnykIssueWeek, title, path string) 
 	if err != nil {
 		return err
 	}
-	return writeHTML(path, "snyk_report.html.tmpl", map[string]any{
-		"Title":       title,
-		"SummaryHTML": summaryHTML,
-		"ChartHTML":   chartHTML,
+	return writeHTML(path, "team_report.html.tmpl", map[string]any{
+		"Title":           title,
+		"SnykSummaryHTML": summaryHTML,
+		"SnykChartHTML":   chartHTML,
 	})
 }
 

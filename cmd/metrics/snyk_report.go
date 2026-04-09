@@ -79,7 +79,7 @@ func runSnykReport(cmd *cobra.Command, args []string) error {
 		title = orgName + " — Snyk Security Report"
 	}
 
-	if err := charts.SnykReport(summary, weeks, title, outputPath); err != nil {
+	if err := charts.SnykSectionReport(summary, weeks, title, outputPath); err != nil {
 		return fmt.Errorf("failed to generate report: %w", err)
 	}
 
