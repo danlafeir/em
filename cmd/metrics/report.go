@@ -36,7 +36,6 @@ func runMetricsReport(cmd *cobra.Command, args []string) error {
 	jiraOK := isJiraConfigured()
 	githubOK := isGithubConfigured()
 	snykOK := isSnykConfigured()
-	datadogOK := isDatadogConfigured()
 
 	var unconfigured []string
 	if !jiraOK {
@@ -104,7 +103,7 @@ func runMetricsReport(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if jiraOK || githubOK || snykOK || datadogOK {
+	if jiraOK || githubOK || snykOK {
 		sep()
 		skipBrowserOpen = false
 		if err := generateCombinedTeamReport(cachedJIRAData); err != nil {
@@ -133,12 +132,6 @@ func isSnykConfigured() bool {
 	return err == nil
 }
 
-// isDatadogConfigured returns true if Datadog API/app keys and a team are present.
-func isDatadogConfigured() bool {
-	_, err := getDatadogClient()
-	return err == nil && getDatadogTeam() != ""
-}
-
 // generateCombinedTeamReport fetches JIRA and GitHub data for the selected team
 // and writes a combined <team>-report.html.
 // If cachedJIRAData is non-nil it is used as-is, skipping the JIRA fetch.
@@ -164,7 +157,6 @@ func generateCombinedTeamReport(cachedJIRAData *jiraMetricsData) error {
 	deployments := fetchGitHubDeploymentsForReport(ctx, team, from, to)
 
 	snykSummary, snykWeeks := fetchSnykDataForReport(ctx, from, to)
-	sloSections := fetchDatadogSLOsForReport(ctx, from, to)
 
 	title := "Engineering Report"
 	if team != "" {
@@ -184,7 +176,6 @@ func generateCombinedTeamReport(cachedJIRAData *jiraMetricsData) error {
 		jiraData.BaseURL,
 		snykSummary,
 		snykWeeks,
-		sloSections,
 		outputPath,
 	); err != nil {
 		return fmt.Errorf("render: %w", err)
@@ -281,28 +272,3 @@ func fetchSnykDataForReport(ctx context.Context, from, to time.Time) (charts.Sny
 	return summary, weeks
 }
 
-// fetchDatadogSLOsForReport fetches SLO data for the selected team and returns widget sections.
-// Returns nil silently if Datadog is not configured or data is unavailable.
-func fetchDatadogSLOsForReport(ctx context.Context, from, to time.Time) []charts.WidgetSection {
-	client, err := getDatadogClient()
-	if err != nil {
-		return nil
-	}
-	team := getDatadogTeam()
-	if team == "" {
-		return nil
-	}
-	if err := client.TestConnection(ctx); err != nil {
-		return nil
-	}
-	// Default SLO window to last 14 days when no explicit flag was set.
-	sloFrom := from
-	if ddFromFlag == "" {
-		sloFrom = time.Now().AddDate(0, 0, -14)
-	}
-	results, eventCountByID, err := fetchSLORawData(ctx, client, team, sloFrom, to, false)
-	if err != nil || len(results) == 0 {
-		return nil
-	}
-	return sloResultsToWidgetSections(results, eventCountByID)
-}

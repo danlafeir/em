@@ -171,16 +171,21 @@ func LoadFromIssuesCSV(orgID, orgName, path string) (*Dataset, error) {
 		isIgnored, _ := strconv.ParseBool(row[6])
 		createdAt, _ := time.Parse(time.RFC3339, row[7])
 		resolvedAt, _ := time.Parse(time.RFC3339, row[8])
+		exploitability := ""
+		if len(row) >= 10 {
+			exploitability = row[9]
+		}
 		ds.Issues = append(ds.Issues, snyk.Issue{
-			ID:         row[0],
-			Title:      row[1],
-			Severity:   row[2],
-			IssueType:  row[3],
-			Status:     row[4],
-			IsFixable:  isFixable,
-			IsIgnored:  isIgnored,
-			CreatedAt:  createdAt,
-			ResolvedAt: resolvedAt,
+			ID:             row[0],
+			Title:          row[1],
+			Severity:       row[2],
+			IssueType:      row[3],
+			Status:         row[4],
+			IsFixable:      isFixable,
+			IsIgnored:      isIgnored,
+			CreatedAt:      createdAt,
+			ResolvedAt:     resolvedAt,
+			Exploitability: exploitability,
 		})
 	}
 	return ds, nil

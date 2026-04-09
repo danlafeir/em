@@ -12,13 +12,16 @@ func SmallDataset() *Dataset {
 	ds := NewDataset("mock-org-id", "Mock Org")
 	base := time.Now().UTC().Truncate(24 * time.Hour)
 
-	// Mix of open and resolved issues across severities
+	// Mix of open and resolved issues across severities.
+	// Exploitable open issues: snyk-1 (critical/fixable), snyk-2 (high/fixable),
+	// snyk-3 (medium/unfixable), snyk-5 (high/ignored-unfixable) — gives ExploitableFixable=2,
+	// ExploitableCritical=1, ExploitableHigh=2, ExploitableMedium=1.
 	builders := []*IssueBuilder{
 		NewIssue("snyk-1").WithTitle("SQL Injection").WithSeverity("critical").AsFixable().WithExploitability("Functional"),
 		NewIssue("snyk-2").WithTitle("Prototype Pollution").WithSeverity("high").AsFixable().WithExploitability("Proof of Concept"),
-		NewIssue("snyk-3").WithTitle("ReDoS").WithSeverity("medium"),
+		NewIssue("snyk-3").WithTitle("ReDoS").WithSeverity("medium").WithExploitability("Proof of Concept"),
 		NewIssue("snyk-4").WithTitle("Outdated Dependency").WithSeverity("low"),
-		NewIssue("snyk-5").WithTitle("Path Traversal").WithSeverity("high").AsIgnored(),
+		NewIssue("snyk-5").WithTitle("Path Traversal").WithSeverity("high").AsIgnored().WithExploitability("Functional"),
 
 		// Resolved issues
 		NewIssue("snyk-6").WithTitle("RCE in lodash").WithSeverity("critical").AsFixable().

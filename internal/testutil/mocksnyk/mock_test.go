@@ -52,10 +52,28 @@ func TestSmallDataset_openCounts(t *testing.T) {
 		t.Fatalf("CountOpenIssues: %v", err)
 	}
 
-	// SmallDataset has 5 open issues: 1 critical, 1 high (ignored), 1 medium, 1 low, 1 high fixable
-	// After deduplication and ignored separation: 4 non-ignored open, 1 ignored
+	// SmallDataset open non-ignored: snyk-1 (critical/fixable/Functional),
+	// snyk-2 (high/fixable/PoC), snyk-3 (medium/unfixable/PoC), snyk-4 (low/unfixable).
+	// Ignored: snyk-5 (high/unfixable/Functional).
 	if counts.Total == 0 {
 		t.Errorf("expected non-zero open issue count, got %+v", counts)
+	}
+
+	// ExploitableFixable: snyk-1 + snyk-2 = 2 (greater than 1)
+	if counts.ExploitableFixable < 2 {
+		t.Errorf("expected ExploitableFixable >= 2, got %d", counts.ExploitableFixable)
+	}
+	// ExploitableHigh: snyk-2 = 1
+	if counts.ExploitableHigh == 0 {
+		t.Errorf("expected ExploitableHigh > 0, got %d", counts.ExploitableHigh)
+	}
+	// ExploitableCritical: snyk-1 = 1
+	if counts.ExploitableCritical == 0 {
+		t.Errorf("expected ExploitableCritical > 0, got %d", counts.ExploitableCritical)
+	}
+	// ExploitableIgnoredUnfixable: snyk-5 (ignored/Functional) = 1
+	if counts.ExploitableIgnoredUnfixable == 0 {
+		t.Errorf("expected ExploitableIgnoredUnfixable > 0, got %d", counts.ExploitableIgnoredUnfixable)
 	}
 }
 

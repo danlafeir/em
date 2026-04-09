@@ -824,7 +824,6 @@ func CombinedTeamReport(
 	jiraBaseURL string,
 	snykSummary SnykSummary,
 	snykWeeks []SnykIssueWeek,
-	sloSections []WidgetSection,
 	path string,
 ) error {
 	var dfHTML template.HTML
@@ -866,13 +865,6 @@ func CombinedTeamReport(
 			return err
 		}
 	}
-	var sloHTML template.HTML
-	if len(sloSections) > 0 {
-		sloHTML, err = SLOWidgetSectionsHTML(sloSections)
-		if err != nil {
-			return err
-		}
-	}
 	return writeHTML(path, "team_report.html.tmpl", map[string]any{
 		"Title":           title,
 		"SummaryHTML":     summaryHTML,
@@ -883,7 +875,7 @@ func CombinedTeamReport(
 		"ForecastHTML":    forecastHTML,
 		"SnykSummaryHTML": snykSummaryHTML,
 		"SnykChartHTML":   snykChartHTML,
-		"DatadogHTML":     sloHTML,
+		"DatadogHTML":     "",
 	})
 }
 
