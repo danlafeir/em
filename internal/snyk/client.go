@@ -224,10 +224,12 @@ func (c *Client) GetProjectTargetMap(ctx context.Context) (map[string]string, er
 
 // CountOpenIssues returns the current open issue counts broken down by severity,
 // deduplicated by (target, title, severity) to match the Snyk UI's per-target grouping.
+// Falls back to project-level deduplication if the projects endpoint is unavailable.
 func (c *Client) CountOpenIssues(ctx context.Context) (OpenCounts, error) {
 	projectTargets, err := c.GetProjectTargetMap(ctx)
 	if err != nil {
-		return OpenCounts{}, err
+		// Projects endpoint unavailable — use project IDs directly as dedup keys.
+		projectTargets = nil
 	}
 
 	path := fmt.Sprintf("/rest/orgs/%s/issues", url.PathEscape(c.credentials.OrgID))

@@ -247,6 +247,7 @@ func fetchSnykDataForReport(ctx context.Context, from, to time.Time) (charts.Sny
 		ExploitableMedium:   openCounts.ExploitableMedium,
 		ExploitableLow:      openCounts.ExploitableLow,
 		ExploitableFixable:  openCounts.ExploitableFixable,
+		ExploitableTotal:    openCounts.ExploitableCritical + openCounts.ExploitableHigh + openCounts.ExploitableMedium + openCounts.ExploitableLow,
 	}
 	weeks := bucketByWeek(issues, resolved, openCounts.Total, openCounts.Fixable, openCounts.IgnoredFixable, openCounts.IgnoredUnfixable, from, to)
 	return summary, weeks

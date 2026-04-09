@@ -64,6 +64,7 @@ func runSnykReport(cmd *cobra.Command, args []string) error {
 		ExploitableMedium:   openCounts.ExploitableMedium,
 		ExploitableLow:      openCounts.ExploitableLow,
 		ExploitableFixable:  openCounts.ExploitableFixable,
+		ExploitableTotal:    openCounts.ExploitableCritical + openCounts.ExploitableHigh + openCounts.ExploitableMedium + openCounts.ExploitableLow,
 	}
 
 	weeks := bucketByWeek(issues, resolved, openCounts.Total, openCounts.Fixable, openCounts.IgnoredFixable, openCounts.IgnoredUnfixable, from, to)

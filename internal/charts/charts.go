@@ -612,6 +612,7 @@ type SnykSummary struct {
 	ExploitableMedium   int
 	ExploitableLow      int
 	ExploitableFixable  int
+	ExploitableTotal    int
 }
 
 // snykIssuesChartConfig builds the Chart.js config for the Snyk issues stacked area chart.

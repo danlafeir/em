@@ -71,9 +71,7 @@ func runSnykIssues(cmd *cobra.Command, args []string) error {
 	for _, sev := range []string{"critical", "high", "medium", "low"} {
 		label := strings.ToUpper(sev[:1]) + sev[1:]
 		fmt.Printf("| %-16s | %5d |\n", label, counts[sev])
-		if exploitable[sev] > 0 {
-			fmt.Printf("| %-16s | %5d |\n", "  exploitable", exploitable[sev])
-		}
+		fmt.Printf("| %-16s | %5d |\n", "  exploitable", exploitable[sev])
 	}
 	fmt.Printf("|%s|%s|\n", strings.Repeat("-", 18), strings.Repeat("-", 7))
 	fmt.Printf("| %-16s | %5d |\n", "Total", total)
@@ -81,9 +79,7 @@ func runSnykIssues(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\n| %-16s | %5s |\n", "Fix Status", "Count")
 	fmt.Printf("|%s|%s|\n", strings.Repeat("-", 18), strings.Repeat("-", 7))
 	fmt.Printf("| %-16s | %5d |\n", "Fixable", openCounts.Fixable)
-	if openCounts.ExploitableFixable > 0 {
-		fmt.Printf("| %-16s | %5d |\n", "  exploitable", openCounts.ExploitableFixable)
-	}
+	fmt.Printf("| %-16s | %5d |\n", "  exploitable", openCounts.ExploitableFixable)
 	fmt.Printf("| %-16s | %5d |\n", "Unfixable", openCounts.Unfixable)
 
 	// Generate weekly trend chart
