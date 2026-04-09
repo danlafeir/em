@@ -283,10 +283,17 @@ func (c *Client) CountOpenIssues(ctx context.Context) (OpenCounts, error) {
 				}
 				seenIgnored[key] = true
 				counts.Ignored++
+				exploitable := IsExploitable(d.Attributes.ExploitDetails.Maturity)
 				if isFixable(d.Attributes.Coordinates) {
 					counts.IgnoredFixable++
+					if exploitable {
+						counts.ExploitableIgnoredFixable++
+					}
 				} else {
 					counts.IgnoredUnfixable++
+					if exploitable {
+						counts.ExploitableIgnoredUnfixable++
+					}
 				}
 				continue
 			}
@@ -304,6 +311,9 @@ func (c *Client) CountOpenIssues(ctx context.Context) (OpenCounts, error) {
 				}
 			} else {
 				counts.Unfixable++
+				if exploitable {
+					counts.ExploitableUnfixable++
+				}
 			}
 			switch key.severity {
 			case "critical":

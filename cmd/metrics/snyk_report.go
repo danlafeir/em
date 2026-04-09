@@ -63,7 +63,10 @@ func runSnykReport(cmd *cobra.Command, args []string) error {
 		ExploitableHigh:     openCounts.ExploitableHigh,
 		ExploitableMedium:   openCounts.ExploitableMedium,
 		ExploitableLow:      openCounts.ExploitableLow,
-		ExploitableFixable:  openCounts.ExploitableFixable,
+		ExploitableFixable:          openCounts.ExploitableFixable,
+		ExploitableUnfixable:        openCounts.ExploitableUnfixable,
+		ExploitableIgnoredFixable:   openCounts.ExploitableIgnoredFixable,
+		ExploitableIgnoredUnfixable: openCounts.ExploitableIgnoredUnfixable,
 		ExploitableTotal:    openCounts.ExploitableCritical + openCounts.ExploitableHigh + openCounts.ExploitableMedium + openCounts.ExploitableLow,
 	}
 

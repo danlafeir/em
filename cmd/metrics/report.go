@@ -246,7 +246,10 @@ func fetchSnykDataForReport(ctx context.Context, from, to time.Time) (charts.Sny
 		ExploitableHigh:     openCounts.ExploitableHigh,
 		ExploitableMedium:   openCounts.ExploitableMedium,
 		ExploitableLow:      openCounts.ExploitableLow,
-		ExploitableFixable:  openCounts.ExploitableFixable,
+		ExploitableFixable:          openCounts.ExploitableFixable,
+		ExploitableUnfixable:        openCounts.ExploitableUnfixable,
+		ExploitableIgnoredFixable:   openCounts.ExploitableIgnoredFixable,
+		ExploitableIgnoredUnfixable: openCounts.ExploitableIgnoredUnfixable,
 		ExploitableTotal:    openCounts.ExploitableCritical + openCounts.ExploitableHigh + openCounts.ExploitableMedium + openCounts.ExploitableLow,
 	}
 	weeks := bucketByWeek(issues, resolved, openCounts.Total, openCounts.Fixable, openCounts.IgnoredFixable, openCounts.IgnoredUnfixable, from, to)

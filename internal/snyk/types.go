@@ -34,7 +34,8 @@ type OpenCounts struct {
 	Ignored, IgnoredFixable, IgnoredUnfixable int
 	// Exploitable counts (Proof of Concept maturity or higher)
 	ExploitableCritical, ExploitableHigh, ExploitableMedium, ExploitableLow int
-	ExploitableFixable int
+	ExploitableFixable, ExploitableUnfixable                                 int
+	ExploitableIgnoredFixable, ExploitableIgnoredUnfixable                   int
 }
 
 // Issue represents a Snyk vulnerability issue.
