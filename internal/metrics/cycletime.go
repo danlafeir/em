@@ -121,11 +121,15 @@ func (c *CycleTimeCalculator) calculateForIssue(history workflow.IssueHistory) *
 	// Calculate time in each stage
 	stageDetails := c.mapper.TimeInStage(history)
 
+	// Use business days (Mon–Fri) so weekend time does not inflate cycle time.
+	bd := businessDaysBetween(startTime, endTime)
+	cycleTime := time.Duration(bd) * 24 * time.Hour
+
 	return &CycleTimeResult{
 		IssueKey:     history.Key,
 		IssueType:    history.Type,
 		Summary:      history.Summary,
-		CycleTime:    endTime.Sub(startTime),
+		CycleTime:    cycleTime,
 		StartDate:    startTime,
 		EndDate:      endTime,
 		StageDetails: stageDetails,
@@ -210,7 +214,29 @@ func sqrt(x float64) float64 {
 	return z
 }
 
-// CycleTimeDays returns cycle time in days (float64).
+// businessDaysBetween counts the number of business days (Mon–Fri) elapsed between
+// two timestamps. The start day is excluded; the end day is included, matching the
+// convention "how many working days did this ticket occupy." Weekend days are skipped.
+// Same-day tickets return 0; a ticket started Friday and closed Monday returns 1.
+func businessDaysBetween(start, end time.Time) int {
+	startDay := start.Truncate(24 * time.Hour)
+	endDay := end.Truncate(24 * time.Hour)
+	if !endDay.After(startDay) {
+		return 0
+	}
+	days := 0
+	current := startDay.AddDate(0, 0, 1) // exclusive of start day
+	for !current.After(endDay) {
+		wd := current.Weekday()
+		if wd != time.Saturday && wd != time.Sunday {
+			days++
+		}
+		current = current.AddDate(0, 0, 1)
+	}
+	return days
+}
+
+// CycleTimeDays returns cycle time in business days (float64).
 func (r CycleTimeResult) CycleTimeDays() float64 {
 	return r.CycleTime.Hours() / 24
 }

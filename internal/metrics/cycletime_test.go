@@ -165,8 +165,10 @@ func TestCalculate_CompletedIssues(t *testing.T) {
 		t.Errorf("expected key TEST-1, got %q", r.IssueKey)
 	}
 
-	// Cycle time: from "In Progress" to "Done" = 5 days - 1 hour
-	expectedCycleTime := completed.Sub(base.Add(1 * time.Hour))
+	// Cycle time: from "In Progress" (Mon Jan 1) to "Done" (Sat Jan 6).
+	// Business days elapsed: Tue Jan 2, Wed Jan 3, Thu Jan 4, Fri Jan 5 = 4 business days.
+	// Saturday is excluded; the start day is also excluded per convention.
+	expectedCycleTime := 4 * 24 * time.Hour
 	if r.CycleTime != expectedCycleTime {
 		t.Errorf("expected cycle time %v, got %v", expectedCycleTime, r.CycleTime)
 	}

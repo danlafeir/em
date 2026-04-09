@@ -306,8 +306,6 @@ func countActiveEpics(ctx context.Context, client *jira.Client, baseJQL string) 
 
 // generateReport generates a single combined HTML report for the given JQL.
 func generateReport(ctx context.Context, client *jira.Client, team, jql string, from, to time.Time) error {
-	outputPath := getOutputPath(teamOutputName("jira-report", team), "html")
-
 	fmt.Printf("Generating JIRA Report...\n")
 	fmt.Printf("JQL: %s\n", jql)
 	fmt.Printf("Date range: %s to %s\n\n", from.Format("2006-01-02"), to.Format("2006-01-02"))
@@ -316,6 +314,13 @@ func generateReport(ctx context.Context, client *jira.Client, team, jql string, 
 	if err != nil {
 		return err
 	}
+
+	return renderJIRAReport(team, data)
+}
+
+// renderJIRAReport writes the standalone JIRA HTML report from pre-fetched data.
+func renderJIRAReport(team string, data jiraMetricsData) error {
+	outputPath := getOutputPath(teamOutputName("jira-report", team), "html")
 
 	if err := charts.CombinedReport(data.Summary, data.KeptResults, []float64{50, 85, 95}, data.ThroughputResult, data.LongestCTRows, data.ForecastRows, data.BaseURL, outputPath); err != nil {
 		return fmt.Errorf("failed to generate report: %w", err)

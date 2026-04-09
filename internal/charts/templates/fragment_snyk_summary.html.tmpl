@@ -3,27 +3,27 @@
     <div style="font-size:.7rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">Vulnerability Criticality</div>
     <div style="display:flex;gap:32px;flex-wrap:wrap;">
       <div>
-        <div style="font-size:1.6rem;font-weight:600;color:#991b1b;line-height:1;">{{.Critical}}</div>
+        <div style="font-size:1.6rem;font-weight:600;color:#dc2626;line-height:1;">{{.Critical}}</div>
         <div style="font-size:.75rem;color:#888;margin-top:3px;">Critical</div>
-        <div style="font-size:.7rem;color:#b91c1c;margin-top:4px;">{{.ExploitableCritical}} exploitable</div>
+        <div style="font-size:.7rem;margin-top:4px;{{if gt .ExploitableCritical 0}}color:#dc2626;font-weight:600;{{else}}color:#888;{{end}}">{{.ExploitableCritical}} exploitable</div>
       </div>
       <div style="width:1px;background:#e0e0e0;align-self:stretch;"></div>
       <div>
-        <div style="font-size:1.6rem;font-weight:600;color:#9a3412;line-height:1;">{{.High}}</div>
+        <div style="font-size:1.6rem;font-weight:600;color:#ea580c;line-height:1;">{{.High}}</div>
         <div style="font-size:.75rem;color:#888;margin-top:3px;">High</div>
-        <div style="font-size:.7rem;color:#b91c1c;margin-top:4px;">{{.ExploitableHigh}} exploitable</div>
+        <div style="font-size:.7rem;margin-top:4px;{{if gt .ExploitableHigh 0}}color:#dc2626;font-weight:600;{{else}}color:#888;{{end}}">{{.ExploitableHigh}} exploitable</div>
       </div>
       <div style="width:1px;background:#e0e0e0;align-self:stretch;"></div>
       <div>
-        <div style="font-size:1.6rem;font-weight:600;color:#92400e;line-height:1;">{{.Medium}}</div>
+        <div style="font-size:1.6rem;font-weight:600;color:#ca8a04;line-height:1;">{{.Medium}}</div>
         <div style="font-size:.75rem;color:#888;margin-top:3px;">Medium</div>
-        <div style="font-size:.7rem;color:#b91c1c;margin-top:4px;">{{.ExploitableMedium}} exploitable</div>
+        <div style="font-size:.7rem;margin-top:4px;{{if gt .ExploitableMedium 0}}color:#dc2626;font-weight:600;{{else}}color:#888;{{end}}">{{.ExploitableMedium}} exploitable</div>
       </div>
       <div style="width:1px;background:#e0e0e0;align-self:stretch;"></div>
       <div>
-        <div style="font-size:1.6rem;font-weight:600;color:#1e40af;line-height:1;">{{.Low}}</div>
+        <div style="font-size:1.6rem;font-weight:600;color:#1d4ed8;line-height:1;">{{.Low}}</div>
         <div style="font-size:.75rem;color:#888;margin-top:3px;">Low</div>
-        <div style="font-size:.7rem;color:#b91c1c;margin-top:4px;">{{.ExploitableLow}} exploitable</div>
+        <div style="font-size:.7rem;margin-top:4px;{{if gt .ExploitableLow 0}}color:#dc2626;font-weight:600;{{else}}color:#888;{{end}}">{{.ExploitableLow}} exploitable</div>
       </div>
     </div>
     <div style="font-size:.65rem;color:#aaa;margin-top:12px;">Exploitable = Proof of Concept maturity or higher (Functional, High).</div>
@@ -32,27 +32,27 @@
     <div style="font-size:.7rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">Vulnerability Fix Summary</div>
     <div style="display:flex;gap:32px;flex-wrap:wrap;">
       <div>
-        <div style="font-size:1.6rem;font-weight:600;color:#0f766e;line-height:1;">{{.Fixable}}</div>
-        <div style="font-size:.75rem;color:#888;margin-top:3px;">Fixable</div>
-        <div style="font-size:.7rem;color:#b91c1c;margin-top:4px;">{{.ExploitableFixable}} exploitable</div>
-      </div>
-      <div style="width:1px;background:#e0e0e0;align-self:stretch;"></div>
-      <div>
-        <div style="font-size:1.6rem;font-weight:600;color:#b91c1c;line-height:1;">{{.Unfixable}}</div>
-        <div style="font-size:.75rem;color:#888;margin-top:3px;">Unfixable</div>
-        <div style="font-size:.7rem;color:#b91c1c;margin-top:4px;">{{.ExploitableUnfixable}} exploitable</div>
-      </div>
-      <div style="width:1px;background:#e0e0e0;align-self:stretch;"></div>
-      <div>
-        <div style="font-size:1.6rem;font-weight:600;color:#1d4ed8;line-height:1;">{{.IgnoredFixable}}</div>
+        <div style="font-size:1.6rem;font-weight:600;color:#dc2626;line-height:1;">{{.IgnoredFixable}}</div>
         <div style="font-size:.75rem;color:#888;margin-top:3px;">Ignored Fixable</div>
-        <div style="font-size:.7rem;color:#b91c1c;margin-top:4px;">{{.ExploitableIgnoredFixable}} exploitable</div>
+        <div style="font-size:.7rem;margin-top:4px;{{if gt .ExploitableIgnoredFixable 0}}color:#dc2626;font-weight:600;{{else}}color:#888;{{end}}">{{.ExploitableIgnoredFixable}} exploitable</div>
       </div>
       <div style="width:1px;background:#e0e0e0;align-self:stretch;"></div>
       <div>
-        <div style="font-size:1.6rem;font-weight:600;color:#6d28d9;line-height:1;">{{.IgnoredUnfixable}}</div>
+        <div style="font-size:1.6rem;font-weight:600;color:#ea580c;line-height:1;">{{.Fixable}}</div>
+        <div style="font-size:.75rem;color:#888;margin-top:3px;">Fixable</div>
+        <div style="font-size:.7rem;margin-top:4px;{{if gt .ExploitableFixable 0}}color:#dc2626;font-weight:600;{{else}}color:#888;{{end}}">{{.ExploitableFixable}} exploitable</div>
+      </div>
+      <div style="width:1px;background:#e0e0e0;align-self:stretch;"></div>
+      <div>
+        <div style="font-size:1.6rem;font-weight:600;color:#7c3aed;line-height:1;">{{.Unfixable}}</div>
+        <div style="font-size:.75rem;color:#888;margin-top:3px;">Unfixable</div>
+        <div style="font-size:.7rem;margin-top:4px;{{if gt .ExploitableUnfixable 0}}color:#dc2626;font-weight:600;{{else}}color:#888;{{end}}">{{.ExploitableUnfixable}} exploitable</div>
+      </div>
+      <div style="width:1px;background:#e0e0e0;align-self:stretch;"></div>
+      <div>
+        <div style="font-size:1.6rem;font-weight:600;color:#16a34a;line-height:1;">{{.IgnoredUnfixable}}</div>
         <div style="font-size:.75rem;color:#888;margin-top:3px;">Ignored Unfixable</div>
-        <div style="font-size:.7rem;color:#b91c1c;margin-top:4px;">{{.ExploitableIgnoredUnfixable}} exploitable</div>
+        <div style="font-size:.7rem;margin-top:4px;{{if gt .ExploitableIgnoredUnfixable 0}}color:#dc2626;font-weight:600;{{else}}color:#888;{{end}}">{{.ExploitableIgnoredUnfixable}} exploitable</div>
       </div>
     </div>
     <div style="font-size:.65rem;color:#aaa;margin-top:12px;">Exploitable = Proof of Concept maturity or higher (Functional, High).</div>

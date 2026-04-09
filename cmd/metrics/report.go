@@ -71,10 +71,29 @@ func runMetricsReport(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Fetch JIRA data once and reuse it for both the standalone report and the
+	// combined team report, so the Monte Carlo simulation only runs once.
+	var cachedJIRAData *jiraMetricsData
 	if jiraOK {
 		sep()
-		if err := runReport(cmd, args); err != nil {
+		ctx := context.Background()
+		team := getSelectedTeam()
+		from, to, err := getDateRange()
+		if err != nil {
 			fmt.Printf("Warning: JIRA report failed: %v\n", err)
+		} else {
+			fmt.Println("JIRA Metrics")
+			fmt.Println(sectionDivider)
+			fmt.Println()
+			data, err := fetchJIRADataForReport(ctx, team, from, to)
+			if err != nil {
+				fmt.Printf("Warning: JIRA report failed: %v\n", err)
+			} else {
+				cachedJIRAData = &data
+				if err := renderJIRAReport(team, data); err != nil {
+					fmt.Printf("Warning: JIRA report failed: %v\n", err)
+				}
+			}
 		}
 	}
 
@@ -88,7 +107,7 @@ func runMetricsReport(cmd *cobra.Command, args []string) error {
 	if jiraOK || githubOK || snykOK || datadogOK {
 		sep()
 		skipBrowserOpen = false
-		if err := generateCombinedTeamReport(); err != nil {
+		if err := generateCombinedTeamReport(cachedJIRAData); err != nil {
 			fmt.Printf("Warning: combined report skipped: %v\n", err)
 		}
 	}
@@ -122,7 +141,8 @@ func isDatadogConfigured() bool {
 
 // generateCombinedTeamReport fetches JIRA and GitHub data for the selected team
 // and writes a combined <team>-report.html.
-func generateCombinedTeamReport() error {
+// If cachedJIRAData is non-nil it is used as-is, skipping the JIRA fetch.
+func generateCombinedTeamReport(cachedJIRAData *jiraMetricsData) error {
 	ctx := context.Background()
 	team := getSelectedTeam()
 
@@ -131,9 +151,14 @@ func generateCombinedTeamReport() error {
 		return err
 	}
 
-	jiraData, err := fetchJIRADataForReport(ctx, team, from, to)
-	if err != nil {
-		return err
+	var jiraData jiraMetricsData
+	if cachedJIRAData != nil {
+		jiraData = *cachedJIRAData
+	} else {
+		jiraData, err = fetchJIRADataForReport(ctx, team, from, to)
+		if err != nil {
+			return err
+		}
 	}
 
 	deployments := fetchGitHubDeploymentsForReport(ctx, team, from, to)
