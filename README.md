@@ -92,6 +92,3 @@ em metrics snyk config
 - **API token** — a Snyk personal or service account token; stored in the system keychain
 - **Organization** — the Snyk org ID and display name to pull vulnerability data from
 
-## License
-
-MIT
