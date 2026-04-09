@@ -1,0 +1,49 @@
+<div style="margin-bottom:28px;">
+  <div style="font-size:.7rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.08em;margin-bottom:12px;">Executive Healthcheck</div>
+  <div style="display:flex;gap:12px;flex-wrap:wrap;">
+
+    <div style="flex:1;min-width:110px;border:1px solid #e0e0e0;border-radius:8px;padding:14px 18px;">
+      <div style="font-size:.65rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Avg Cycle Time</div>
+      <div style="font-size:1.5rem;font-weight:700;color:#111;line-height:1;">{{if .HasJIRAData}}{{.AvgCycleTime}}{{else}}—{{end}}</div>
+    </div>
+
+    <div style="flex:1;min-width:110px;border:1px solid #e0e0e0;border-radius:8px;padding:14px 18px;">
+      <div style="font-size:.65rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Throughput / Week</div>
+      <div style="font-size:1.5rem;font-weight:700;color:#111;line-height:1;">{{if .HasJIRAData}}{{.AvgThroughput}}{{else}}—{{end}}</div>
+    </div>
+
+    <div style="flex:1;min-width:110px;border:1px solid #e0e0e0;border-radius:8px;padding:14px 18px;">
+      <div style="font-size:.65rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Epics With Active Work</div>
+      <div style="font-size:1.5rem;font-weight:700;color:#111;line-height:1;">{{if .HasJIRAData}}{{.ActiveEpics}}{{else}}—{{end}}</div>
+    </div>
+
+    <div style="flex:1;min-width:110px;border:1px solid #e0e0e0;border-radius:8px;padding:14px 18px;">
+      <div style="font-size:.65rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Deploy Frequency</div>
+      <div style="font-size:1.5rem;font-weight:700;color:#111;line-height:1;">{{if .HasDeployData}}{{.AvgDeployFreq}}{{else}}—{{end}}</div>
+      <div style="font-size:.7rem;color:#888;margin-top:4px;">{{if .HasDeployData}}{{.LastWeekDeploys}} last week{{else}}—{{end}}</div>
+    </div>
+
+    <div style="flex:1;min-width:160px;border:1px solid #e0e0e0;border-radius:8px;padding:14px 18px;">
+      <div style="font-size:.65rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Snyk Vulnerabilities</div>
+      {{if .HasSnykData}}
+      <div style="display:flex;align-items:baseline;gap:8px;line-height:1;">
+        <div style="font-size:1.5rem;font-weight:700;color:#111;">{{.TotalVulnerabilities}}</div>
+        <div style="font-size:.85rem;font-weight:600;{{if gt .ExploitableTotal 0}}color:#dc2626;{{else}}color:#888;{{end}}">{{.ExploitableTotal}} exploitable</div>
+      </div>
+      <div style="display:flex;gap:16px;margin-top:8px;">
+        <div>
+          <div style="font-size:.95rem;font-weight:600;{{if gt .ExploitableCritical 0}}color:#dc2626;{{else}}color:#888;{{end}}">{{.ExploitableCritical}}</div>
+          <div style="font-size:.65rem;color:#888;">Critical</div>
+        </div>
+        <div>
+          <div style="font-size:.95rem;font-weight:600;{{if gt .ExploitableHigh 0}}color:#ea580c;{{else}}color:#888;{{end}}">{{.ExploitableHigh}}</div>
+          <div style="font-size:.65rem;color:#888;">High</div>
+        </div>
+      </div>
+      {{else}}
+      <div style="font-size:1.5rem;font-weight:700;color:#111;line-height:1;">—</div>
+      {{end}}
+    </div>
+
+  </div>
+</div>

@@ -811,6 +811,27 @@ func ReportSummaryHTML(s ReportSummary) (template.HTML, error) {
 	return renderHTML("fragment_summary.html.tmpl", s)
 }
 
+// ExecHealthcheck holds the data for the Executive Healthcheck section.
+type ExecHealthcheck struct {
+	AvgCycleTime        string
+	AvgThroughput       string
+	ActiveEpics         int
+	HasJIRAData         bool
+	AvgDeployFreq       string
+	LastWeekDeploys     int
+	HasDeployData       bool
+	TotalVulnerabilities int
+	ExploitableTotal    int
+	ExploitableCritical int
+	ExploitableHigh     int
+	HasSnykData         bool
+}
+
+// ExecHealthcheckHTML returns a self-contained HTML fragment for the Executive Healthcheck section.
+func ExecHealthcheckHTML(h ExecHealthcheck) (template.HTML, error) {
+	return renderHTML("fragment_executive_healthcheck.html.tmpl", h)
+}
+
 // CombinedTeamReport renders an HTML report with GitHub deployment frequency and JIRA metrics sections.
 func CombinedTeamReport(
 	title string,
@@ -865,17 +886,50 @@ func CombinedTeamReport(
 			return err
 		}
 	}
+
+	// Build executive healthcheck from available data.
+	avgDeployFreq := "—"
+	lastWeekDeploys := 0
+	if deploymentData.AvgCount > 0 {
+		avgDeployFreq = fmt.Sprintf("%.1f/wk", deploymentData.AvgCount)
+	}
+	if n := len(deploymentData.Periods); n > 0 {
+		lastWeekDeploys = deploymentData.Periods[n-1].Count
+	}
+	hasJIRA := len(cycleTimeData) > 0 || throughputData.AvgCount > 0
+	hasDeploy := len(deploymentData.Periods) > 0
+	hasSnyk := len(snykWeeks) > 0
+	hc := ExecHealthcheck{
+		AvgCycleTime:         summary.AvgCycleTime,
+		AvgThroughput:        summary.AvgThroughput,
+		ActiveEpics:          summary.ActiveEpics,
+		HasJIRAData:          hasJIRA,
+		AvgDeployFreq:        avgDeployFreq,
+		LastWeekDeploys:      lastWeekDeploys,
+		HasDeployData:        hasDeploy,
+		TotalVulnerabilities: snykSummary.Critical + snykSummary.High + snykSummary.Medium + snykSummary.Low,
+		ExploitableTotal:     snykSummary.ExploitableTotal,
+		ExploitableCritical:  snykSummary.ExploitableCritical,
+		ExploitableHigh:      snykSummary.ExploitableHigh,
+		HasSnykData:          hasSnyk,
+	}
+	hcHTML, err := ExecHealthcheckHTML(hc)
+	if err != nil {
+		return err
+	}
+
 	return writeHTML(path, "team_report.html.tmpl", map[string]any{
-		"Title":           title,
-		"SummaryHTML":     summaryHTML,
-		"DeploymentHTML":  dfHTML,
-		"CycleTimeHTML":   ctHTML,
-		"ThroughputHTML":  tpHTML,
-		"LongestCTHTML":   longestHTML,
-		"ForecastHTML":    forecastHTML,
-		"SnykSummaryHTML": snykSummaryHTML,
-		"SnykChartHTML":   snykChartHTML,
-		"DatadogHTML":     "",
+		"Title":                title,
+		"ExecHealthcheckHTML":  hcHTML,
+		"SummaryHTML":          summaryHTML,
+		"DeploymentHTML":       dfHTML,
+		"CycleTimeHTML":        ctHTML,
+		"ThroughputHTML":       tpHTML,
+		"LongestCTHTML":        longestHTML,
+		"ForecastHTML":         forecastHTML,
+		"SnykSummaryHTML":      snykSummaryHTML,
+		"SnykChartHTML":        snykChartHTML,
+		"DatadogHTML":          "",
 	})
 }
 

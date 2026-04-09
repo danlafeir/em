@@ -17,6 +17,10 @@ hr.divider{border:none;border-top:2px solid #eee;margin:32px 0}
   <div style="margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #eee;">
     <div style="font-size:1.4rem;font-weight:700;color:#111;letter-spacing:-.01em;">{{.Title}}</div>
   </div>
+  {{if .ExecHealthcheckHTML}}
+  {{.ExecHealthcheckHTML}}
+  <hr class="divider">
+  {{end}}
   {{if .SummaryHTML}}
   <h2>JIRA Metrics</h2>
   {{.SummaryHTML}}
