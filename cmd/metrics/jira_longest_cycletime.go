@@ -52,7 +52,7 @@ func runLongestCycleTime(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return withTeamIteration(ctx, client, func(team, jql string) error {
+	return withTeamIteration(func(team, jql string) error {
 		return generateLongestCycleTime(ctx, client, team, jql, from, to)
 	})
 }

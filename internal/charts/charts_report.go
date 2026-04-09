@@ -1,0 +1,127 @@
+package charts
+
+import (
+	"fmt"
+	"html/template"
+
+	"em/internal/metrics"
+)
+
+// ReportSummary holds the key metrics displayed in the summary bar.
+type ReportSummary struct {
+	AvgCycleTime  string
+	AvgThroughput string
+	ActiveEpics   int
+}
+
+// ReportSummaryHTML returns a self-contained HTML fragment for the summary bar.
+func ReportSummaryHTML(s ReportSummary) (template.HTML, error) {
+	return renderHTML("fragment_summary.html.tmpl", s)
+}
+
+// ExecHealthcheck holds the data for the Executive Healthcheck section.
+type ExecHealthcheck struct {
+	AvgCycleTime         string
+	AvgThroughput        string
+	ActiveEpics          int
+	HasJIRAData          bool
+	AvgDeployFreq        string
+	LastWeekDeploys      int
+	HasDeployData        bool
+	TotalVulnerabilities int
+	ExploitableTotal     int
+	ExploitableCritical  int
+	ExploitableHigh      int
+	HasSnykData          bool
+}
+
+// ExecHealthcheckHTML returns a self-contained HTML fragment for the Executive Healthcheck section.
+func ExecHealthcheckHTML(h ExecHealthcheck) (template.HTML, error) {
+	return renderHTML("fragment_executive_healthcheck.html.tmpl", h)
+}
+
+// CombinedReport renders a 2x2 HTML report with cycle time, throughput, longest CT, and forecast.
+func CombinedReport(
+	summary ReportSummary,
+	cycleTimeData []metrics.CycleTimeResult,
+	cycleTimePercentiles []float64,
+	throughputData metrics.ThroughputResult,
+	longestCTRows []LongestCycleTimeRow,
+	forecastRows []ForecastRow,
+	jiraBaseURL string,
+	path string,
+) error {
+	return writeHTML(path, "report.html.tmpl", map[string]any{
+		"SummaryHTML":    chartOrError(ReportSummaryHTML(summary)),
+		"CycleTimeHTML":  chartOrError(CycleTimeScatterHTML(cycleTimeData, cycleTimePercentiles, "Cycle Time Distribution")),
+		"ThroughputHTML": chartOrError(ThroughputLineHTML(throughputData, "Weekly Throughput")),
+		"LongestCTHTML":  chartOrError(LongestCycleTimeTableHTML(longestCTRows, "Longest Cycle Times", jiraBaseURL)),
+		"ForecastHTML":   chartOrError(ForecastTableHTML(forecastRows, "Epic Forecast", jiraBaseURL)),
+	})
+}
+
+// CombinedTeamReport renders an HTML report combining GitHub deployment frequency,
+// JIRA metrics, and Snyk vulnerability sections.
+func CombinedTeamReport(
+	title string,
+	summary ReportSummary,
+	deploymentData metrics.ThroughputResult,
+	cycleTimeData []metrics.CycleTimeResult,
+	cycleTimePercentiles []float64,
+	throughputData metrics.ThroughputResult,
+	longestCTRows []LongestCycleTimeRow,
+	forecastRows []ForecastRow,
+	jiraBaseURL string,
+	snykSummary SnykSummary,
+	snykWeeks []SnykIssueWeek,
+	path string,
+) error {
+	var dfHTML template.HTML
+	if len(deploymentData.Periods) > 0 {
+		dfHTML = chartOrError(DeploymentFrequencyLineHTML(deploymentData, "Deployment Frequency"))
+	}
+
+	var snykSummaryHTML, snykChartHTML template.HTML
+	if len(snykWeeks) > 0 {
+		snykSummaryHTML = chartOrError(SnykSummaryHTML(snykSummary))
+		snykChartHTML = chartOrError(SnykIssuesLineHTML(snykWeeks, "Open Snyk Issues over time"))
+	}
+
+	// Build executive healthcheck from available data.
+	avgDeployFreq := "—"
+	lastWeekDeploys := 0
+	if deploymentData.AvgCount > 0 {
+		avgDeployFreq = fmt.Sprintf("%.1f/wk", deploymentData.AvgCount)
+	}
+	if n := len(deploymentData.Periods); n > 0 {
+		lastWeekDeploys = deploymentData.Periods[n-1].Count
+	}
+	hc := ExecHealthcheck{
+		AvgCycleTime:         summary.AvgCycleTime,
+		AvgThroughput:        summary.AvgThroughput,
+		ActiveEpics:          summary.ActiveEpics,
+		HasJIRAData:          len(cycleTimeData) > 0 || throughputData.AvgCount > 0,
+		AvgDeployFreq:        avgDeployFreq,
+		LastWeekDeploys:      lastWeekDeploys,
+		HasDeployData:        len(deploymentData.Periods) > 0,
+		TotalVulnerabilities: snykSummary.Critical + snykSummary.High + snykSummary.Medium + snykSummary.Low,
+		ExploitableTotal:     snykSummary.ExploitableTotal,
+		ExploitableCritical:  snykSummary.ExploitableCritical,
+		ExploitableHigh:      snykSummary.ExploitableHigh,
+		HasSnykData:          len(snykWeeks) > 0,
+	}
+
+	return writeHTML(path, "team_report.html.tmpl", map[string]any{
+		"Title":               title,
+		"ExecHealthcheckHTML": chartOrError(ExecHealthcheckHTML(hc)),
+		"SummaryHTML":         chartOrError(ReportSummaryHTML(summary)),
+		"DeploymentHTML":      dfHTML,
+		"CycleTimeHTML":       chartOrError(CycleTimeScatterHTML(cycleTimeData, cycleTimePercentiles, "Cycle Time Distribution")),
+		"ThroughputHTML":      chartOrError(ThroughputLineHTML(throughputData, "Weekly Throughput")),
+		"LongestCTHTML":       chartOrError(LongestCycleTimeTableHTML(longestCTRows, "Longest Cycle Times", jiraBaseURL)),
+		"ForecastHTML":        chartOrError(ForecastTableHTML(forecastRows, "Epic Forecast", jiraBaseURL)),
+		"SnykSummaryHTML":     snykSummaryHTML,
+		"SnykChartHTML":       snykChartHTML,
+		"DatadogHTML":         "",
+	})
+}

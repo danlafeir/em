@@ -57,8 +57,8 @@ func getConfigString(key string) string {
 	return s
 }
 
-// getConfigValue returns a config value from the em namespace.
-func getConfigAny(key string) interface{} {
+// getConfigAny returns a config value from the em namespace.
+func getConfigAny(key string) any {
 	initConfig()
 	val, _ := config.GetConfigValue(configNamespace, key)
 	return val
@@ -229,7 +229,7 @@ func loadEpicSelection(team string) []string {
 		return nil
 	}
 	switch v := raw.(type) {
-	case []interface{}:
+	case []any:
 		keys := make([]string, 0, len(v))
 		for _, item := range v {
 			if s, ok := item.(string); ok {
@@ -346,10 +346,10 @@ func getWorkflowMapper() *workflow.Mapper {
 	wfConfig := workflow.DefaultConfig()
 
 	// Override with custom stages if provided
-	if stagesSlice, ok := stages.([]interface{}); ok {
+	if stagesSlice, ok := stages.([]any); ok {
 		wfConfig.Stages = nil
 		for i, s := range stagesSlice {
-			if stageMap, ok := s.(map[string]interface{}); ok {
+			if stageMap, ok := s.(map[string]any); ok {
 				stage := workflow.Stage{Order: i}
 
 				if name, ok := stageMap["name"].(string); ok {
@@ -358,7 +358,7 @@ func getWorkflowMapper() *workflow.Mapper {
 				if category, ok := stageMap["category"].(string); ok {
 					stage.Category = category
 				}
-				if statuses, ok := stageMap["statuses"].([]interface{}); ok {
+				if statuses, ok := stageMap["statuses"].([]any); ok {
 					for _, status := range statuses {
 						if statusStr, ok := status.(string); ok {
 							stage.Statuses = append(stage.Statuses, statusStr)
@@ -397,7 +397,7 @@ func resolveTeamJQL(team string) (string, error) {
 // withTeamIteration runs fn once per configured team, or once with aggregated
 // JQL when --jql/--project is set. The callback receives the team slug (empty
 // for non-team mode) and the resolved JQL.
-func withTeamIteration(ctx context.Context, client *jira.Client, fn func(team, jql string) error) error {
+func withTeamIteration(fn func(team, jql string) error) error {
 	if jqlFlag != "" {
 		return fn("", jqlFlag)
 	}
@@ -434,18 +434,6 @@ func teamOutputName(defaultName, team string) string {
 		return defaultName + "-" + team
 	}
 	return defaultName
-}
-
-// getTeamProjectJQL returns the base JQL for a single team.
-// Prefers jql_filter_for_metrics (board query), falling back to project = X.
-func getTeamProjectJQL(team string) (string, error) {
-	if jql := getTeamConfigString(team, "jql_filter_for_metrics"); jql != "" {
-		return jql, nil
-	}
-	if project := getTeamConfigString(team, "project"); project != "" {
-		return fmt.Sprintf("project = %s", project), nil
-	}
-	return "", fmt.Errorf("team %s has no jql_filter_for_metrics or project configured", team)
 }
 
 // getOutputPath returns the output file path with default extension.

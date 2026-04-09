@@ -55,7 +55,7 @@ func runThroughput(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	return withTeamIteration(ctx, client, func(team, jql string) error {
+	return withTeamIteration(func(team, jql string) error {
 		return generateThroughput(ctx, client, team, jql, from, to)
 	})
 }

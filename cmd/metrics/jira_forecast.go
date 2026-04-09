@@ -80,7 +80,7 @@ func runForecast(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to connect to JIRA: %w", err)
 	}
 
-	return withTeamIteration(ctx, client, func(team, jql string) error {
+	return withTeamIteration(func(team, jql string) error {
 		if epicFlag != "" {
 			return runSingleEpicForecast(ctx, client, jql, epicFlag)
 		}
@@ -95,7 +95,7 @@ func fetchOpenEpics(ctx context.Context, client *jira.Client, team string) ([]ji
 	var baseJQL string
 	var err error
 	if team != "" {
-		baseJQL, err = getTeamProjectJQL(team)
+		baseJQL, err = resolveTeamJQL(team)
 	} else {
 		baseJQL, err = getProjectJQL()
 	}
