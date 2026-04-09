@@ -31,7 +31,7 @@ func FilterOutliers(values []int, stddevs float64) []int {
 }
 
 // FilterCycleTimeOutliers splits cycle time results into kept and outlier slices
-// using Tukey's IQR fence method: outliers are values outside [Q1 - 1.5×IQR, Q3 + 1.5×IQR].
+// using Tukey's IQR fence method: outliers are values outside [Q1 - 2.0×IQR, Q3 + 2.0×IQR].
 // IQR is robust against the masking effect that afflicts stddev-based methods when
 // multiple extreme values inflate σ and hide each other from the filter.
 // If len < 4 or IQR is 0, returns everything in kept.
@@ -53,8 +53,8 @@ func FilterCycleTimeOutliers(results []CycleTimeResult) (kept, outliers []CycleT
 		return results, nil
 	}
 
-	lo := q1 - 1.5*iqr
-	hi := q3 + 1.5*iqr
+	lo := q1 - 2.0*iqr
+	hi := q3 + 2.0*iqr
 
 	for _, r := range results {
 		if d := r.CycleTimeDays(); d >= lo && d <= hi {
