@@ -151,7 +151,7 @@ func collectJIRAMetricsData(ctx context.Context, client *jira.Client, team, jql 
 				log("Warning: forecast unavailable: %v\n", epicErr)
 			} else if len(epics) > 0 {
 				log("Found %d epic(s), forecasting...\n", len(epics))
-				allForecasts := computeEpicForecasts(ctx, client, epics, forecastThroughput, sequential)
+				allForecasts := computeEpicForecasts(ctx, client, epics, forecastThroughput, team, sequential)
 				for _, f := range allForecasts {
 					if f.Error != "" || f.RemainingItems == 0 {
 						continue

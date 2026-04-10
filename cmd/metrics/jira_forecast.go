@@ -82,10 +82,10 @@ func runForecast(cmd *cobra.Command, args []string) error {
 
 	return withTeamIteration(func(team, jql string) error {
 		if epicFlag != "" {
-			return runSingleEpicForecast(ctx, client, jql, epicFlag)
+			return runSingleEpicForecast(ctx, client, jql, epicFlag, team)
 		}
 		if remainingFlag > 0 {
-			return runManualForecast(ctx, client, jql, remainingFlag)
+			return runManualForecast(ctx, client, jql, remainingFlag, team)
 		}
 		return runAllEpicsForecast(ctx, client, team, jql)
 	})
@@ -196,8 +196,8 @@ func fetchEpicCounts(ctx context.Context, client *jira.Client, mapper *workflow.
 }
 
 // runIndependentSimulation runs a separate Monte Carlo simulation for each epic.
-func runIndependentSimulation(pending []EpicForecast, weeklyThroughput []int) []EpicForecast {
-	workers := getConfiguredWorkThreads()
+func runIndependentSimulation(pending []EpicForecast, weeklyThroughput []int, team string) []EpicForecast {
+	workers := getTeamWorkThreads(team)
 	config := metrics.MonteCarloConfig{
 		Trials:          trialsFlag,
 		SimulationStart: time.Now(),
@@ -222,8 +222,8 @@ func runIndependentSimulation(pending []EpicForecast, weeklyThroughput []int) []
 
 // runSequentialSimulation runs one Monte Carlo simulation across all epics in order,
 // so each epic's dates account for all higher-priority work completing first.
-func runSequentialSimulation(pending []EpicForecast, weeklyThroughput []int) []EpicForecast {
-	workers := getConfiguredWorkThreads()
+func runSequentialSimulation(pending []EpicForecast, weeklyThroughput []int, team string) []EpicForecast {
+	workers := getTeamWorkThreads(team)
 	remainingItems := make([]int, len(pending))
 	for i, f := range pending {
 		remainingItems[i] = f.RemainingItems
@@ -235,7 +235,7 @@ func runSequentialSimulation(pending []EpicForecast, weeklyThroughput []int) []E
 	simulator := metrics.NewMonteCarloSimulator(config, weeklyThroughput)
 	results, err := simulator.RunSequentialMultiPercentile(remainingItems, workers)
 	if err != nil {
-		return runIndependentSimulation(pending, weeklyThroughput)
+		return runIndependentSimulation(pending, weeklyThroughput, team)
 	}
 	forecasts := make([]EpicForecast, len(pending))
 	for i, f := range pending {
@@ -253,7 +253,7 @@ func runSequentialSimulation(pending []EpicForecast, weeklyThroughput []int) []E
 // simulation for incomplete ones, and returns the full list in display order.
 // When preserveOrder is true the original epic order is kept and simulation is
 // run sequentially; otherwise results are sorted by Forecast85 date.
-func computeEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Issue, weeklyThroughput []int, preserveOrder bool) []EpicForecast {
+func computeEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Issue, weeklyThroughput []int, team string, preserveOrder bool) []EpicForecast {
 	mapper := getWorkflowMapper()
 
 	var allFetched []EpicForecast
@@ -274,9 +274,9 @@ func computeEpicForecasts(ctx context.Context, client *jira.Client, epics []jira
 		var simulated []EpicForecast
 		if preserveOrder {
 			fmt.Println("Running sequential Monte Carlo simulation...")
-			simulated = runSequentialSimulation(pending, weeklyThroughput)
+			simulated = runSequentialSimulation(pending, weeklyThroughput, team)
 		} else {
-			simulated = runIndependentSimulation(pending, weeklyThroughput)
+			simulated = runIndependentSimulation(pending, weeklyThroughput, team)
 		}
 		for _, f := range simulated {
 			simByKey[f.EpicKey] = f
@@ -340,7 +340,7 @@ func epicForecastToRow(f EpicForecast) charts.ForecastRow {
 
 func runEpicForecasts(ctx context.Context, client *jira.Client, epics []jira.Issue, weeklyThroughput []int, team string, preserveOrder bool) error {
 	fmt.Println("Forecasting epics...")
-	forecasts := computeEpicForecasts(ctx, client, epics, weeklyThroughput, preserveOrder)
+	forecasts := computeEpicForecasts(ctx, client, epics, weeklyThroughput, team, preserveOrder)
 
 	// Print summary
 	fmt.Printf("\nEpic Forecast Summary\n")
@@ -615,7 +615,7 @@ func forecastEpic(ctx context.Context, client *jira.Client, mapper *workflow.Map
 	return forecast
 }
 
-func runSingleEpicForecast(ctx context.Context, client *jira.Client, throughputJQL, epicKey string) error {
+func runSingleEpicForecast(ctx context.Context, client *jira.Client, throughputJQL, epicKey, team string) error {
 	fmt.Printf("Fetching Epic %s...\n", epicKey)
 
 	// Get issues in this epic
@@ -641,10 +641,10 @@ func runSingleEpicForecast(ctx context.Context, client *jira.Client, throughputJ
 		return nil
 	}
 
-	return runManualForecast(ctx, client, throughputJQL, remaining)
+	return runManualForecast(ctx, client, throughputJQL, remaining, team)
 }
 
-func runManualForecast(ctx context.Context, client *jira.Client, throughputJQL string, remaining int) error {
+func runManualForecast(ctx context.Context, client *jira.Client, throughputJQL string, remaining int, team string) error {
 	historyEnd := time.Now()
 	historyStart := metrics.WeekStart(historyEnd.AddDate(0, 0, -historyDaysFlag))
 
@@ -696,7 +696,7 @@ func runManualForecast(ctx context.Context, client *jira.Client, throughputJQL s
 	fmt.Printf("\nRunning Monte Carlo simulation with %d trials...\n\n", config.Trials)
 
 	simulator := metrics.NewMonteCarloSimulator(config, weeklyThroughput)
-	result, err := simulator.RunMultiPercentile(remaining, getConfiguredWorkThreads())
+	result, err := simulator.RunMultiPercentile(remaining, getTeamWorkThreads(team))
 	if err != nil {
 		return fmt.Errorf("simulation failed: %w", err)
 	}
@@ -718,10 +718,10 @@ func runManualForecast(ctx context.Context, client *jira.Client, throughputJQL s
 	return nil
 }
 
-// getConfiguredWorkThreads reads jira.work_threads from config — the number of
+// getTeamWorkThreads reads teams.<team>.jira.work_threads from config — the number of
 // issues the team works on in parallel. Defaults to 1 (no parallelism multiplier).
-func getConfiguredWorkThreads() int {
-	if raw := getConfigString("jira.work_threads"); raw != "" {
+func getTeamWorkThreads(team string) int {
+	if raw := getTeamConfigString(team, "work_threads"); raw != "" {
 		if n, err := strconv.Atoi(raw); err == nil && n > 0 {
 			return n
 		}

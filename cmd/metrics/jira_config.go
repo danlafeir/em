@@ -95,7 +95,7 @@ func runJiraConfig(cmd *cobra.Command, args []string) error {
 	}
 
 	// 6. Parallel work capacity (used for forecasting)
-	currentWorkers := getConfigString("jira.work_threads")
+	currentWorkers := getTeamConfigString(team, "work_threads")
 	if currentWorkers == "" {
 		currentWorkers = "1"
 	}
@@ -106,7 +106,7 @@ func runJiraConfig(cmd *cobra.Command, args []string) error {
 	if n, err := strconv.Atoi(workersInput); err != nil || n <= 0 {
 		fmt.Fprintf(os.Stderr, "Warning: invalid work thread count %q, keeping %s\n", workersInput, currentWorkers)
 	} else {
-		config.SetConfigValue(configNamespace, "jira.work_threads", workersInput)
+		config.SetConfigValue(configNamespace, fmt.Sprintf("teams.%s.jira.work_threads", team), workersInput)
 	}
 
 	// Save config
