@@ -6,7 +6,7 @@ GOFILES=$(shell find . -type f -name '*.go' -not -path "./vendor/*")
 GOOS?=$(shell go env GOOS)
 GOARCH?=$(shell go env GOARCH)
 
-.PHONY: all build build-all install clean test run mock-jira deploy
+.PHONY: all build build-all install clean test run deploy
 
 # Usage:
 #   make build           # builds for your current system, output: bin/em (+ bin/em-<os>-<arch>-<hash>)
@@ -45,9 +45,6 @@ test:
 
 run:
 	go run ./main.go $(ARGS)
-
-mock-jira:
-	go run ./internal/testutil/mockjira/cmd $(ARGS)
 
 deploy: test build-all
 	git add bin/
