@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"em/internal/datadog"
+	"github.com/danlafeir/em/internal/datadog"
 )
 
 // Dataset holds all mock Datadog data served by the Server.

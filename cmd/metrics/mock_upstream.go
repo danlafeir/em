@@ -6,14 +6,14 @@ import (
 
 	"github.com/danlafeir/cli-go/pkg/config"
 
-	"em/internal/datadog"
-	"em/internal/github"
-	"em/pkg/jira"
-	"em/pkg/snyk"
-	"em/internal/testutil/mockdatadog"
-	"em/internal/testutil/mockgithub"
-	"em/internal/testutil/mockjira"
-	"em/internal/testutil/mocksnyk"
+	"github.com/danlafeir/em/internal/datadog"
+	"github.com/danlafeir/em/internal/github"
+	"github.com/danlafeir/em/pkg/jira"
+	"github.com/danlafeir/em/pkg/snyk"
+	"github.com/danlafeir/em/internal/testutil/mockdatadog"
+	"github.com/danlafeir/em/internal/testutil/mockgithub"
+	"github.com/danlafeir/em/internal/testutil/mockjira"
+	"github.com/danlafeir/em/internal/testutil/mocksnyk"
 )
 
 var mockUpstreamFlag bool

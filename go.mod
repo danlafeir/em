@@ -1,4 +1,4 @@
-module em
+module github.com/danlafeir/em
 
 go 1.26.1
 

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"em/internal/testutil/mockdatadog"
+	"github.com/danlafeir/em/internal/testutil/mockdatadog"
 )
 
 func TestSmallDataset_monitors(t *testing.T) {

@@ -18,7 +18,7 @@ import (
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 
-	"em/cmd/metrics"
+	"github.com/danlafeir/em/cmd/metrics"
 )
 
 // configNamespace is the namespace for em config within ~/.em/config.yaml

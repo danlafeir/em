@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"em/pkg/jira"
+	"github.com/danlafeir/em/pkg/jira"
 )
 
 // Dataset holds a collection of mock JIRA issues and their changelogs.

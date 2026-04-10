@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"em/pkg/workflow"
+	"github.com/danlafeir/em/pkg/workflow"
 )
 
 // CycleTimeResult holds cycle time calculation for a single issue.

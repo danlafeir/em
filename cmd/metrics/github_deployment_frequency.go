@@ -10,9 +10,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"em/internal/charts"
-	gh "em/internal/github"
-	"em/pkg/metrics"
+	"github.com/danlafeir/em/internal/charts"
+	gh "github.com/danlafeir/em/internal/github"
+	"github.com/danlafeir/em/pkg/metrics"
 )
 
 var deploymentFrequencyCmd = &cobra.Command{

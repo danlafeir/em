@@ -8,8 +8,8 @@ import (
 	"github.com/danlafeir/cli-go/pkg/secrets"
 	"github.com/spf13/cobra"
 
-	"em/internal/github"
-	"em/internal/output"
+	"github.com/danlafeir/em/internal/github"
+	"github.com/danlafeir/em/internal/output"
 )
 
 // GithubCmd is the parent command for all GitHub metrics.

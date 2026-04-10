@@ -8,9 +8,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"em/internal/charts"
-	"em/pkg/jira"
-	pkgmetrics "em/pkg/metrics"
+	"github.com/danlafeir/em/internal/charts"
+	"github.com/danlafeir/em/pkg/jira"
+	pkgmetrics "github.com/danlafeir/em/pkg/metrics"
 )
 
 var reportCmd = &cobra.Command{

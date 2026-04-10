@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"em/internal/charts"
-	pkgmetrics "em/pkg/metrics"
-	"em/internal/output"
-	snykpkg "em/pkg/snyk"
+	"github.com/danlafeir/em/internal/charts"
+	pkgmetrics "github.com/danlafeir/em/pkg/metrics"
+	"github.com/danlafeir/em/internal/output"
+	snykpkg "github.com/danlafeir/em/pkg/snyk"
 )
 
 // useSavedDataFlag skips upstream API calls and loads from previously saved CSVs.

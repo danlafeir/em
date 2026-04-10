@@ -6,7 +6,7 @@ package cmd
 import (
 	"os"
 
-	"em/cmd/metrics"
+	"github.com/danlafeir/em/cmd/metrics"
 	"github.com/danlafeir/cli-go/pkg/update"
 	"github.com/spf13/cobra"
 )

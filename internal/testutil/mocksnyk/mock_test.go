@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"em/internal/testutil/mocksnyk"
+	"github.com/danlafeir/em/internal/testutil/mocksnyk"
 )
 
 func TestSmallDataset_listIssues(t *testing.T) {

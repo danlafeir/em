@@ -5,7 +5,7 @@ import (
 	"html/template"
 	"math"
 
-	"em/pkg/metrics"
+	"github.com/danlafeir/em/pkg/metrics"
 )
 
 // ThroughputLineHTML returns a self-contained HTML fragment for the throughput line chart.

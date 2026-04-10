@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"em/pkg/workflow"
+	"github.com/danlafeir/em/pkg/workflow"
 )
 
 func TestNormalizeToPeriodStart_Daily(t *testing.T) {

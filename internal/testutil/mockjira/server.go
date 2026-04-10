@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"em/pkg/jira"
+	"github.com/danlafeir/em/pkg/jira"
 )
 
 // Server is a mock JIRA API server backed by a Dataset.

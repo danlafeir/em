@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"em/internal/github"
+	"github.com/danlafeir/em/internal/github"
 )
 
 // Server is a mock GitHub API server backed by a Dataset.

@@ -7,10 +7,10 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"em/internal/charts"
-	"em/pkg/jira"
-	"em/pkg/metrics"
-	"em/pkg/workflow"
+	"github.com/danlafeir/em/internal/charts"
+	"github.com/danlafeir/em/pkg/jira"
+	"github.com/danlafeir/em/pkg/metrics"
+	"github.com/danlafeir/em/pkg/workflow"
 )
 
 var cycleTimeCmd = &cobra.Command{

@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"em/internal/github"
+	"github.com/danlafeir/em/internal/github"
 )
 
 // Dataset holds all mock GitHub data served by the Server.

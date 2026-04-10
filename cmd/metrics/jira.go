@@ -13,10 +13,10 @@ import (
 	"github.com/danlafeir/cli-go/pkg/secrets"
 	"github.com/spf13/cobra"
 
-	"em/internal/charts"
-	"em/pkg/jira"
-	"em/internal/output"
-	"em/pkg/workflow"
+	"github.com/danlafeir/em/internal/charts"
+	"github.com/danlafeir/em/pkg/jira"
+	"github.com/danlafeir/em/internal/output"
+	"github.com/danlafeir/em/pkg/workflow"
 )
 
 // configNamespace is the namespace for em config

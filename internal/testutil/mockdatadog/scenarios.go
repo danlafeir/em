@@ -5,7 +5,7 @@ import (
 	"math/rand"
 	"time"
 
-	"em/internal/datadog"
+	"github.com/danlafeir/em/internal/datadog"
 )
 
 // SmallDataset returns a small deterministic dataset with a handful of monitors and SLOs

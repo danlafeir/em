@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	"em/pkg/httputil"
+	"github.com/danlafeir/em/pkg/httputil"
 )
 
 // Client is the main JIRA Cloud API client.

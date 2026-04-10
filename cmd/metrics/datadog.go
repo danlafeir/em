@@ -8,8 +8,8 @@ import (
 	"github.com/danlafeir/cli-go/pkg/secrets"
 	"github.com/spf13/cobra"
 
-	"em/internal/datadog"
-	"em/internal/output"
+	"github.com/danlafeir/em/internal/datadog"
+	"github.com/danlafeir/em/internal/output"
 )
 
 // DatadogCmd is the parent command for all Datadog metrics.

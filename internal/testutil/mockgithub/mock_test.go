@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"em/internal/testutil/mockgithub"
+	"github.com/danlafeir/em/internal/testutil/mockgithub"
 )
 
 func TestSmallDataset_workflowRuns(t *testing.T) {

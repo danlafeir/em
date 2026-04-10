@@ -9,8 +9,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"em/internal/charts"
-	"em/pkg/snyk"
+	"github.com/danlafeir/em/internal/charts"
+	"github.com/danlafeir/em/pkg/snyk"
 )
 
 var snykIssuesCmd = &cobra.Command{

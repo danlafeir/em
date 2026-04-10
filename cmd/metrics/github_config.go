@@ -16,7 +16,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"em/internal/github"
+	"github.com/danlafeir/em/internal/github"
 )
 
 var ghConfigCmd = &cobra.Command{

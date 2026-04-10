@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"em/pkg/metrics"
-	"em/pkg/snyk"
+	"github.com/danlafeir/em/pkg/metrics"
+	"github.com/danlafeir/em/pkg/snyk"
 )
 
 // --- parseDateRange ---

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"em/internal/datadog"
+	"github.com/danlafeir/em/internal/datadog"
 )
 
 // Server is a mock Datadog API server backed by a Dataset.

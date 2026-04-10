@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"em/internal/testutil/mockdatadog"
+	"github.com/danlafeir/em/internal/testutil/mockdatadog"
 )
 
 func main() {

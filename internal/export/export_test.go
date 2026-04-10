@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"em/pkg/metrics"
+	"github.com/danlafeir/em/pkg/metrics"
 )
 
 // helpers

@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"em/pkg/jira"
-	"em/internal/testutil/mockjira"
+	"github.com/danlafeir/em/pkg/jira"
+	"github.com/danlafeir/em/internal/testutil/mockjira"
 )
 
 func datasetWithBoards() *mockjira.Dataset {

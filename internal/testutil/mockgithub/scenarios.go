@@ -4,7 +4,7 @@ import (
 	"math/rand"
 	"time"
 
-	"em/internal/github"
+	"github.com/danlafeir/em/internal/github"
 )
 
 // SmallDataset returns a small deterministic dataset with ~3 weeks of deployments

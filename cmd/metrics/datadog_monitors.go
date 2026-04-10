@@ -10,8 +10,8 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"em/internal/charts"
-	"em/internal/datadog"
+	"github.com/danlafeir/em/internal/charts"
+	"github.com/danlafeir/em/internal/datadog"
 )
 
 var datadogMonitorsCmd = &cobra.Command{

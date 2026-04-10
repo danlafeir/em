@@ -9,7 +9,7 @@ import (
 	"strings"
 	"syscall"
 
-	"em/pkg/jira"
+	"github.com/danlafeir/em/pkg/jira"
 
 	"github.com/danlafeir/cli-go/pkg/config"
 	"github.com/danlafeir/cli-go/pkg/secrets"

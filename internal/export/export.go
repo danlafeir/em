@@ -10,8 +10,8 @@ import (
 
 	"github.com/xuri/excelize/v2"
 
-	"em/internal/output"
-	"em/pkg/metrics"
+	"github.com/danlafeir/em/internal/output"
+	"github.com/danlafeir/em/pkg/metrics"
 )
 
 // CycleTimeCSV exports cycle time results to CSV.

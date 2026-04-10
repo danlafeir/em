@@ -8,8 +8,8 @@ import (
 	"github.com/danlafeir/cli-go/pkg/secrets"
 	"github.com/spf13/cobra"
 
-	"em/internal/output"
-	"em/pkg/snyk"
+	"github.com/danlafeir/em/internal/output"
+	"github.com/danlafeir/em/pkg/snyk"
 )
 
 // SnykCmd is the parent command for all Snyk metrics.

@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"em/internal/datadog"
+	"github.com/danlafeir/em/internal/datadog"
 )
 
 var datadogConfigCmd = &cobra.Command{

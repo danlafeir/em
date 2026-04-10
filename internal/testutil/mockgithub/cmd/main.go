@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"em/internal/testutil/mockgithub"
+	"github.com/danlafeir/em/internal/testutil/mockgithub"
 )
 
 func main() {

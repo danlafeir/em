@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"html/template"
 
-	"em/pkg/execreport"
-	"em/pkg/metrics"
+	"github.com/danlafeir/em/pkg/execreport"
+	"github.com/danlafeir/em/pkg/metrics"
 )
 
 // ReportSummary holds the key metrics displayed in the summary bar.

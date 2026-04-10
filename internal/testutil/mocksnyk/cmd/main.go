@@ -6,7 +6,7 @@ import (
 	"log"
 	"os"
 
-	"em/internal/testutil/mocksnyk"
+	"github.com/danlafeir/em/internal/testutil/mocksnyk"
 )
 
 func main() {

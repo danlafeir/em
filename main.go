@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"em/cmd"
+	"github.com/danlafeir/em/cmd"
 	"github.com/danlafeir/cli-go/pkg/secrets"
 )
 
