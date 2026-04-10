@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"em/internal/workflow"
+	"em/pkg/workflow"
 )
 
 // ThroughputPeriod represents throughput for a time period.

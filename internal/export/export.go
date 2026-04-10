@@ -11,7 +11,7 @@ import (
 	"github.com/xuri/excelize/v2"
 
 	"em/internal/output"
-	"em/internal/metrics"
+	"em/pkg/metrics"
 )
 
 // CycleTimeCSV exports cycle time results to CSV.

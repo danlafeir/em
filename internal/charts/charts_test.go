@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"em/internal/metrics"
+	"em/pkg/metrics"
 )
 
 // -- linearRegression ---------------------------------------------------------

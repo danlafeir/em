@@ -12,7 +12,7 @@ import (
 
 	"em/internal/charts"
 	gh "em/internal/github"
-	"em/internal/metrics"
+	"em/pkg/metrics"
 )
 
 var deploymentFrequencyCmd = &cobra.Command{

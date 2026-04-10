@@ -8,8 +8,8 @@ import (
 
 	"em/internal/datadog"
 	"em/internal/github"
-	"em/internal/jira"
-	"em/internal/snyk"
+	"em/pkg/jira"
+	"em/pkg/snyk"
 	"em/internal/testutil/mockdatadog"
 	"em/internal/testutil/mockgithub"
 	"em/internal/testutil/mockjira"

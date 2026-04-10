@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"em/internal/output"
-	"em/internal/snyk"
+	"em/pkg/snyk"
 )
 
 // SnykCmd is the parent command for all Snyk metrics.

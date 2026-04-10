@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"em/internal/metrics"
-	"em/internal/snyk"
+	"em/pkg/metrics"
+	"em/pkg/snyk"
 )
 
 // --- parseDateRange ---

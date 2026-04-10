@@ -8,9 +8,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"em/internal/charts"
-	"em/internal/jira"
-	"em/internal/metrics"
-	"em/internal/workflow"
+	"em/pkg/jira"
+	"em/pkg/metrics"
+	"em/pkg/workflow"
 )
 
 var throughputCmd = &cobra.Command{

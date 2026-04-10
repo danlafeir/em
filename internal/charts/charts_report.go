@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"html/template"
 
-	"em/internal/metrics"
+	"em/pkg/execreport"
+	"em/pkg/metrics"
 )
 
 // ReportSummary holds the key metrics displayed in the summary bar.
@@ -17,27 +18,6 @@ type ReportSummary struct {
 // ReportSummaryHTML returns a self-contained HTML fragment for the summary bar.
 func ReportSummaryHTML(s ReportSummary) (template.HTML, error) {
 	return renderHTML("fragment_summary.html.tmpl", s)
-}
-
-// ExecHealthcheck holds the data for the Executive Healthcheck section.
-type ExecHealthcheck struct {
-	AvgCycleTime         string
-	AvgThroughput        string
-	ActiveEpics          int
-	HasJIRAData          bool
-	AvgDeployFreq        string
-	LastWeekDeploys      int
-	HasDeployData        bool
-	TotalVulnerabilities int
-	ExploitableTotal     int
-	ExploitableCritical  int
-	ExploitableHigh      int
-	HasSnykData          bool
-}
-
-// ExecHealthcheckHTML returns a self-contained HTML fragment for the Executive Healthcheck section.
-func ExecHealthcheckHTML(h ExecHealthcheck) (template.HTML, error) {
-	return renderHTML("fragment_executive_healthcheck.html.tmpl", h)
 }
 
 // CombinedReport renders a 2x2 HTML report with cycle time, throughput, longest CT, and forecast.
@@ -97,7 +77,7 @@ func CombinedTeamReport(
 	if n := len(deploymentData.Periods); n > 0 {
 		lastWeekDeploys = deploymentData.Periods[n-1].Count
 	}
-	hc := ExecHealthcheck{
+	hc := execreport.ExecHealthcheck{
 		AvgCycleTime:         summary.AvgCycleTime,
 		AvgThroughput:        summary.AvgThroughput,
 		ActiveEpics:          summary.ActiveEpics,
@@ -114,7 +94,7 @@ func CombinedTeamReport(
 
 	return writeHTML(path, "team_report.html.tmpl", map[string]any{
 		"Title":               title,
-		"ExecHealthcheckHTML": chartOrError(ExecHealthcheckHTML(hc)),
+		"ExecHealthcheckHTML": chartOrError(execreport.ExecHealthcheckHTML(hc)),
 		"SummaryHTML":         chartOrError(ReportSummaryHTML(summary)),
 		"DeploymentHTML":      dfHTML,
 		"CycleTimeHTML":       chartOrError(CycleTimeScatterHTML(cycleTimeData, cycleTimePercentiles, "Cycle Time Distribution")),

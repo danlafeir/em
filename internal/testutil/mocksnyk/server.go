@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"em/internal/snyk"
+	"em/pkg/snyk"
 )
 
 // Server is a mock Snyk REST API server backed by a Dataset.

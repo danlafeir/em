@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"em/internal/workflow"
+	"em/pkg/workflow"
 )
 
 func TestPercentile(t *testing.T) {

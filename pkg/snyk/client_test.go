@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"em/internal/httputil"
+	"em/pkg/httputil"
 )
 
 // mockHTTPDoer is a simple mock for httputil.HTTPDoer that serves a sequence of responses.

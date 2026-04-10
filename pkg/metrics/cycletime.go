@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"em/internal/workflow"
+	"em/pkg/workflow"
 )
 
 // CycleTimeResult holds cycle time calculation for a single issue.

@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
-	"em/internal/snyk"
+	"em/pkg/snyk"
 )
 
 var snykConfigCmd = &cobra.Command{

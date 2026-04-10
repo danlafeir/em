@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"em/internal/httputil"
+	"em/pkg/httputil"
 )
 
 const apiVersion = "2025-11-05"

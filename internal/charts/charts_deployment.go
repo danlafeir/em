@@ -5,7 +5,7 @@ import (
 	"html/template"
 	"math"
 
-	"em/internal/metrics"
+	"em/pkg/metrics"
 )
 
 // DeploymentFrequencyLineHTML returns a self-contained HTML fragment for the deployment frequency line chart.

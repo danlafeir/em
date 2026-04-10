@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"em/internal/snyk"
+	"em/pkg/snyk"
 )
 
 // Dataset holds all mock Snyk data served by the Server.

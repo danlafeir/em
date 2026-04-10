@@ -4,7 +4,7 @@ import (
 	"html/template"
 	"math"
 
-	"em/internal/metrics"
+	"em/pkg/metrics"
 )
 
 // LongestCycleTimeRow holds data for one row in the longest cycle time table.

@@ -14,9 +14,9 @@ import (
 	"github.com/spf13/cobra"
 
 	"em/internal/charts"
-	"em/internal/jira"
+	"em/pkg/jira"
 	"em/internal/output"
-	"em/internal/workflow"
+	"em/pkg/workflow"
 )
 
 // configNamespace is the namespace for em config

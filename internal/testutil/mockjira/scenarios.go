@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"time"
 
-	"em/internal/jira"
+	"em/pkg/jira"
 )
 
 // SmallDataset returns 5 deterministic issues for exact assertions.
