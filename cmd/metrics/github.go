@@ -29,8 +29,6 @@ Required:
 var (
 	ghFromFlag string
 	ghToFlag   string
-	ghOrgFlag  string
-	ghTeamFlag string
 )
 
 func init() {
@@ -38,8 +36,6 @@ func init() {
 
 	GithubCmd.PersistentFlags().StringVar(&ghFromFlag, "from", "", "Start date (YYYY-MM-DD)")
 	GithubCmd.PersistentFlags().StringVar(&ghToFlag, "to", "", "End date (YYYY-MM-DD)")
-	GithubCmd.PersistentFlags().StringVar(&ghOrgFlag, "org", "", "GitHub organization (overrides config)")
-	GithubCmd.PersistentFlags().StringVar(&ghTeamFlag, "team", "", "GitHub team slug (filters to one team)")
 }
 
 // getGithubClient creates a GitHub client from configuration.
@@ -61,20 +57,14 @@ func getGithubClient() (*github.Client, error) {
 	return github.NewClient(creds)
 }
 
-// getGithubOrg returns the GitHub org from flag or config.
+// getGithubOrg returns the GitHub org from config.
 func getGithubOrg() string {
-	if ghOrgFlag != "" {
-		return ghOrgFlag
-	}
 	return getConfigString("github.org")
 }
 
-// getGithubTeams returns all configured team names that have github config, or just the --team flag if set.
+// getGithubTeams returns all configured team names that have github config.
 // Falls back to the selected team (from select-team) before listing all teams.
 func getGithubTeams() []string {
-	if ghTeamFlag != "" {
-		return []string{ghTeamFlag}
-	}
 	if selected := getSelectedTeam(); selected != "" {
 		return []string{selected}
 	}
@@ -119,7 +109,7 @@ func getConfiguredWorkflowsByTeam(team string) (map[string][]string, error) {
 	key := fmt.Sprintf("teams.%s.github.workflows", team)
 	raw := getConfigAny(key)
 	if raw == nil {
-		return nil, fmt.Errorf("no workflows configured for team %q. Run: em metrics github config --team %s", team, team)
+		return nil, fmt.Errorf("no workflows configured for team %q. Run: em metrics github config", team)
 	}
 
 	rawMap, ok := raw.(map[string]any)
@@ -148,7 +138,7 @@ func getConfiguredWorkflowsByTeam(team string) (map[string][]string, error) {
 	}
 
 	if len(workflows) == 0 {
-		return nil, fmt.Errorf("no workflows configured for team %q. Run: em metrics github config --team %s", team, team)
+		return nil, fmt.Errorf("no workflows configured for team %q. Run: em metrics github config", team)
 	}
 
 	return workflows, nil
@@ -164,7 +154,7 @@ type teamWorkflows struct {
 func getAllConfiguredWorkflows() ([]teamWorkflows, error) {
 	teams := getGithubTeams()
 	if len(teams) == 0 {
-		return nil, fmt.Errorf("no teams configured. Run: em metrics github config --team <team>")
+		return nil, fmt.Errorf("no teams configured. Run: em metrics github config")
 	}
 
 	var result []teamWorkflows

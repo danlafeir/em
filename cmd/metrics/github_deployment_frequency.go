@@ -57,7 +57,7 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 		}
 		cfg := charts.Config{}
 		outputPath := getGithubOutputPath("deployment-frequency", "html")
-		if err := charts.DeploymentFrequencyLine(weeklyData, cfg, outputPath); err != nil {
+		if err := charts.DeploymentFrequencyLine(weeklyData, metrics.ThroughputResult{}, cfg, outputPath); err != nil {
 			return fmt.Errorf("failed to create chart: %w", err)
 		}
 		fmt.Printf("\nChart saved to %s\n", outputPath)
@@ -102,6 +102,7 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 
 	var results []repoDeploymentResult
 	var allRuns []gh.WorkflowRun
+	var failedRuns []gh.WorkflowRun
 
 	for _, tw := range allTeamWorkflows {
 		if multiTeam {
@@ -154,9 +155,12 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 				}
 
 				for _, run := range runs {
-					if run.Conclusion == "success" {
+					switch run.Conclusion {
+					case "success":
 						successCount++
 						allRuns = append(allRuns, run)
+					case "failure", "timed_out":
+						failedRuns = append(failedRuns, run)
 					}
 				}
 			}
@@ -246,6 +250,7 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 
 	// Generate HTML chart with aggregate weekly deployments
 	weeklyData := aggregateWeeklyDeployments(allRuns, from, to)
+	weeklyFailures := aggregateWeeklyDeployments(failedRuns, from, to)
 	if saveRawDataFlag {
 		if err := saveDeploymentData(weeklyData, ""); err == nil {
 			fmt.Printf("\nRaw data saved to: %s\n", savedGithubDataPath(""))
@@ -254,7 +259,7 @@ func runDeploymentFrequency(cmd *cobra.Command, args []string) error {
 	if len(weeklyData.Periods) > 0 {
 		cfg := charts.Config{}
 		outputPath := getGithubOutputPath("deployment-frequency", "html")
-		if err := charts.DeploymentFrequencyLine(weeklyData, cfg, outputPath); err != nil {
+		if err := charts.DeploymentFrequencyLine(weeklyData, weeklyFailures, cfg, outputPath); err != nil {
 			return fmt.Errorf("failed to create chart: %w", err)
 		}
 		fmt.Printf("\nChart saved to %s\n", outputPath)
@@ -305,20 +310,20 @@ func aggregateWeeklyDeployments(runs []gh.WorkflowRun, from, to time.Time) metri
 	return result
 }
 
-// fetchTeamDeploymentData fetches successful workflow runs for the given team and aggregates by week.
-// Returns an empty result (not an error) if GitHub workflows are not configured for the team.
-func fetchTeamDeploymentData(ctx context.Context, client *gh.Client, org, teamName string, from, to time.Time) metrics.ThroughputResult {
+// fetchTeamDeploymentData fetches successful and failed workflow runs for the given team and aggregates by week.
+// Returns empty results (not an error) if GitHub workflows are not configured for the team.
+func fetchTeamDeploymentData(ctx context.Context, client *gh.Client, org, teamName string, from, to time.Time) (success metrics.ThroughputResult, failures metrics.ThroughputResult) {
 	if useSavedDataFlag {
 		result, err := loadDeploymentData(teamName)
 		if err != nil {
-			return metrics.ThroughputResult{}
+			return metrics.ThroughputResult{}, metrics.ThroughputResult{}
 		}
-		return result
+		return result, metrics.ThroughputResult{}
 	}
 
 	workflows, err := getConfiguredWorkflowsByTeam(teamName)
 	if err != nil {
-		return metrics.ThroughputResult{}
+		return metrics.ThroughputResult{}, metrics.ThroughputResult{}
 	}
 
 	repos := make([]string, 0, len(workflows))
@@ -328,6 +333,7 @@ func fetchTeamDeploymentData(ctx context.Context, client *gh.Client, org, teamNa
 	sort.Strings(repos)
 
 	var allRuns []gh.WorkflowRun
+	var failedRuns []gh.WorkflowRun
 	for _, repo := range repos {
 		wfFilenames := workflows[repo]
 		allWfs, err := client.ListWorkflows(ctx, org, repo)
@@ -348,8 +354,11 @@ func fetchTeamDeploymentData(ctx context.Context, client *gh.Client, org, teamNa
 				continue
 			}
 			for _, run := range runs {
-				if run.Conclusion == "success" {
+				switch run.Conclusion {
+				case "success":
 					allRuns = append(allRuns, run)
+				case "failure", "timed_out":
+					failedRuns = append(failedRuns, run)
 				}
 			}
 		}
@@ -358,6 +367,6 @@ func fetchTeamDeploymentData(ctx context.Context, client *gh.Client, org, teamNa
 	if saveRawDataFlag {
 		_ = saveDeploymentData(result, teamName)
 	}
-	return result
+	return result, aggregateWeeklyDeployments(failedRuns, from, to)
 }
 

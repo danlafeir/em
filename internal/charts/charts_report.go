@@ -66,6 +66,7 @@ func CombinedTeamReport(
 	title string,
 	summary ReportSummary,
 	deploymentData metrics.ThroughputResult,
+	deploymentFailures metrics.ThroughputResult,
 	cycleTimeData []metrics.CycleTimeResult,
 	cycleTimePercentiles []float64,
 	throughputData metrics.ThroughputResult,
@@ -78,7 +79,7 @@ func CombinedTeamReport(
 ) error {
 	var dfHTML template.HTML
 	if len(deploymentData.Periods) > 0 {
-		dfHTML = chartOrError(DeploymentFrequencyLineHTML(deploymentData, "Deployment Frequency"))
+		dfHTML = chartOrError(DeploymentFrequencyLineHTML(deploymentData, deploymentFailures, "Deployment Frequency"))
 	}
 
 	var snykSummaryHTML, snykChartHTML template.HTML

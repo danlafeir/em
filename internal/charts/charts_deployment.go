@@ -9,7 +9,8 @@ import (
 )
 
 // DeploymentFrequencyLineHTML returns a self-contained HTML fragment for the deployment frequency line chart.
-func DeploymentFrequencyLineHTML(data metrics.ThroughputResult, title string) (template.HTML, error) {
+// failures may be an empty ThroughputResult if no failure data is available.
+func DeploymentFrequencyLineHTML(data metrics.ThroughputResult, failures metrics.ThroughputResult, title string) (template.HTML, error) {
 	if title == "" {
 		title = "Deployment Frequency"
 	}
@@ -29,7 +30,7 @@ func DeploymentFrequencyLineHTML(data metrics.ThroughputResult, title string) (t
 
 	datasets := []map[string]any{
 		{
-			"label":           "Deployments",
+			"label":           "Successful Deployments",
 			"data":            points,
 			"borderColor":     "rgba(66, 133, 244, 1)",
 			"backgroundColor": "rgba(66, 133, 244, 0.1)",
@@ -37,6 +38,23 @@ func DeploymentFrequencyLineHTML(data metrics.ThroughputResult, title string) (t
 			"pointRadius":     4,
 			"fill":            true,
 		},
+	}
+
+	// Add failure overlay if failure data is available.
+	if len(failures.Periods) > 0 {
+		failPoints := make([]point, len(failures.Periods))
+		for i, p := range failures.Periods {
+			failPoints[i] = point{X: p.PeriodEnd.Format("2006-01-02"), Y: p.Count}
+		}
+		datasets = append(datasets, map[string]any{
+			"label":           "Failed Runs",
+			"data":            failPoints,
+			"borderColor":     "rgba(220, 53, 69, 1)",
+			"backgroundColor": "rgba(220, 53, 69, 0.1)",
+			"borderWidth":     2,
+			"pointRadius":     4,
+			"fill":            true,
+		})
 	}
 
 	if len(points) >= 2 {
@@ -48,7 +66,7 @@ func DeploymentFrequencyLineHTML(data metrics.ThroughputResult, title string) (t
 		datasets = append(datasets, map[string]any{
 			"label":       "Trend",
 			"data":        trendPoints,
-			"borderColor": "rgba(244, 67, 54, 0.8)",
+			"borderColor": "rgba(66, 133, 244, 0.4)",
 			"borderWidth": 1.5,
 			"borderDash":  []int{6, 3},
 			"pointRadius": 0,
@@ -109,12 +127,12 @@ func DeploymentFrequencyLineHTML(data metrics.ThroughputResult, title string) (t
 }
 
 // DeploymentFrequencyLine creates an HTML page with a deployment frequency line chart.
-func DeploymentFrequencyLine(data metrics.ThroughputResult, cfg Config, path string) error {
+func DeploymentFrequencyLine(data metrics.ThroughputResult, failures metrics.ThroughputResult, cfg Config, path string) error {
 	title := cfg.Title
 	if title == "" {
 		title = "Deployment Frequency"
 	}
-	content, err := DeploymentFrequencyLineHTML(data, title)
+	content, err := DeploymentFrequencyLineHTML(data, failures, title)
 	if err != nil {
 		return err
 	}

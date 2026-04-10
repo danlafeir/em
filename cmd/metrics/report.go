@@ -183,7 +183,7 @@ func generateCombinedTeamReport(cachedJIRAData *jiraMetricsData, cachedSnyk *sny
 		}
 	}
 
-	deployments := fetchGitHubDeploymentsForReport(ctx, team, from, to)
+	deployments, deploymentFailures := fetchGitHubDeploymentsForReport(ctx, team, from, to)
 
 	var snykSummary charts.SnykSummary
 	var snykWeeks []charts.SnykIssueWeek
@@ -203,6 +203,7 @@ func generateCombinedTeamReport(cachedJIRAData *jiraMetricsData, cachedSnyk *sny
 		title,
 		jiraData.Summary,
 		deployments,
+		deploymentFailures,
 		jiraData.KeptResults,
 		[]float64{50, 85, 95},
 		jiraData.ThroughputResult,
@@ -244,24 +245,24 @@ func fetchJIRADataForReport(ctx context.Context, team string, from, to time.Time
 	return collectJIRAMetricsData(ctx, client, team, jql, from, to, false)
 }
 
-func fetchGitHubDeploymentsForReport(ctx context.Context, team string, from, to time.Time) pkgmetrics.ThroughputResult {
+func fetchGitHubDeploymentsForReport(ctx context.Context, team string, from, to time.Time) (pkgmetrics.ThroughputResult, pkgmetrics.ThroughputResult) {
 	if team == "" {
-		return pkgmetrics.ThroughputResult{}
+		return pkgmetrics.ThroughputResult{}, pkgmetrics.ThroughputResult{}
 	}
 	if useSavedDataFlag {
 		result, err := loadDeploymentData(team)
 		if err != nil {
-			return pkgmetrics.ThroughputResult{}
+			return pkgmetrics.ThroughputResult{}, pkgmetrics.ThroughputResult{}
 		}
-		return result
+		return result, pkgmetrics.ThroughputResult{}
 	}
 	client, err := getGithubClient()
 	if err != nil {
-		return pkgmetrics.ThroughputResult{}
+		return pkgmetrics.ThroughputResult{}, pkgmetrics.ThroughputResult{}
 	}
 	org := getGithubOrg()
 	if org == "" {
-		return pkgmetrics.ThroughputResult{}
+		return pkgmetrics.ThroughputResult{}, pkgmetrics.ThroughputResult{}
 	}
 	return fetchTeamDeploymentData(ctx, client, org, team, from, to)
 }
