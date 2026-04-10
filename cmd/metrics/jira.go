@@ -157,7 +157,6 @@ var emConfigSchema = config.ConfigSchema{
 	"teams.*.github.slug",
 	"teams.*.github.workflows",
 	"teams.*.github.workflows.*",
-	"workflow.stages",
 	"workflow.cycle_time.started",
 	"workflow.cycle_time.completed",
 	"montecarlo.deadline",
@@ -305,6 +304,11 @@ func getDateRange() (time.Time, time.Time, error) {
 	return parseDateRange(fromFlag, toFlag)
 }
 
+// isDelivered returns true if the issue's status maps to the completed stage.
+func isDelivered(mapper *workflow.Mapper, issue jira.Issue) bool {
+	return mapper.IsCompleted(issue.Fields.Status.Name)
+}
+
 // mapIssuesToHistories converts JIRA issues to workflow histories using the
 // configured mapper. Returns both the histories and the mapper so callers can
 // pass the mapper to compute functions.
@@ -334,51 +338,45 @@ func fetchAndMapIssues(ctx context.Context, client *jira.Client, jql string) ([]
 }
 
 // getWorkflowMapper creates a workflow mapper from configuration.
+// workflow.cycle_time.started and workflow.cycle_time.completed store JIRA status names.
+// When set, the configured status is added first to the stage so cycle time boundary
+// detection works, while the full default status list is preserved so all common
+// variants (Done, Resolved, etc.) still count as completed.
 func getWorkflowMapper() *workflow.Mapper {
-	// Check for custom workflow configuration
-	stages := getConfigAny("workflow.stages")
-	if stages == nil {
-		// Use default configuration
-		return workflow.NewMapper(workflow.DefaultConfig())
-	}
-
-	// Parse custom configuration
 	wfConfig := workflow.DefaultConfig()
 
-	// Override with custom stages if provided
-	if stagesSlice, ok := stages.([]any); ok {
-		wfConfig.Stages = nil
-		for i, s := range stagesSlice {
-			if stageMap, ok := s.(map[string]any); ok {
-				stage := workflow.Stage{Order: i}
-
-				if name, ok := stageMap["name"].(string); ok {
-					stage.Name = name
-				}
-				if category, ok := stageMap["category"].(string); ok {
-					stage.Category = category
-				}
-				if statuses, ok := stageMap["statuses"].([]any); ok {
-					for _, status := range statuses {
-						if statusStr, ok := status.(string); ok {
-							stage.Statuses = append(stage.Statuses, statusStr)
-						}
-					}
-				}
-				wfConfig.Stages = append(wfConfig.Stages, stage)
-			}
-		}
-	}
-
-	// Override cycle time config if provided
 	if started := getConfigString("workflow.cycle_time.started"); started != "" {
+		wfConfig.Stages[0] = workflow.Stage{
+			Name:     started,
+			Statuses: prependUnique(started, wfConfig.Stages[0].Statuses),
+			Category: "in_progress",
+			Order:    0,
+		}
 		wfConfig.CycleTime.Started = started
 	}
 	if completed := getConfigString("workflow.cycle_time.completed"); completed != "" {
+		wfConfig.Stages[1] = workflow.Stage{
+			Name:     completed,
+			Statuses: prependUnique(completed, wfConfig.Stages[1].Statuses),
+			Category: "done",
+			Order:    1,
+		}
 		wfConfig.CycleTime.Completed = completed
 	}
 
 	return workflow.NewMapper(wfConfig)
+}
+
+// prependUnique returns a new slice with s at the front followed by all elements
+// of rest that don't case-insensitively equal s.
+func prependUnique(s string, rest []string) []string {
+	out := []string{s}
+	for _, v := range rest {
+		if !strings.EqualFold(v, s) {
+			out = append(out, v)
+		}
+	}
+	return out
 }
 
 // resolveTeamJQL resolves JQL for a single team. Prefers the board's

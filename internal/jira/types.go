@@ -58,7 +58,8 @@ type Fields struct {
 	IssueType      IssueType  `json:"issuetype"`
 	Created        JiraTime   `json:"created"`
 	Updated        JiraTime   `json:"updated"`
-	ResolutionDate *JiraTime  `json:"resolutiondate,omitempty"`
+	ResolutionDate *JiraTime   `json:"resolutiondate,omitempty"`
+	Resolution     *Resolution `json:"resolution,omitempty"`
 	Project        Project    `json:"project"`
 	Assignee       *User      `json:"assignee,omitempty"`
 	Reporter       *User      `json:"reporter,omitempty"`
@@ -66,6 +67,12 @@ type Fields struct {
 	Labels         []string   `json:"labels,omitempty"`
 	Parent *Parent `json:"parent,omitempty"` // For subtasks or stories linked to epics
 	Epic   *Epic   `json:"epic,omitempty"`   // Epic link (older style)
+}
+
+// Resolution represents the resolution set when closing an issue.
+type Resolution struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
 }
 
 // Status represents issue status.

@@ -176,14 +176,14 @@ func fetchEpicCounts(ctx context.Context, client *jira.Client, mapper *workflow.
 		EpicSummary: epic.Fields.Summary,
 	}
 	jql := fmt.Sprintf("\"Epic Link\" = %s OR parent = %s", epic.Key, epic.Key)
-	issues, err := client.SearchAllIssues(ctx, jql, "status,summary,issuetype", "")
+	issues, err := client.SearchAllIssues(ctx, jql, "status,summary,issuetype,resolution", "")
 	if err != nil {
 		forecast.Error = "fetch failed"
 		return forecast
 	}
 	forecast.TotalItems = len(issues)
 	for _, issue := range issues {
-		if mapper.IsCompleted(issue.Fields.Status.Name) {
+		if isDelivered(mapper, issue) {
 			forecast.CompletedItems++
 		} else {
 			forecast.RemainingItems++
@@ -569,7 +569,7 @@ func forecastEpic(ctx context.Context, client *jira.Client, mapper *workflow.Map
 
 	// Get issues in this epic
 	jql := fmt.Sprintf("\"Epic Link\" = %s OR parent = %s", epic.Key, epic.Key)
-	issues, err := client.SearchAllIssues(ctx, jql, "status,summary,issuetype", "")
+	issues, err := client.SearchAllIssues(ctx, jql, "status,summary,issuetype,resolution", "")
 	if err != nil {
 		forecast.Error = "fetch failed"
 		return forecast
@@ -579,7 +579,7 @@ func forecastEpic(ctx context.Context, client *jira.Client, mapper *workflow.Map
 
 	// Count remaining
 	for _, issue := range issues {
-		if mapper.IsCompleted(issue.Fields.Status.Name) {
+		if isDelivered(mapper, issue) {
 			forecast.CompletedItems++
 		} else {
 			forecast.RemainingItems++
@@ -620,7 +620,7 @@ func runSingleEpicForecast(ctx context.Context, client *jira.Client, throughputJ
 
 	// Get issues in this epic
 	jql := fmt.Sprintf("\"Epic Link\" = %s OR parent = %s", epicKey, epicKey)
-	issues, err := client.SearchAllIssues(ctx, jql, "status,summary,issuetype", "")
+	issues, err := client.SearchAllIssues(ctx, jql, "status,summary,issuetype,resolution", "")
 	if err != nil {
 		return fmt.Errorf("failed to fetch epic issues: %w", err)
 	}
@@ -629,7 +629,7 @@ func runSingleEpicForecast(ctx context.Context, client *jira.Client, throughputJ
 	mapper := getWorkflowMapper()
 	var remaining int
 	for _, issue := range issues {
-		if !mapper.IsCompleted(issue.Fields.Status.Name) {
+		if !isDelivered(mapper, issue) {
 			remaining++
 		}
 	}

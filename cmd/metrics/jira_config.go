@@ -109,6 +109,28 @@ func runJiraConfig(cmd *cobra.Command, args []string) error {
 		config.SetConfigValue(configNamespace, fmt.Sprintf("teams.%s.jira.work_threads", team), workersInput)
 	}
 
+	// 7. Workflow — which JIRA status names mark the start and end of cycle time
+	fmt.Println()
+	currentStarted := getConfigString("workflow.cycle_time.started")
+	if currentStarted == "" {
+		currentStarted = "In Progress"
+	}
+	startedInput, err := promptValue(reader, "JIRA status name when work starts", currentStarted)
+	if err != nil {
+		return err
+	}
+	config.SetConfigValue(configNamespace, "workflow.cycle_time.started", startedInput)
+
+	currentCompleted := getConfigString("workflow.cycle_time.completed")
+	if currentCompleted == "" {
+		currentCompleted = "Closed"
+	}
+	completedInput, err := promptValue(reader, "JIRA status name when work is done", currentCompleted)
+	if err != nil {
+		return err
+	}
+	config.SetConfigValue(configNamespace, "workflow.cycle_time.completed", completedInput)
+
 	// Save config
 	if err := config.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)

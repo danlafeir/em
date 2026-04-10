@@ -25,10 +25,10 @@ hr.divider{border:none;border-top:2px solid #eee;margin:32px 0}
   <h2>JIRA Metrics</h2>
   {{.SummaryHTML}}
   <div class="jira-grid">
-    {{.ForecastHTML}}
+    {{.CycleTimeHTML}}
     {{.ThroughputHTML}}
     {{.LongestCTHTML}}
-    {{.CycleTimeHTML}}
+    {{.ForecastHTML}}
   </div>
   {{end}}
   {{if .DeploymentHTML}}

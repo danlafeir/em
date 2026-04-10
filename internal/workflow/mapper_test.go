@@ -14,15 +14,13 @@ func TestGetStage(t *testing.T) {
 		status   string
 		expected string
 	}{
-		{"Open", "Backlog"},
-		{"To Do", "Backlog"},
 		{"In Progress", "In Progress"},
 		{"in progress", "In Progress"}, // case insensitive
 		{"IN PROGRESS", "In Progress"},
-		{"Done", "Done"},
-		{"Closed", "Done"},
-		{"Code Review", "Review"},
-		{"In QA", "Testing"},
+		{"Doing", "In Progress"},
+		{"Done", "Closed"},
+		{"Closed", "Closed"},
+		{"Open", "Unknown"},
 		{"Unknown Status", "Unknown"},
 	}
 
@@ -68,9 +66,8 @@ func TestGetStageOrder(t *testing.T) {
 		stage    string
 		expected int
 	}{
-		{"Backlog", 0},
-		{"In Progress", 2},
-		{"Done", 5},
+		{"In Progress", 0},
+		{"Closed", 1},
 		{"NonExistent", -1},
 	}
 
@@ -94,7 +91,7 @@ func TestTimeInStage_NoTransitions(t *testing.T) {
 		Key:          "TEST-1",
 		Created:      created,
 		Completed:    &completed,
-		CurrentStage: "Done",
+		CurrentStage: "Closed",
 		Transitions:  nil,
 	}
 
@@ -104,13 +101,13 @@ func TestTimeInStage_NoTransitions(t *testing.T) {
 		t.Errorf("Expected 1 stage, got %d", len(result))
 	}
 
-	if _, ok := result["Done"]; !ok {
-		t.Error("Expected 'Done' stage in result")
+	if _, ok := result["Closed"]; !ok {
+		t.Error("Expected 'Closed' stage in result")
 	}
 
 	expectedDuration := completed.Sub(created)
-	if result["Done"] != expectedDuration {
-		t.Errorf("Expected duration %v, got %v", expectedDuration, result["Done"])
+	if result["Closed"] != expectedDuration {
+		t.Errorf("Expected duration %v, got %v", expectedDuration, result["Closed"])
 	}
 }
 
@@ -118,7 +115,7 @@ func TestTimeInStage_WithTransitions(t *testing.T) {
 	mapper := NewMapper(DefaultConfig())
 
 	created := time.Date(2024, 1, 1, 9, 0, 0, 0, time.UTC)
-	transition1 := time.Date(2024, 1, 2, 9, 0, 0, 0, time.UTC) // 1 day in Backlog
+	transition1 := time.Date(2024, 1, 2, 9, 0, 0, 0, time.UTC) // 1 day in Unknown (Open → In Progress)
 	transition2 := time.Date(2024, 1, 5, 9, 0, 0, 0, time.UTC) // 3 days in In Progress
 	completed := time.Date(2024, 1, 6, 9, 0, 0, 0, time.UTC)   // 1 day in Done
 
@@ -126,27 +123,27 @@ func TestTimeInStage_WithTransitions(t *testing.T) {
 		Key:          "TEST-1",
 		Created:      created,
 		Completed:    &completed,
-		CurrentStage: "Done",
+		CurrentStage: "Closed",
 		Transitions: []StageTransition{
-			{Timestamp: transition1, FromStage: "Backlog", ToStage: "In Progress"},
-			{Timestamp: transition2, FromStage: "In Progress", ToStage: "Done"},
+			{Timestamp: transition1, FromStage: "Unknown", ToStage: "In Progress"},
+			{Timestamp: transition2, FromStage: "In Progress", ToStage: "Closed"},
 		},
 	}
 
 	result := mapper.TimeInStage(history)
 
-	expectedBacklog := 24 * time.Hour
+	expectedUnknown := 24 * time.Hour
 	expectedInProgress := 3 * 24 * time.Hour
-	expectedDone := 24 * time.Hour
+	expectedClosed := 24 * time.Hour
 
-	if result["Backlog"] != expectedBacklog {
-		t.Errorf("Backlog: expected %v, got %v", expectedBacklog, result["Backlog"])
+	if result["Unknown"] != expectedUnknown {
+		t.Errorf("Unknown: expected %v, got %v", expectedUnknown, result["Unknown"])
 	}
 	if result["In Progress"] != expectedInProgress {
 		t.Errorf("In Progress: expected %v, got %v", expectedInProgress, result["In Progress"])
 	}
-	if result["Done"] != expectedDone {
-		t.Errorf("Done: expected %v, got %v", expectedDone, result["Done"])
+	if result["Closed"] != expectedClosed {
+		t.Errorf("Closed: expected %v, got %v", expectedClosed, result["Closed"])
 	}
 }
 
@@ -158,8 +155,8 @@ func TestGetCycleTimeStages(t *testing.T) {
 	if start != "In Progress" {
 		t.Errorf("Expected start stage 'In Progress', got %q", start)
 	}
-	if end != "Done" {
-		t.Errorf("Expected end stage 'Done', got %q", end)
+	if end != "Closed" {
+		t.Errorf("Expected end stage 'Closed', got %q", end)
 	}
 }
 
@@ -168,7 +165,7 @@ func TestGetStageNames(t *testing.T) {
 
 	names := mapper.GetStageNames()
 
-	expected := []string{"Backlog", "Analysis", "In Progress", "Review", "Testing", "Done"}
+	expected := []string{"In Progress", "Closed"}
 
 	if len(names) != len(expected) {
 		t.Errorf("Expected %d stages, got %d", len(expected), len(names))
@@ -215,8 +212,8 @@ func TestMapIssueHistory_CompletedIssue(t *testing.T) {
 	if history.Summary != "Test story" {
 		t.Errorf("expected summary 'Test story', got %q", history.Summary)
 	}
-	if history.CurrentStage != "Done" {
-		t.Errorf("expected current stage Done, got %q", history.CurrentStage)
+	if history.CurrentStage != "Closed" {
+		t.Errorf("expected current stage Closed, got %q", history.CurrentStage)
 	}
 	if history.Completed == nil {
 		t.Fatal("expected Completed to be set")
@@ -225,7 +222,7 @@ func TestMapIssueHistory_CompletedIssue(t *testing.T) {
 		t.Errorf("expected completed time %v, got %v", resolved, *history.Completed)
 	}
 
-	// Open and In Progress are in different stages, so transition is recorded
+	// Unknown and In Progress are in different stages, so transition is recorded
 	// In Progress and Done are in different stages, so transition is recorded
 	if len(history.Transitions) != 2 {
 		t.Fatalf("expected 2 stage transitions, got %d", len(history.Transitions))
@@ -233,8 +230,8 @@ func TestMapIssueHistory_CompletedIssue(t *testing.T) {
 	if history.Transitions[0].ToStage != "In Progress" {
 		t.Errorf("expected first transition to 'In Progress', got %q", history.Transitions[0].ToStage)
 	}
-	if history.Transitions[1].ToStage != "Done" {
-		t.Errorf("expected second transition to 'Done', got %q", history.Transitions[1].ToStage)
+	if history.Transitions[1].ToStage != "Closed" {
+		t.Errorf("expected second transition to 'Closed', got %q", history.Transitions[1].ToStage)
 	}
 }
 
@@ -303,8 +300,8 @@ func TestMapIssueHistory_FiltersSameStageTransitions(t *testing.T) {
 	if history.Transitions[0].ToStage != "In Progress" {
 		t.Errorf("first transition should be to 'In Progress', got %q", history.Transitions[0].ToStage)
 	}
-	if history.Transitions[1].ToStage != "Done" {
-		t.Errorf("second transition should be to 'Done', got %q", history.Transitions[1].ToStage)
+	if history.Transitions[1].ToStage != "Closed" {
+		t.Errorf("second transition should be to 'Closed', got %q", history.Transitions[1].ToStage)
 	}
 }
 
@@ -331,8 +328,8 @@ func TestMapIssueHistory_NoTransitions(t *testing.T) {
 	if len(history.Transitions) != 0 {
 		t.Errorf("expected 0 transitions, got %d", len(history.Transitions))
 	}
-	if history.CurrentStage != "Backlog" {
-		t.Errorf("expected current stage 'Backlog', got %q", history.CurrentStage)
+	if history.CurrentStage != "Unknown" {
+		t.Errorf("expected current stage 'Unknown', got %q", history.CurrentStage)
 	}
 }
 

@@ -92,3 +92,12 @@ em metrics snyk config
 - **API token** — a Snyk personal or service account token; stored in the system keychain
 - **Organization** — the Snyk org ID and display name to pull vulnerability data from
 
+## Further reading
+
+- [Cycle time — how it is calculated and what is measured](docs/cycle-time.md)
+- [Throughput — delivery frequency aggregation and period anchoring](docs/throughput.md)
+- [Monte Carlo forecasting — simulation model and percentile interpretation](docs/monte-carlo.md)
+- [Outlier filtering — IQR-based removal of anomalous cycle times](docs/outliers.md)
+- [GitHub deployment frequency — what counts as a deploy](docs/github.md)
+- [Snyk vulnerability metrics — severity, fixability, and weekly trend](docs/snyk.md)
+

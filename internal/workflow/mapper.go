@@ -57,16 +57,12 @@ func NewMapper(config Config) *Mapper {
 func DefaultConfig() Config {
 	return Config{
 		Stages: []Stage{
-			{Name: "Backlog", Statuses: []string{"Open", "To Do", "Backlog", "New"}, Category: "todo", Order: 0},
-			{Name: "Analysis", Statuses: []string{"In Analysis", "Refinement", "Ready for Dev"}, Category: "in_progress", Order: 1},
-			{Name: "In Progress", Statuses: []string{"In Progress", "In Development", "Coding", "Development"}, Category: "in_progress", Order: 2},
-			{Name: "Review", Statuses: []string{"In Review", "Code Review", "PR Review", "Peer Review"}, Category: "in_progress", Order: 3},
-			{Name: "Testing", Statuses: []string{"In QA", "Testing", "In Test", "QA"}, Category: "in_progress", Order: 4},
-			{Name: "Done", Statuses: []string{"Done", "Closed", "Resolved", "Complete", "Released"}, Category: "done", Order: 5},
+			{Name: "In Progress", Statuses: []string{"In Progress", "In Development", "Doing", "Active"}, Category: "in_progress", Order: 0},
+			{Name: "Closed", Statuses: []string{"Closed", "Done", "Resolved", "Complete", "Released"}, Category: "done", Order: 1},
 		},
 		CycleTime: CycleTimeConfig{
 			Started:   "In Progress",
-			Completed: "Done",
+			Completed: "Closed",
 		},
 	}
 }
