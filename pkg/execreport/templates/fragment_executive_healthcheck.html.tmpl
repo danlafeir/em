@@ -17,11 +17,13 @@
       <div style="font-size:1.5rem;font-weight:700;color:#111;line-height:1;">{{if .HasJIRAData}}{{.ActiveEpics}}{{else}}—{{end}}</div>
     </div>
 
+    {{if not .HideDeployFreq}}
     <div style="flex:1;min-width:110px;border:1px solid #e0e0e0;border-radius:8px;padding:14px 18px;">
       <div style="font-size:.65rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Deploy Frequency</div>
       <div style="font-size:1.5rem;font-weight:700;color:#111;line-height:1;">{{if .HasDeployData}}{{.AvgDeployFreq}}{{else}}—{{end}}</div>
       <div style="font-size:.7rem;color:#888;margin-top:4px;">{{if .HasDeployData}}{{.LastWeekDeploys}} last week{{else}}—{{end}}</div>
     </div>
+    {{end}}
 
     <div style="flex:1;min-width:160px;border:1px solid #e0e0e0;border-radius:8px;padding:14px 18px;">
       <div style="font-size:.65rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Snyk Vulnerabilities</div>

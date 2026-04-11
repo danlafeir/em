@@ -24,6 +24,7 @@ type ExecHealthcheck struct {
 	AvgDeployFreq        string
 	LastWeekDeploys      int
 	HasDeployData        bool
+	HideDeployFreq       bool // omits the Deploy Frequency widget entirely when true
 	TotalVulnerabilities int
 	ExploitableTotal     int
 	ExploitableCritical  int
