@@ -28,18 +28,18 @@
     <div style="flex:1;min-width:160px;border:1px solid #e0e0e0;border-radius:8px;padding:14px 18px;">
       <div style="font-size:.65rem;font-weight:600;color:#888;text-transform:uppercase;letter-spacing:.06em;margin-bottom:8px;">Snyk Vulnerabilities</div>
       {{if .HasSnykData}}
-      <div style="display:flex;align-items:baseline;gap:8px;line-height:1;">
-        <div style="font-size:1.5rem;font-weight:700;color:#111;">{{.TotalVulnerabilities}}</div>
-        <div style="font-size:.85rem;font-weight:600;{{if gt .ExploitableTotal 0}}color:#dc2626;{{else}}color:#888;{{end}}">{{.ExploitableTotal}} exploitable</div>
-      </div>
-      <div style="display:flex;gap:16px;margin-top:8px;">
+      <div style="display:flex;gap:16px;align-items:flex-end;">
         <div>
-          <div style="font-size:.95rem;font-weight:600;{{if gt .ExploitableCritical 0}}color:#dc2626;{{else}}color:#888;{{end}}">{{.ExploitableCritical}}</div>
-          <div style="font-size:.65rem;color:#888;">Critical</div>
+          <div style="font-size:1.5rem;font-weight:700;line-height:1;{{if gt .Exploitable 0}}color:#dc2626;{{else}}color:#111;{{end}}">{{.Exploitable}}</div>
+          <div style="font-size:.65rem;color:#888;margin-top:4px;">Exploitable</div>
         </div>
         <div>
-          <div style="font-size:.95rem;font-weight:600;{{if gt .ExploitableHigh 0}}color:#ea580c;{{else}}color:#888;{{end}}">{{.ExploitableHigh}}</div>
-          <div style="font-size:.65rem;color:#888;">High</div>
+          <div style="font-size:1.5rem;font-weight:700;line-height:1;{{if gt .Critical 0}}color:#dc2626;{{else}}color:#111;{{end}}">{{.Critical}}</div>
+          <div style="font-size:.65rem;color:#888;margin-top:4px;">Critical</div>
+        </div>
+        <div>
+          <div style="font-size:1.5rem;font-weight:700;line-height:1;{{if gt .High 0}}color:#ea580c;{{else}}color:#111;{{end}}">{{.High}}</div>
+          <div style="font-size:.65rem;color:#888;margin-top:4px;">High</div>
         </div>
       </div>
       {{else}}

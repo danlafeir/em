@@ -16,20 +16,19 @@ var templateFS embed.FS
 
 // ExecHealthcheck holds the data for the Executive Healthcheck section.
 type ExecHealthcheck struct {
-	Team                 string
-	AvgCycleTime         string
-	AvgThroughput        string
-	ActiveEpics          int
-	HasJIRAData          bool
-	AvgDeployFreq        string
-	LastWeekDeploys      int
-	HasDeployData        bool
-	HideDeployFreq       bool // omits the Deploy Frequency widget entirely when true
-	TotalVulnerabilities int
-	ExploitableTotal     int
-	ExploitableCritical  int
-	ExploitableHigh      int
-	HasSnykData          bool
+	Team            string
+	AvgCycleTime    string
+	AvgThroughput   string
+	ActiveEpics     int
+	HasJIRAData     bool
+	AvgDeployFreq   string
+	LastWeekDeploys int
+	HasDeployData   bool
+	HideDeployFreq  bool // omits the Deploy Frequency widget entirely when true
+	Exploitable     int  // total exploitable vulnerabilities
+	Critical        int  // total critical vulnerabilities
+	High            int  // total high vulnerabilities
+	HasSnykData     bool
 }
 
 // ExecHealthcheckHTML returns a self-contained HTML fragment for the Executive Healthcheck section.
